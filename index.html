@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wheel Works Service Station</title>
-   <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
       rel="stylesheet"
@@ -26,20 +26,20 @@
           <p class="login-brand-tagline">Station Management System</p>
           <div class="login-brand-features">
             <div class="login-feature-item">
-              <span class="material-icons">token</span>
-              <span>Smart Token Management</span>
+              <span class="material-icons">token</span
+              ><span>Smart Token Management</span>
             </div>
             <div class="login-feature-item">
-              <span class="material-icons">inventory_2</span>
-              <span>Real-time Inventory</span>
+              <span class="material-icons">inventory_2</span
+              ><span>Real-time Inventory</span>
             </div>
             <div class="login-feature-item">
-              <span class="material-icons">receipt_long</span>
-              <span>Professional Billing</span>
+              <span class="material-icons">receipt_long</span
+              ><span>Professional Billing</span>
             </div>
             <div class="login-feature-item">
-              <span class="material-icons">bar_chart</span>
-              <span>Business Reports</span>
+              <span class="material-icons">bar_chart</span
+              ><span>Business Reports</span>
             </div>
           </div>
         </div>
@@ -54,8 +54,8 @@
             <div class="form-group">
               <label class="form-label" for="loginUsername">Username</label>
               <div class="input-icon-wrap">
-                <span class="material-icons input-icon">person</span>
-                <input
+                <span class="material-icons input-icon">person</span
+                ><input
                   type="text"
                   id="loginUsername"
                   class="form-input"
@@ -67,15 +67,14 @@
             <div class="form-group">
               <label class="form-label" for="loginPassword">Password</label>
               <div class="input-icon-wrap">
-                <span class="material-icons input-icon">lock</span>
-                <input
+                <span class="material-icons input-icon">lock</span
+                ><input
                   type="password"
                   id="loginPassword"
                   class="form-input"
                   placeholder="Enter your password"
                   autocomplete="current-password"
-                />
-                <button
+                /><button
                   type="button"
                   class="input-toggle-btn"
                   id="togglePassword"
@@ -91,8 +90,7 @@
               class="btn btn-primary btn-login"
               id="loginBtn"
             >
-              <span class="material-icons">login</span>
-              Sign In
+              <span class="material-icons">login</span> Sign In
             </button>
           </form>
         </div>
@@ -102,12 +100,11 @@
     <!-- ==================== MAIN APP ==================== -->
     <div id="app" class="app hidden">
       <div class="sidebar-backdrop hidden" id="sidebarBackdrop"></div>
-      <!-- Sidebar -->
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
           <div class="sidebar-logo">
-            <span class="material-icons">local_gas_station</span>
-            <span class="sidebar-brand"></span>
+            <span class="material-icons">local_gas_station</span
+            ><span class="sidebar-brand"></span>
           </div>
           <button
             class="sidebar-collapse-btn"
@@ -116,85 +113,112 @@
           >
             <span class="material-icons">menu_open</span>
           </button>
-          <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close menu">
-  <span class="material-icons">close</span>
-</button>
+          <button
+            class="sidebar-close-btn"
+            id="sidebarCloseBtn"
+            aria-label="Close menu"
+          >
+            <span class="material-icons">close</span>
+          </button>
         </div>
-
-        <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
+        <nav class="sidebar-nav">
           <ul class="nav-list">
-            <li class="nav-item">
-              <a href="#" class="nav-link active" data-module="dashboard">
-                <span class="material-icons nav-icon">dashboard</span>
-                <span class="nav-label">Dashboard</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link active" data-module="dashboard"
+                ><span class="material-icons nav-icon">dashboard</span
+                ><span class="nav-label">Dashboard</span></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="tokens">
-                <span class="material-icons nav-icon">token</span>
-                <span class="nav-label">Token Management</span>
-                <span class="nav-badge hidden" id="activeTokenBadge">0</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="tokens"
+                ><span class="material-icons nav-icon">token</span
+                ><span class="nav-label">Token Management</span
+                ><span class="nav-badge hidden" id="activeTokenBadge"
+                  >0</span
+                ></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="vehicles">
-                <span class="material-icons nav-icon">directions_car</span>
-                <span class="nav-label">Vehicle Records</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="vehicles"
+                ><span class="material-icons nav-icon">directions_car</span
+                ><span class="nav-label">Vehicle Records</span></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="services">
-                <span class="material-icons nav-icon">build</span>
-                <span class="nav-label">Services</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="services"
+                ><span class="material-icons nav-icon">grid_on</span
+                ><span class="nav-label">Services</span></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="inventory">
-                <span class="material-icons nav-icon">inventory_2</span>
-                <span class="nav-label">Inventory</span>
-                <span
+            <li>
+              <a href="#" class="nav-link" data-module="inventory"
+                ><span class="material-icons nav-icon">inventory_2</span
+                ><span class="nav-label">Inventory</span
+                ><span
                   class="nav-badge nav-badge--warning hidden"
                   id="lowStockBadge"
                   >0</span
-                >
-              </a>
+                ></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="expenses">
-                <span class="material-icons nav-icon">payments</span>
-                <span class="nav-label">Expenses</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="reminders"
+                ><span class="material-icons nav-icon">notifications</span
+                ><span class="nav-label">Reminders</span
+                ><span
+                  class="nav-badge nav-badge--warning hidden"
+                  id="reminderBadge"
+                  >0</span
+                ></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="billing">
-                <span class="material-icons nav-icon">receipt_long</span>
-                <span class="nav-label">Billing & Invoice</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="expenses"
+                ><span class="material-icons nav-icon">payments</span
+                ><span class="nav-label">Expenses</span></a
+              >
             </li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="reports">
-                <span class="material-icons nav-icon">bar_chart</span>
-                <span class="nav-label">Reports</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="billing"
+                ><span class="material-icons nav-icon">receipt_long</span
+                ><span class="nav-label">Billing & Invoice</span></a
+              >
+            </li>
+            <li>
+              <a href="#" class="nav-link" data-module="productsale"
+                ><span class="material-icons nav-icon">shopping_cart</span
+                ><span class="nav-label">Product Sale</span></a
+              >
+            </li>
+            <li>
+              <a href="#" class="nav-link" data-module="reports"
+                ><span class="material-icons nav-icon">bar_chart</span
+                ><span class="nav-label">Reports</span></a
+              >
             </li>
             <li class="nav-divider"></li>
-            <li class="nav-item">
-              <a href="#" class="nav-link" data-module="settings">
-                <span class="material-icons nav-icon">settings</span>
-                <span class="nav-label">Settings</span>
-              </a>
+            <li>
+              <a href="#" class="nav-link" data-module="importexport"
+                ><span class="material-icons nav-icon">swap_vert</span
+                ><span class="nav-label">Import/Export</span></a
+              >
+            </li>
+            <li>
+              <a href="#" class="nav-link" data-module="settings"
+                ><span class="material-icons nav-icon">settings</span
+                ><span class="nav-label">Settings</span></a
+              >
             </li>
           </ul>
         </nav>
-
         <div class="sidebar-footer">
           <div class="sidebar-user">
             <div class="sidebar-user-avatar">
               <span class="material-icons">person</span>
             </div>
             <div class="sidebar-user-info">
-              <span class="sidebar-user-name">Admin User</span>
-              <span class="sidebar-user-role">Station Manager</span>
+              <span class="sidebar-user-name">Admin User</span
+              ><span class="sidebar-user-role">Station Manager</span>
             </div>
           </div>
           <button class="sidebar-logout-btn" id="logoutBtn" aria-label="Logout">
@@ -203,23 +227,27 @@
         </div>
       </aside>
 
-      <!-- Main Content Area -->
       <div class="main-wrapper" id="mainWrapper">
-        <!-- Top Navbar -->
-        <header class="topbar" role="banner">
+        <header class="topbar">
           <div class="topbar-left">
-             <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
-      <span class="material-icons">menu</span>
-    </button>
-            <h1 class="topbar-title" id="pageTitle">Dashboard</h1>
-            <div class="topbar-breadcrumb">
-              <span id="pageSubtitle">Overview &amp; quick actions</span>
+            <button
+              class="mobile-menu-btn"
+              id="mobileMenuBtn"
+              aria-label="Open menu"
+            >
+              <span class="material-icons">menu</span>
+            </button>
+            <div class="topbar-left-group">
+              <h1 class="topbar-title" id="pageTitle">Dashboard</h1>
+              <div class="topbar-breadcrumb">
+                <span id="pageSubtitle">Overview &amp; quick actions</span>
+              </div>
             </div>
           </div>
           <div class="topbar-right">
             <div class="topbar-date">
-              <span class="material-icons">calendar_today</span>
-              <span id="currentDate"></span>
+              <span class="material-icons">calendar_today</span
+              ><span id="currentDate"></span>
             </div>
             <button class="topbar-btn" aria-label="Help">
               <span class="material-icons">help_outline</span>
@@ -227,9 +255,8 @@
           </div>
         </header>
 
-        <!-- Module Views -->
-        <main class="main-content" role="main">
-          <!-- ====== DASHBOARD MODULE ====== -->
+        <main class="main-content">
+          <!-- ====== DASHBOARD ====== -->
           <section class="module" id="module-dashboard">
             <div class="kpi-grid">
               <div class="kpi-card">
@@ -237,12 +264,8 @@
                   <span class="material-icons">directions_car</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Today's Vehicles</span>
-                  <span class="kpi-value" id="kpiVehicles">0</span>
-                  <span class="kpi-trend" id="kpiVehiclesTrend"
-                    ><span class="material-icons">info_outline</span> Total
-                    tokens</span
-                  >
+                  <span class="kpi-label">Total Tokens</span
+                  ><span class="kpi-value" id="kpiVehicles">0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -250,12 +273,8 @@
                   <span class="material-icons">token</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Active Tokens</span>
-                  <span class="kpi-value" id="kpiTokens">0</span>
-                  <span class="kpi-trend" id="kpiTokensTrend"
-                    ><span class="material-icons">info_outline</span> In
-                    service</span
-                  >
+                  <span class="kpi-label">Active Tokens</span
+                  ><span class="kpi-value" id="kpiTokens">0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -263,12 +282,8 @@
                   <span class="material-icons">check_circle</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Completed Today</span>
-                  <span class="kpi-value" id="kpiCompleted">0</span>
-                  <span class="kpi-trend" id="kpiCompletedTrend"
-                    ><span class="material-icons">info_outline</span> 0%
-                    rate</span
-                  >
+                  <span class="kpi-label">Completed</span
+                  ><span class="kpi-value" id="kpiCompleted">0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -276,12 +291,8 @@
                   <span class="material-icons">payments</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Daily Revenue</span>
-                  <span class="kpi-value" id="kpiRevenue">Rs. 0</span>
-                  <span class="kpi-trend" id="kpiRevenueTrend"
-                    ><span class="material-icons">info_outline</span> Completed
-                    services</span
-                  >
+                  <span class="kpi-label">Total Revenue</span
+                  ><span class="kpi-value" id="kpiRevenue">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -289,12 +300,8 @@
                   <span class="material-icons">warning</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Inventory Alerts</span>
-                  <span class="kpi-value" id="kpiAlerts">0</span>
-                  <span class="kpi-trend" id="kpiAlertsTrend"
-                    ><span class="material-icons">info_outline</span> Low
-                    stock</span
-                  >
+                  <span class="kpi-label">Low Stock</span
+                  ><span class="kpi-value" id="kpiAlerts">0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -302,81 +309,44 @@
                   <span class="material-icons">inventory</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Low Stock Items</span>
-                  <span class="kpi-value" id="kpiLowStock">0</span>
-                  <span class="kpi-trend" id="kpiLowStockTrend"
-                    ><span class="material-icons">info_outline</span> Restock
-                    needed</span
-                  >
+                  <span class="kpi-label">Restock Needed</span
+                  ><span class="kpi-value" id="kpiLowStock">0</span>
                 </div>
               </div>
-              <div
-                class="kpi-card"
-                style="border-left: 3px solid var(--danger)"
-              >
-                <div class="kpi-icon kpi-icon--red">
-                  <span class="material-icons">money_off</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Other Expenses</span>
-                  <span class="kpi-value" id="kpiTotalExpenses">Rs. 0</span>
-                  <span class="kpi-trend" id="kpiTotalExpensesTrend"
-                    ><span class="material-icons">info_outline</span> Parts,
-                    repair</span
-                  >
-                </div>
-              </div>
-              <div
-                class="kpi-card"
-                style="border-left: 3px solid var(--warning)"
-              >
+              <div class="kpi-card kpi-card--warning">
                 <div class="kpi-icon kpi-icon--orange">
-                  <span class="material-icons">groups</span>
+                  <span class="material-icons">today</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Labour Cost</span>
-                  <span class="kpi-value" id="kpiLabourCost">Rs. 0</span>
-                  <span class="kpi-trend" id="kpiLabourCostTrend"
-                    ><span class="material-icons">info_outline</span>
-                    Workers</span
-                  >
+                  <span class="kpi-label">Due Today</span
+                  ><span class="kpi-value" id="kpiDueToday">0</span>
                 </div>
               </div>
-              <div
-                class="kpi-card"
-                style="
-                  border-left: 3px solid var(--primary);
-                  background: var(--primary-light);
-                "
-              >
-                <div class="kpi-icon kpi-icon--blue">
-                  <span class="material-icons">account_balance_wallet</span>
+              <div class="kpi-card kpi-card--danger">
+                <div class="kpi-icon kpi-icon--red">
+                  <span class="material-icons">warning</span>
                 </div>
                 <div class="kpi-body">
-                  <span class="kpi-label">Net Profit</span>
-                  <span
-                    class="kpi-value"
-                    id="kpiNetProfit"
-                    style="font-weight: 800"
-                    >Rs. 0</span
-                  >
-                  <span class="kpi-trend" id="kpiNetProfitTrend"
-                    ><span class="material-icons">calculate</span> Revenue -
-                    Expenses</span
-                  >
+                  <span class="kpi-label">Overdue</span
+                  ><span class="kpi-value" id="kpiOverdue">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--blue">
+                  <span class="material-icons">date_range</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Upcoming Week</span
+                  ><span class="kpi-value" id="kpiUpcomingWeek">0</span>
                 </div>
               </div>
             </div>
-
             <div class="dashboard-grid">
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">
                     <span class="material-icons">history</span> Recent Activity
                   </h2>
-                  <button class="btn btn-ghost btn-sm" data-nav="tokens">
-                    View All
-                  </button>
                 </div>
                 <div class="card-body p-0">
                   <table class="data-table">
@@ -384,26 +354,13 @@
                       <tr>
                         <th>Token</th>
                         <th>Vehicle</th>
+                        <th>Customer</th>
+                        <th>Contact</th>
                         <th>Service</th>
-                        <th>Time</th>
                         <th>Status</th>
                       </tr>
                     </thead>
-                    <tbody id="recentActivityTable">
-                      <tr>
-                        <td
-                          colspan="5"
-                          style="text-align: center; padding: 3rem"
-                        >
-                          <span
-                            class="material-icons"
-                            style="font-size: 36px; opacity: 0.4"
-                            >history</span
-                          >
-                          <p>No activity yet</p>
-                        </td>
-                      </tr>
-                    </tbody>
+                    <tbody id="recentActivityTable"></tbody>
                   </table>
                 </div>
               </div>
@@ -417,25 +374,20 @@
                   <div class="quick-actions-grid">
                     <button class="quick-action-btn" data-action="newToken">
                       <span class="material-icons">add_circle</span
-                      ><span>New Token</span>
-                    </button>
-                    <button class="quick-action-btn" data-action="newVehicle">
+                      ><span>New Token</span></button
+                    ><button class="quick-action-btn" data-action="newVehicle">
                       <span class="material-icons">directions_car</span
-                      ><span>Add Vehicle</span>
-                    </button>
-                    <button class="quick-action-btn" data-action="newInvoice">
+                      ><span>Add Vehicle</span></button
+                    ><button class="quick-action-btn" data-action="newInvoice">
                       <span class="material-icons">receipt</span
-                      ><span>New Invoice</span>
-                    </button>
-                    <button class="quick-action-btn" data-action="stockIn">
+                      ><span>New Invoice</span></button
+                    ><button class="quick-action-btn" data-action="stockIn">
                       <span class="material-icons">add_box</span
-                      ><span>Stock In</span>
-                    </button>
-                    <button class="quick-action-btn" data-action="dailyReport">
+                      ><span>Stock In</span></button
+                    ><button class="quick-action-btn" data-action="dailyReport">
                       <span class="material-icons">summarize</span
-                      ><span>Daily Report</span>
-                    </button>
-                    <button class="quick-action-btn" data-action="inventory">
+                      ><span>Daily Report</span></button
+                    ><button class="quick-action-btn" data-action="inventory">
                       <span class="material-icons">inventory_2</span
                       ><span>Check Inventory</span>
                     </button>
@@ -446,78 +398,122 @@
                       <strong>Low Stock Warning</strong>
                       <p></p>
                     </div>
-                    <button class="btn btn-ghost btn-sm" data-nav="inventory">
-                      Manage
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </section>
 
-          <!-- ====== TOKEN MANAGEMENT ====== -->
-          <section class="module hidden" id="module-tokens">
-            <div class="module-toolbar">
-              <div class="toolbar-left">
-                <div class="search-box">
-                  <span class="material-icons">search</span
-                  ><input
-                    type="text"
-                    placeholder="Search tokens..."
-                    id="tokenSearch"
-                    class="search-input"
-                  />
-                </div>
-                <select class="filter-select" id="tokenStatusFilter">
-                  <option value="">All Statuses</option>
-                  <option value="waiting">Waiting</option>
-                  <option value="in-progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
-              <div class="toolbar-right">
-                <button class="btn btn-primary" id="newTokenBtn">
-                  <span class="material-icons">add</span> Generate Token
-                </button>
-              </div>
-            </div>
-            <div class="card">
-              <div class="card-header">
-                <h2 class="card-title">
-                  <span class="material-icons">token</span> Service Tokens
-                </h2>
-                <div class="card-header-meta">
-                  <span class="badge badge--blue" id="tokenCountBadge"
-                    >0 tokens</span
-                  >
-                </div>
-              </div>
-              <div class="card-body p-0">
-                <table class="data-table" id="tokenTable">
-                  <thead>
-                    <tr>
-                      <th>Token #</th>
-                      <th>Vehicle No.</th>
-                      <th>Vehicle Type</th>
-                      <th>Service</th>
-                      <th>Generated</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tokenTableBody"></tbody>
-                </table>
-                <div class="empty-state" id="tokenEmptyState">
-                  <span class="material-icons">token</span>
-                  <h3>No tokens</h3>
-                  <p>Generate a token to start.</p>
-                  <button class="btn btn-primary" id="newTokenBtn2">
-                    <span class="material-icons">add</span> Generate Token
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
+         <!-- ====== TOKEN MANAGEMENT ====== -->
+<section class="module hidden" id="module-tokens">
+  <div class="module-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <span class="material-icons">search</span>
+        <input type="text" placeholder="Search by token, vehicle, customer, contact..." id="tokenSearch" class="search-input" />
+      </div>
+      <select class="filter-select" id="tokenStatusFilter">
+        <option value="">All Statuses</option>
+        <option value="waiting">Waiting</option>
+        <option value="in-progress">In Progress</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
+    <div class="toolbar-right">
+      <button class="btn btn-primary" id="newTokenBtn">
+        <span class="material-icons">add</span> Generate Token
+      </button>
+    </div>
+  </div>
+
+  <!-- Token Stats Cards -->
+  <div class="kpi-grid kpi-grid--4" style="margin-bottom:16px;">
+    <div class="kpi-card kpi-card--sm">
+      <div class="kpi-icon kpi-icon--blue">
+        <span class="material-icons">confirmation_number</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Total Tokens</span>
+        <span class="kpi-value" style="font-size:1.4rem;" id="tokenStatsTotal">0</span>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--warning);">
+      <div class="kpi-icon kpi-icon--orange">
+        <span class="material-icons">hourglass_empty</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Waiting</span>
+        <span class="kpi-value" style="font-size:1.4rem;color:var(--warning);" id="tokenStatsWaiting">0</span>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--info);">
+      <div class="kpi-icon" style="background:#ecfeff;color:#0891b2;">
+        <span class="material-icons">autorenew</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">In Progress</span>
+        <span class="kpi-value" style="font-size:1.4rem;color:#0891b2;" id="tokenStatsProgress">0</span>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--success);">
+      <div class="kpi-icon kpi-icon--green">
+        <span class="material-icons">check_circle</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Completed</span>
+        <span class="kpi-value" style="font-size:1.4rem;color:var(--success);" id="tokenStatsCompleted">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Table Card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <span class="material-icons">token</span> Service Tokens
+      </h2>
+      <div class="card-header-meta">
+        <span class="badge badge--blue" id="tokenCountBadge">0 tokens</span>
+      </div>
+    </div>
+    
+    <!-- Table Container - Shown when tokens exist -->
+    <div class="card-body p-0" id="tokenTableContainer">
+      <table class="data-table" id="tokenTable">
+        <thead>
+          <tr>
+            <th>Token #</th>
+            <th>Vehicle No.</th>
+            <th>Vehicle Type</th>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Service</th>
+            <th>Generated</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tokenTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Empty State - Shown when no tokens exist -->
+    <div class="card-body" id="tokenEmptyStateContainer" style="display:none;">
+      <div class="empty-state-premium">
+        <div class="empty-state-icon">
+          <span class="material-icons">token</span>
+        </div>
+        <h3 class="empty-state-title">No Tokens Yet</h3>
+        <p class="empty-state-desc">
+          Generate your first service token to start tracking customer services, products, and billing.
+        </p>
+        <button class="btn btn-primary btn-lg" id="newTokenBtn2">
+          <span class="material-icons">add</span> Generate Token
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
 
           <!-- ====== VEHICLE RECORDS ====== -->
           <section class="module hidden" id="module-vehicles">
@@ -534,11 +530,6 @@
                 </div>
                 <select class="filter-select" id="vehicleTypeFilter">
                   <option value="">All Types</option>
-                  <option value="car">Car</option>
-                  <option value="motorcycle">Motorcycle</option>
-                  <option value="truck">Truck</option>
-                  <option value="van">Van</option>
-                  <option value="suv">SUV</option>
                 </select>
               </div>
               <div class="toolbar-right">
@@ -574,183 +565,364 @@
                   </thead>
                   <tbody id="vehicleTableBody"></tbody>
                 </table>
-                <div class="empty-state" id="vehicleEmptyState">
-                  <span class="material-icons">directions_car</span>
-                  <h3>No vehicles</h3>
-                  <p>Add a vehicle record.</p>
-                </div>
               </div>
             </div>
           </section>
 
           <!-- ====== SERVICES ====== -->
           <section class="module hidden" id="module-services">
+            <div class="kpi-grid kpi-grid--3">
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--blue">
+                  <span class="material-icons">build</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Services</span
+                  ><span class="kpi-value" id="pricingServiceCount">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--green">
+                  <span class="material-icons">directions_car</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Vehicle Types</span
+                  ><span class="kpi-value" id="pricingVehicleCount">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--orange">
+                  <span class="material-icons">grid_on</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Price Entries</span
+                  ><span class="kpi-value" id="pricingEntryCount">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="module-toolbar">
+              <div class="toolbar-left">
+                <button
+                  class="btn btn-outline btn-sm"
+                  id="manageVehicleTypesBtn"
+                >
+                  <span class="material-icons">directions_car</span> Vehicle
+                  Types</button
+                ><button
+                  class="btn btn-outline btn-sm"
+                  id="managePricingServicesBtn"
+                >
+                  <span class="material-icons">build</span> Services
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">grid_on</span> Service × Vehicle
+                  Pricing
+                </h2>
+              </div>
+              <div class="card-body p-0">
+                <div style="overflow-x: auto">
+                  <table class="data-table" id="pricingMatrixTable">
+                    <thead id="pricingMatrixHead"></thead>
+                    <tbody id="pricingMatrixBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ====== INVENTORY ====== -->
+          <section class="module hidden" id="module-inventory">
+            <div class="kpi-grid kpi-grid--3">
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--blue">
+                  <span class="material-icons">inventory_2</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Total Variants</span
+                  ><span class="kpi-value" id="invTotalProducts">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--red">
+                  <span class="material-icons">warning</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Low Stock</span
+                  ><span class="kpi-value" id="invLowStock">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--green">
+                  <span class="material-icons">account_balance_wallet</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Inventory Value</span
+                  ><span class="kpi-value" id="invValue">Rs. 0</span>
+                </div>
+              </div>
+            </div>
             <div class="module-toolbar">
               <div class="toolbar-left">
                 <div class="search-box">
                   <span class="material-icons">search</span
                   ><input
                     type="text"
-                    placeholder="Search services..."
-                    id="serviceSearch"
+                    placeholder="Search..."
+                    id="inventorySearch"
                     class="search-input"
                   />
                 </div>
+                <select class="filter-select" id="inventoryCategoryFilter">
+                  <option value="">All Categories</option></select
+                ><select class="filter-select" id="inventoryBrandFilter">
+                  <option value="">All Brands</option>
+                </select>
               </div>
               <div class="toolbar-right">
-                <button class="btn btn-primary" id="newServiceBtn">
-                  <span class="material-icons">add</span> Add Service
+                <button class="btn btn-outline" id="manageBrandsBtn">
+                  <span class="material-icons">sell</span> Brands</button
+                ><button class="btn btn-outline" id="manageCategoriesBtn">
+                  <span class="material-icons">category</span>
+                  Categories</button
+                ><button class="btn btn-outline" id="stockOutBtn">
+                  <span class="material-icons">remove_circle_outline</span>
+                  Stock Out</button
+                ><button class="btn btn-outline" id="stockInBtn">
+                  <span class="material-icons">add_circle_outline</span> Stock
+                  In</button
+                ><button class="btn btn-primary" id="addProductBtn">
+                  <span class="material-icons">add</span> Add Product
                 </button>
               </div>
             </div>
-            <div class="services-grid" id="servicesGrid">
-              <div class="empty-state" style="grid-column: 1/-1">
-                <span class="material-icons">build</span>
-                <h3>No services</h3>
-                <p>Add your first service.</p>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">inventory_2</span> Product
+                  Inventory
+                </h2>
+                <div class="card-header-meta">
+                  <span class="badge badge--blue" id="productCountBadge"
+                    >0 variants</span
+                  >
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <table class="data-table" id="inventoryTable">
+                  <thead>
+                    <tr>
+                      <th>Product / Variant</th>
+                      <th>SKU</th>
+                      <th>Category</th>
+                      <th>Stock</th>
+                      <th>Min</th>
+                      <th>Cost</th>
+                      <th>Price</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventoryTableBody"></tbody>
+                </table>
               </div>
             </div>
           </section>
 
-          <!-- ====== INVENTORY ====== -->
-          <!-- ==================== INVENTORY MODULE ==================== -->
-<section class="module hidden" id="module-inventory">
-  <!-- Inventory KPIs -->
-  <div class="kpi-grid kpi-grid--3">
-    <div class="kpi-card">
-      <div class="kpi-icon kpi-icon--blue"><span class="material-icons">inventory_2</span></div>
-      <div class="kpi-body"><span class="kpi-label">Total Products</span><span class="kpi-value" id="invTotalProducts">0</span></div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-icon kpi-icon--red"><span class="material-icons">warning</span></div>
-      <div class="kpi-body"><span class="kpi-label">Low Stock</span><span class="kpi-value" id="invLowStock">0</span></div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-icon kpi-icon--green"><span class="material-icons">account_balance_wallet</span></div>
-      <div class="kpi-body"><span class="kpi-label">Inventory Value</span><span class="kpi-value" id="invValue">Rs. 0</span></div>
-    </div>
-  </div>
+          <!-- ====== REMINDERS ====== -->
+          <section class="module hidden" id="module-reminders">
+            <div class="kpi-grid">
+              <div class="kpi-card kpi-card--warning">
+                <div class="kpi-icon kpi-icon--orange">
+                  <span class="material-icons">today</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Due Today</span
+                  ><span class="kpi-value" id="remDueToday">0</span>
+                </div>
+              </div>
+              <div class="kpi-card kpi-card--danger">
+                <div class="kpi-icon kpi-icon--red">
+                  <span class="material-icons">warning</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Overdue</span
+                  ><span class="kpi-value" id="remOverdue">0</span>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-icon kpi-icon--blue">
+                  <span class="material-icons">date_range</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Upcoming (7 Days)</span
+                  ><span class="kpi-value" id="remUpcoming">0</span>
+                </div>
+              </div>
+              <div class="kpi-card kpi-card--success">
+                <div class="kpi-icon kpi-icon--green">
+                  <span class="material-icons">check_circle</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Completed</span
+                  ><span class="kpi-value" id="remCompleted">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="module-toolbar">
+              <div class="toolbar-left">
+                <div class="search-box">
+                  <span class="material-icons">search</span
+                  ><input
+                    type="text"
+                    placeholder="Search..."
+                    id="reminderSearch"
+                    class="search-input"
+                  />
+                </div>
+                <select class="filter-select" id="reminderStatusFilter">
+                  <option value="">All</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="due-today">Due Today</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-outline" id="markAllCompletedBtn">
+                  <span class="material-icons">done_all</span> Mark All
+                  Completed
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">notifications</span> Customer
+                  Reminders
+                </h2>
+                <div class="card-header-meta">
+                  <span class="badge badge--blue" id="reminderCountBadge"
+                    >0</span
+                  >
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <table class="data-table" id="reminderTable">
+                  <thead>
+                    <tr>
+                      <th>Customer</th>
+                      <th>Phone</th>
+                      <th>Vehicle</th>
+                      <th>Service</th>
+                      <th>Last Service</th>
+                      <th>Due Date</th>
+                      <th>Days</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reminderTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
 
-  <!-- Toolbar -->
-  <div class="module-toolbar">
-    <div class="toolbar-left">
-      <div class="search-box">
-        <span class="material-icons">search</span>
-        <input type="text" placeholder="Search products..." id="inventorySearch" class="search-input" />
-      </div>
-      <select class="filter-select" id="inventoryCategoryFilter">
-        <option value="">All Categories</option>
-      </select>
-    </div>
-    <div class="toolbar-right">
-      <button class="btn btn-outline" id="manageCategoriesBtn">
-        <span class="material-icons">category</span> Categories
-      </button>
-      <button class="btn btn-outline" id="stockOutBtn">
-        <span class="material-icons">remove_circle_outline</span> Stock Out
-      </button>
-      <button class="btn btn-outline" id="stockInBtn">
-        <span class="material-icons">add_circle_outline</span> Stock In
-      </button>
-      <button class="btn btn-primary" id="addProductBtn">
-        <span class="material-icons">add</span> Add Product
-      </button>
-    </div>
-  </div>
-
-  <!-- Products Table -->
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title"><span class="material-icons">inventory_2</span> Product Inventory</h2>
-      <div class="card-header-meta"><span class="badge badge--blue" id="productCountBadge">0 products</span></div>
-    </div>
-    <div class="card-body p-0">
-      <table class="data-table" id="inventoryTable">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Category</th>
-            <th>Stock</th>
-            <th>Min</th>
-            <th>Price</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="inventoryTableBody">
-          <tr><td colspan="7" style="text-align:center;padding:3rem;">No products. <a href="#" id="addFirstProduct" style="color:var(--primary);">Add one.</a></td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-<!-- ==================== CATEGORIES MODAL ==================== -->
-<div class="modal-overlay hidden" id="categoryModal">
-  <div class="modal modal--sm">
-    <div class="modal-header">
-      <h2 class="modal-title"><span class="material-icons">category</span> Manage Categories</h2>
-      <button class="modal-close" data-close="categoryModal"><span class="material-icons">close</span></button>
-    </div>
-    <div class="modal-body">
-      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-        <input type="text" class="form-input" id="newCategoryName" placeholder="Category name (e.g. Brake Parts)" style="flex:1;" />
-        <button class="btn btn-primary btn-sm" id="addCategoryBtn"><span class="material-icons">add</span> Add</button>
-      </div>
-      <div style="max-height:250px;overflow-y:auto;" id="categoryList">
-        <p style="text-align:center;color:var(--text-muted);padding:1rem;">No custom categories yet. Default: Oil, Filters, Coolants, Misc</p>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" data-close="categoryModal">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- ==================== PRODUCT MODAL (UPDATED) ==================== -->
-<div class="modal-overlay hidden" id="productModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 class="modal-title" id="productModalTitle"><span class="material-icons">inventory_2</span> Product</h2>
-      <button class="modal-close" data-close="productModal"><span class="material-icons">close</span></button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="productEditId" />
-      <div class="form-group">
-        <label class="form-label">Product Name <span class="required">*</span></label>
-        <input type="text" class="form-input" id="productName" placeholder="Product name" />
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Category</label>
-          <select class="form-input" id="productCategory"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Unit</label>
-          <input type="text" class="form-input" id="productUnit" placeholder="Litre, Piece, Box" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Current Stock <span class="required">*</span></label>
-          <input type="number" class="form-input" id="productStock" placeholder="0" min="0" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Minimum Stock</label>
-          <input type="number" class="form-input" id="productMinStock" placeholder="5" min="0" />
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Unit Price (Rs.)</label>
-        <input type="number" class="form-input" id="productPrice" placeholder="0" min="0" />
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" data-close="productModal">Cancel</button>
-      <button class="btn btn-primary" id="saveProductBtn"><span class="material-icons">save</span> Save</button>
-    </div>
-  </div>
-</div>
+          <!-- ====== PRODUCT SALE ====== -->
+          <section class="module hidden" id="module-productsale">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">shopping_cart</span> Product Sale
+                </h2>
+              </div>
+              <div class="card-body">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Customer Name</label
+                    ><input
+                      type="text"
+                      class="form-input"
+                      id="saleCustomerName"
+                      placeholder="Walk-in customer"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Vehicle Number (Optional)</label
+                    ><input
+                      type="text"
+                      class="form-input"
+                      id="saleVehicleNo"
+                      placeholder="ABC-1234"
+                    />
+                  </div>
+                </div>
+                <div class="invoice-section-label">
+                  <span class="material-icons">inventory_2</span> Products
+                </div>
+                <div id="saleProductsContainer"></div>
+                <button class="btn btn-ghost btn-sm" id="addSaleProductBtn">
+                  <span class="material-icons">add</span> Add Product
+                </button>
+                <div
+                  style="
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 1.5rem;
+                    padding-top: 1rem;
+                    border-top: 2px solid var(--primary);
+                  "
+                >
+                  <span style="font-weight: 700">Total:</span
+                  ><span
+                    style="
+                      font-weight: 800;
+                      font-size: 1.3rem;
+                      color: var(--primary);
+                    "
+                    id="saleGrandTotal"
+                    >Rs. 0</span
+                  >
+                </div>
+                <div class="billing-actions">
+                  <button class="btn btn-primary" id="saveProductSaleBtn">
+                    <span class="material-icons">save</span> Complete Sale</button
+                  ><button
+                    class="btn btn-primary"
+                    id="printProductSaleReceiptBtn"
+                    style="background: #000; display: none"
+                  >
+                    <span class="material-icons">print</span> Print Receipt
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top: 1rem">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">history</span> Recent Sales
+                </h2>
+              </div>
+              <div class="card-body p-0">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Vehicle</th>
+                      <th>Items</th>
+                      <th>Total</th>
+                      <th>Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody id="productSalesHistory"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
 
           <!-- ====== BILLING ====== -->
           <section class="module hidden" id="module-billing">
@@ -773,7 +945,7 @@
                           type="text"
                           class="form-input"
                           id="invoiceToken"
-                          placeholder="TK-001 (auto-fills)"
+                          placeholder="20260707-001"
                         />
                       </div>
                     </div>
@@ -813,26 +985,48 @@
                   </button>
                   <div class="invoice-section-label" style="margin-top: 1.5rem">
                     <span class="material-icons">inventory_2</span> Products
-                    Used
                   </div>
                   <div id="invoiceProductsContainer"></div>
                   <button class="btn btn-ghost btn-sm" id="addInvoiceProduct">
                     <span class="material-icons">add</span> Add Product
                   </button>
-                  <div class="form-group" style="margin-top: 1.5rem">
-                    <label class="form-label">Notes</label
-                    ><textarea
-                      class="form-input form-textarea"
-                      id="invoiceNotes"
-                      placeholder="Additional notes..."
-                    ></textarea>
+                  <div class="invoice-section-label" style="margin-top: 1.5rem">
+                    <span class="material-icons">payments</span> Payment
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Cash Received</label
+                      ><input
+                        type="number"
+                        class="form-input"
+                        id="cashReceived"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Change Returned</label>
+                      <div
+                        style="
+                          font-size: 1.2rem;
+                          font-weight: 700;
+                          padding: 0.5rem 0;
+                        "
+                        id="changeReturned"
+                      >
+                        Rs. 0
+                      </div>
+                    </div>
                   </div>
                   <div class="billing-actions">
                     <button class="btn btn-primary" id="saveInvoiceBtn">
-                      <span class="material-icons">save</span> Save Invoice
-                    </button>
-                    <button class="btn btn-outline" id="printInvoiceBtn">
-                      <span class="material-icons">print</span> Print
+                      <span class="material-icons">save</span> Save Invoice</button
+                    ><button
+                      class="btn btn-primary"
+                      id="printReceiptBtn"
+                      style="background: #000"
+                    >
+                      <span class="material-icons">print</span> Print Receipt
                     </button>
                   </div>
                 </div>
@@ -844,7 +1038,7 @@
                   </h2>
                 </div>
                 <div class="card-body">
-                  <div class="invoice-document">
+                  <div class="invoice-document" id="receiptPrintArea">
                     <div class="invoice-header">
                       <div class="invoice-business">
                         <h3 id="invBusinessName"></h3>
@@ -874,8 +1068,15 @@
                       </div>
                     </div>
                     <div class="invoice-customer-row">
-                      <strong>Billed To:</strong>
-                      <span id="invCustomer">—</span>
+                      <strong>Billed To:</strong> <span id="invCustomer">—</span
+                      ><span
+                        id="invCustomerContact"
+                        style="
+                          margin-left: 12px;
+                          color: var(--text-secondary);
+                          font-size: 0.8rem;
+                        "
+                      ></span>
                     </div>
                     <table class="invoice-items-table">
                       <thead>
@@ -887,23 +1088,15 @@
                           <th>Amount</th>
                         </tr>
                       </thead>
-                      <tbody id="invoiceItemsBody">
-                        <tr>
-                          <td
-                            colspan="5"
-                            style="text-align: center; padding: 2rem"
-                          >
-                            No items
-                          </td>
-                        </tr>
-                      </tbody>
+                      <tbody id="invoiceItemsBody"></tbody>
                     </table>
                     <div class="invoice-totals">
                       <div class="invoice-total-row">
                         <span>Subtotal</span><span id="invSubtotal">Rs. 0</span>
                       </div>
                       <div class="invoice-total-row">
-                        <span>Tax (0%)</span><span>Rs. 0</span>
+                        <span>Tax (<span id="invTaxRate">0</span>%)</span
+                        ><span id="invTaxAmount">Rs. 0</span>
                       </div>
                       <div class="invoice-total-row invoice-grand-total">
                         <span>Total</span><span id="invTotal">Rs. 0</span>
@@ -924,7 +1117,7 @@
                 </h2>
                 <div class="card-header-meta">
                   <span class="badge badge--blue" id="savedInvoiceCount"
-                    >0 invoices</span
+                    >0</span
                   >
                 </div>
               </div>
@@ -938,21 +1131,11 @@
                       <th>Vehicle</th>
                       <th>Token</th>
                       <th>Amount</th>
+                      <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="savedInvoiceTableBody">
-                    <tr>
-                      <td colspan="7" style="text-align: center; padding: 3rem">
-                        <span
-                          class="material-icons"
-                          style="font-size: 40px; opacity: 0.4"
-                          >receipt_long</span
-                        >
-                        <p>No saved invoices yet</p>
-                      </td>
-                    </tr>
-                  </tbody>
+                  <tbody id="savedInvoiceTableBody"></tbody>
                 </table>
               </div>
             </div>
@@ -967,15 +1150,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Total Revenue</span
-                  ><span class="kpi-value" id="rptRevenue">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >info_outline</span
-                    >
-                    <span style="font-size: 0.7rem"
-                      >Completed services</span
-                    ></span
-                  >
+                  ><span class="kpi-value" id="rptRevenue">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -984,15 +1159,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Total Expenses</span
-                  ><span class="kpi-value" id="rptExpenses">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >info_outline</span
-                    >
-                    <span style="font-size: 0.7rem"
-                      >Parts, repair, utility</span
-                    ></span
-                  >
+                  ><span class="kpi-value" id="rptExpenses">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -1001,13 +1168,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Labour Cost</span
-                  ><span class="kpi-value" id="rptLabour">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >info_outline</span
-                    >
-                    <span style="font-size: 0.7rem">Worker payments</span></span
-                  >
+                  ><span class="kpi-value" id="rptLabour">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -1016,218 +1177,103 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Net Profit</span
-                  ><span class="kpi-value" id="rptProfit">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >calculate</span
-                    >
-                    <span style="font-size: 0.7rem"
-                      >Revenue - Expenses</span
-                    ></span
-                  >
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--blue">
-                  <span class="material-icons">directions_car</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Total Vehicles</span
-                  ><span class="kpi-value" id="rptVehicles">0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >info_outline</span
-                    >
-                    <span style="font-size: 0.7rem">Registered</span></span
-                  >
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--green">
-                  <span class="material-icons">build</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Services Done</span
-                  ><span class="kpi-value" id="rptServices">0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons" style="font-size: 14px"
-                      >info_outline</span
-                    >
-                    <span style="font-size: 0.7rem"
-                      >Completed tokens</span
-                    ></span
-                  >
+                  ><span class="kpi-value" id="rptProfit">Rs. 0</span>
                 </div>
               </div>
             </div>
-          <!-- REPORTS MODULE - Services Sold + Products Sold SIDE BY SIDE -->
-<div class="dashboard-grid">
-  <!-- Services Sold -->
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <span class="material-icons">build</span>
-        Services Sold
-      </h2>
-      <div class="card-header-meta">
-        <span class="badge badge--blue" id="servicesSoldCount">0</span>
-      </div>
-    </div>
-    <div class="card-body p-0">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Service</th>
-            <th>Count</th>
-            <th>Revenue</th>
-            <th>Last Sold</th>
-          </tr>
-        </thead>
-        <tbody id="servicesSoldTableBody">
-          <tr>
-            <td colspan="4" style="text-align:center;padding:2rem;">
-              <span class="material-icons" style="font-size:36px;opacity:0.4;">build</span>
-              <p>No services sold yet</p>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Products Sold -->
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <span class="material-icons">inventory_2</span>
-        Products Sold
-      </h2>
-      <div class="card-header-meta">
-        <span class="badge badge--blue" id="productsSoldCount">0</span>
-      </div>
-    </div>
-    <div class="card-body p-0">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Qty</th>
-            <th>Revenue</th>
-            <th>Last Sold</th>
-          </tr>
-        </thead>
-        <tbody id="productsSoldTableBody">
-          <tr>
-            <td colspan="4" style="text-align:center;padding:2rem;">
-              <span class="material-icons" style="font-size:36px;opacity:0.4;">inventory_2</span>
-              <p>No products sold yet</p>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-           <!-- ========== PREMIUM FINANCIAL SUMMARY ========== -->
-
-<!-- 3 Summary Cards -->
-<div class="kpi-grid" style="margin-top: 28px;">
-  <!-- Total Revenue -->
-  <div class="kpi-card kpi-card--highlight" style="border-left: 4px solid #059669;">
-    <div class="kpi-icon kpi-icon--green" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);">
-      <span class="material-icons">trending_up</span>
-    </div>
-    <div class="kpi-body">
-      <span class="kpi-label">Total Revenue</span>
-      <span class="kpi-value" id="rptFootRevenue" style="color: #059669; font-size: 1.75rem; font-weight: 700;">Rs. 0</span>
-      <span class="kpi-trend kpi-trend--up">
-        <span class="material-icons" style="font-size:12px;">arrow_upward</span>
-        <span>Gross income from services</span>
-      </span>
-    </div>
-  </div>
-
-  <!-- Total Expenses -->
-  <div class="kpi-card kpi-card--highlight" style="border-left: 4px solid #dc2626;">
-    <div class="kpi-icon kpi-icon--red" style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);">
-      <span class="material-icons">trending_down</span>
-    </div>
-    <div class="kpi-body">
-      <span class="kpi-label">Total Expenses</span>
-      <span class="kpi-value" id="rptFootExpenses" style="color: #dc2626; font-size: 1.75rem; font-weight: 700;">Rs. 0</span>
-      <span class="kpi-trend kpi-trend--down">
-        <span class="material-icons" style="font-size:12px;">arrow_downward</span>
-        <span>All outgoing payments</span>
-      </span>
-    </div>
-  </div>
-
-  <!-- Net Profit -->
-  <div class="kpi-card kpi-card--highlight" style="border-left: 4px solid #2563eb; background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);">
-    <div class="kpi-icon kpi-icon--blue" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);">
-      <span class="material-icons">savings</span>
-    </div>
-    <div class="kpi-body">
-      <span class="kpi-label">Net Profit</span>
-      <span class="kpi-value" id="rptFootProfit" style="color: #2563eb; font-size: 1.75rem; font-weight: 800;">Rs. 0</span>
-      <span class="kpi-trend">
-        <span class="material-icons" style="font-size:12px;">calculate</span>
-        <span>Revenue minus expenses</span>
-      </span>
-    </div>
-  </div>
-</div>
-
-<!-- Transaction Details Table -->
-<div class="card" style="margin-top: 24px;">
-  <div class="card-header">
-    <h2 class="card-title">
-      <span class="material-icons">description</span>
-      Transaction Details
-    </h2>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <input type="date" id="rptFromDate" class="filter-select" style="width:140px;font-size:0.8rem;" />
-      <span style="color:var(--text-muted);font-size:0.8rem;">to</span>
-      <input type="date" id="rptToDate" class="filter-select" style="width:140px;font-size:0.8rem;" />
-      <select id="rptType" class="filter-select" style="font-size:0.8rem;">
-        <option value="all">All Transactions</option>
-        <option value="revenue">Revenue Only</option>
-        <option value="expenses">Expenses Only</option>
-      </select>
-      <button class="btn btn-sm btn-primary" id="applyRptFilter">
-        <span class="material-icons">filter_alt</span> Apply
-      </button>
-      <button class="btn btn-sm btn-ghost" id="resetRptFilter">
-        <span class="material-icons">refresh</span>
-      </button>
-      <button class="btn btn-sm btn-outline" id="downloadCSV">
-        <span class="material-icons">download</span> Export
-      </button>
-    </div>
-  </div>
-  <div class="card-body p-0">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Type</th>
-          <th>Category</th>
-          <th>Description</th>
-          <th style="text-align:right;">Amount</th>
-        </tr>
-      </thead>
-      <tbody id="reportTableBody">
-        <tr>
-          <td colspan="5" style="text-align:center;padding:40px;color:var(--text-muted);">
-            <span class="material-icons" style="font-size:40px;display:block;margin-bottom:8px;opacity:0.3;">inbox</span>
-            <p style="font-weight:500;color:var(--text);">No transactions found</p>
-            <p style="font-size:0.82rem;">Adjust filters to see results</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+            <div class="dashboard-grid">
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">build</span> Services Sold
+                  </h2>
+                </div>
+                <div class="card-body p-0">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Service</th>
+                        <th>Count</th>
+                        <th>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody id="servicesSoldTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">inventory_2</span> Products
+                    Sold
+                  </h2>
+                </div>
+                <div class="card-body p-0">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody id="productsSoldTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top: 24px">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">description</span> Transactions
+                </h2>
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                  "
+                >
+                  <input
+                    type="date"
+                    id="rptFromDate"
+                    class="filter-select"
+                    style="width: 140px"
+                  /><span>to</span
+                  ><input
+                    type="date"
+                    id="rptToDate"
+                    class="filter-select"
+                    style="width: 140px"
+                  /><select id="rptType" class="filter-select">
+                    <option value="all">All</option>
+                    <option value="revenue">Revenue</option>
+                    <option value="expenses">Expenses</option></select
+                  ><button class="btn btn-sm btn-primary" id="applyRptFilter">
+                    Filter</button
+                  ><button class="btn btn-sm btn-ghost" id="resetRptFilter">
+                    Reset</button
+                  ><button class="btn btn-sm btn-outline" id="downloadCSV">
+                    CSV
+                  </button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th style="text-align: right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportTableBody"></tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <!-- ====== EXPENSES ====== -->
@@ -1239,11 +1285,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Total Revenue</span
-                  ><span class="kpi-value" id="totalRevenueAmt">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons">info_outline</span> Completed
-                    services</span
-                  >
+                  ><span class="kpi-value" id="totalRevenueAmt">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -1252,11 +1294,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Other Expenses</span
-                  ><span class="kpi-value" id="totalExpenseAmt">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons">info_outline</span> Parts,
-                    repairs, utilities</span
-                  >
+                  ><span class="kpi-value" id="totalExpenseAmt">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -1265,11 +1303,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Labour Cost</span
-                  ><span class="kpi-value" id="labourCostAmt">Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons">info_outline</span> Worker
-                    payments</span
-                  >
+                  ><span class="kpi-value" id="labourCostAmt">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">
@@ -1278,44 +1312,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Net Profit</span
-                  ><span
-                    class="kpi-value"
-                    id="netProfitAmt"
-                    style="font-weight: 800"
-                    >Rs. 0</span
-                  ><span class="kpi-trend"
-                    ><span class="material-icons">calculate</span> Revenue -
-                    Expenses</span
-                  >
-                </div>
-              </div>
-            </div>
-            <div class="kpi-grid kpi-grid--3" style="margin-bottom: 1.25rem">
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--red">
-                  <span class="material-icons">today</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Today</span
-                  ><span class="kpi-value" id="expTodayTotal">Rs. 0</span>
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--red">
-                  <span class="material-icons">date_range</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">This Week</span
-                  ><span class="kpi-value" id="expWeekTotal">Rs. 0</span>
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--red">
-                  <span class="material-icons">calendar_month</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">This Month</span
-                  ><span class="kpi-value" id="expMonthTotal">Rs. 0</span>
+                  ><span class="kpi-value" id="netProfitAmt">Rs. 0</span>
                 </div>
               </div>
             </div>
@@ -1351,21 +1348,14 @@
               style="margin-bottom: 1rem; display: none"
             >
               <div class="card-header">
-                <h2 class="card-title">
-                  <span class="material-icons">add_circle</span> New Expense
-                </h2>
+                <h2 class="card-title">New Expense</h2>
               </div>
               <div class="card-body">
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label"
                       >Title <span class="required">*</span></label
-                    ><input
-                      type="text"
-                      class="form-input"
-                      id="expenseTitle"
-                      placeholder="e.g. Worker salary"
-                    />
+                    ><input type="text" class="form-input" id="expenseTitle" />
                   </div>
                   <div class="form-group">
                     <label class="form-label"
@@ -1388,7 +1378,6 @@
                       type="number"
                       class="form-input"
                       id="expenseAmount"
-                      placeholder="0"
                       min="0"
                     />
                   </div>
@@ -1397,31 +1386,20 @@
                     ><input type="date" class="form-input" id="expenseDate" />
                   </div>
                 </div>
-                <div class="form-group">
-                  <label class="form-label">Description</label
-                  ><textarea
-                    class="form-input form-textarea"
-                    id="expenseDescription"
-                    placeholder="More details..."
-                    style="min-height: 60px"
-                  ></textarea>
-                </div>
                 <div
                   style="display: flex; gap: 0.5rem; justify-content: flex-end"
                 >
                   <button class="btn btn-ghost" id="cancelExpenseBtn">
                     Cancel</button
                   ><button class="btn btn-primary" id="saveExpenseBtn">
-                    <span class="material-icons">save</span> Save
+                    Save
                   </button>
                 </div>
               </div>
             </div>
             <div class="card">
               <div class="card-header">
-                <h2 class="card-title">
-                  <span class="material-icons">receipt_long</span> All Expenses
-                </h2>
+                <h2 class="card-title">All Expenses</h2>
                 <div class="card-header-meta">
                   <span class="badge badge--blue" id="expenseCountBadge"
                     >0</span
@@ -1436,23 +1414,142 @@
                       <th>Title</th>
                       <th>Category</th>
                       <th>Amount</th>
-                      <th>Description</th>
                       <th></th>
                     </tr>
                   </thead>
-                  <tbody id="expenseTableBody">
-                    <tr>
-                      <td colspan="6" style="text-align: center; padding: 3rem">
-                        <span
-                          class="material-icons"
-                          style="font-size: 40px; opacity: 0.4"
-                          >receipt_long</span
-                        >
-                        <p>No expenses yet</p>
-                      </td>
-                    </tr>
-                  </tbody>
+                  <tbody id="expenseTableBody"></tbody>
                 </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ====== IMPORT/EXPORT ====== -->
+          <section class="module hidden" id="module-importexport">
+            <div class="settings-grid">
+              <!-- Export Section -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">file_download</span> Export
+                    Data
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    Export your data in multiple formats.
+                  </p>
+                  <div class="form-group">
+                    <label class="form-label">Export Module</label
+                    ><select class="form-input" id="exportModule">
+                      <option value="all">All Data</option>
+                      <option value="inventory">Inventory</option>
+                      <option value="tokens">Tokens</option>
+                      <option value="vehicles">Vehicles</option>
+                      <option value="invoices">Invoices</option>
+                      <option value="expenses">Expenses</option>
+                      <option value="reminders">Reminders</option>
+                      <option value="productSales">Product Sales</option>
+                      <option value="pricingMatrix">Pricing Matrix</option>
+                    </select>
+                  </div>
+                  <div class="backup-actions">
+                    <button class="btn btn-export-json" id="exportJSONBtn">
+                      <span class="material-icons">data_object</span> Export
+                      JSON
+                    </button>
+                    <button class="btn btn-export-excel" id="exportCSVBtn">
+                      <span class="material-icons">table_chart</span> Export
+                      Excel/CSV
+                    </button>
+                    <button class="btn btn-export-pdf" id="exportPDFBtn">
+                      <span class="material-icons">picture_as_pdf</span> Export
+                      PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Import Section -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">file_upload</span> Import Data
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    Import data from JSON, CSV, or Excel files.
+                  </p>
+                  <div class="form-group">
+                    <label class="form-label">Import Module</label
+                    ><select class="form-input" id="importModule">
+                      <option value="inventory">Inventory</option>
+                      <option value="tokens">Tokens</option>
+                      <option value="vehicles">Vehicles</option>
+                      <option value="pricingMatrix">Pricing Matrix</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">File Format</label
+                    ><select class="form-input" id="importFormat">
+                      <option value="json">JSON</option>
+                      <option value="csv">CSV</option>
+                    </select>
+                  </div>
+                  <div class="backup-actions">
+                    <button class="btn btn-import" id="importDataBtn2">
+                      <span class="material-icons">upload</span> Select File &
+                      Import
+                    </button>
+                  </div>
+                  <div
+                    id="importPreview"
+                    style="margin-top: 1rem; display: none"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- Quick Backup -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">backup</span> Quick Backup
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">One-click full system backup.</p>
+                  <button class="btn btn-primary" id="quickBackupBtn">
+                    <span class="material-icons">cloud_download</span> Download
+                    Full Backup (JSON)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quick Restore -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">restore</span> Quick Restore
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    Restore from a previous backup file.
+                  </p>
+                  <button class="btn btn-outline" id="quickRestoreBtn">
+                    <span class="material-icons">cloud_upload</span> Select
+                    Backup File
+                  </button>
+                  <p
+                    style="
+                      font-size: 0.7rem;
+                      color: var(--danger);
+                      margin-top: 0.5rem;
+                    "
+                  >
+                    ⚠ This will replace all current data.
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -1462,10 +1559,7 @@
             <div class="settings-grid">
               <div class="card">
                 <div class="card-header">
-                  <h2 class="card-title">
-                    <span class="material-icons">business</span> Business
-                    Information
-                  </h2>
+                  <h2 class="card-title">Business Information</h2>
                 </div>
                 <div class="card-body">
                   <div class="form-group">
@@ -1503,16 +1597,13 @@
                     </div>
                   </div>
                   <button class="btn btn-primary" id="saveBusinessSettings">
-                    <span class="material-icons">save</span> Save
+                    Save
                   </button>
                 </div>
               </div>
               <div class="card">
                 <div class="card-header">
-                  <h2 class="card-title">
-                    <span class="material-icons">receipt_long</span> Invoice
-                    Settings
-                  </h2>
+                  <h2 class="card-title">Invoice Settings</h2>
                 </div>
                 <div class="card-body">
                   <div class="form-group">
@@ -1529,110 +1620,63 @@
                       type="number"
                       class="form-input"
                       id="settingTaxRate"
-                      min="0"
-                      max="100"
                     />
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">Footer Note</label
-                    ><textarea
-                      class="form-input form-textarea"
-                      id="settingFooterNote"
-                    ></textarea>
-                  </div>
                   <button class="btn btn-primary" id="saveInvoiceSettings">
-                    <span class="material-icons">save</span> Save
+                    Save
                   </button>
                 </div>
               </div>
               <div class="card">
                 <div class="card-header">
-                  <h2 class="card-title">
-                    <span class="material-icons">lock</span> Change Password
-                  </h2>
+                  <h2 class="card-title">Change Password</h2>
                 </div>
                 <div class="card-body">
                   <div class="form-group">
-                    <label class="form-label">Current Password</label>
-                    <div class="input-icon-wrap">
-                      <span class="material-icons input-icon">lock</span
-                      ><input
-                        type="password"
-                        class="form-input"
-                        id="currentPassword"
-                        placeholder="Current"
-                      />
-                    </div>
+                    <label class="form-label">Current Password</label
+                    ><input
+                      type="password"
+                      class="form-input"
+                      id="currentPassword"
+                    />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">New Password</label>
-                    <div class="input-icon-wrap">
-                      <span class="material-icons input-icon">lock_open</span
-                      ><input
-                        type="password"
-                        class="form-input"
-                        id="newPassword"
-                        placeholder="Min 6 chars"
-                      />
-                    </div>
+                    <label class="form-label">New Password</label
+                    ><input
+                      type="password"
+                      class="form-input"
+                      id="newPassword"
+                    />
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Confirm Password</label>
-                    <div class="input-icon-wrap">
-                      <span class="material-icons input-icon">lock_open</span
-                      ><input
-                        type="password"
-                        class="form-input"
-                        id="confirmPassword"
-                        placeholder="Confirm"
-                      />
-                    </div>
+                    <label class="form-label">Confirm Password</label
+                    ><input
+                      type="password"
+                      class="form-input"
+                      id="confirmPassword"
+                    />
                   </div>
                   <button class="btn btn-primary" id="changePasswordBtn">
-                    <span class="material-icons">vpn_key</span> Update
+                    Update
                   </button>
                 </div>
               </div>
-             <!-- Settings Module - Backup & Data Card (Updated) -->
-<div class="card">
-  <div class="card-header">
-    <h2 class="card-title">
-      <span class="material-icons">backup</span> Backup & Data
-    </h2>
-  </div>
-  <div class="card-body">
-    <p class="settings-desc">Export all data as JSON backup.</p>
-    <div class="backup-actions">
-      <button class="btn btn-outline" id="exportDataBtn">
-        <span class="material-icons">download</span> Export
-      </button>
-      <button class="btn btn-outline" id="importDataBtn">
-        <span class="material-icons">upload</span> Import
-      </button>
-    </div>
-    
-    <!-- Development Tools -->
-    <div style="margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border);">
-      <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.5rem;">Development Tools</p>
-      <button class="btn btn-outline" id="resetCountersBtn" style="background:#fef3c7; border-color:#f59e0b; color:#92400e;">
-        <span class="material-icons">restart_alt</span> Reset Counter IDs to 1
-      </button>
-    </div>
-    
-    <div class="form-group" style="margin-top:1.5rem">
-      <label class="form-label">Session</label>
-      <div class="settings-info-row">
-        <span class="material-icons">person</span><span>Admin — Manager</span>
-      </div>
-      <div class="settings-info-row">
-        <span class="material-icons">schedule</span><span id="sessionTime">—</span>
-      </div>
-    </div>
-    <button class="btn btn-danger" id="clearDataBtn">
-      <span class="material-icons">delete_forever</span> Clear All Data
-    </button>
-  </div>
-</div>
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">Data Management</h2>
+                </div>
+                <div class="card-body">
+                  <button
+                    class="btn btn-outline"
+                    id="resetCountersBtn"
+                    style="margin-bottom: 0.5rem"
+                  >
+                    Reset Counters</button
+                  ><button class="btn btn-danger" id="clearDataBtn">
+                    Clear All Data
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         </main>
@@ -1640,10 +1684,143 @@
     </div>
 
     <!-- ==================== MODALS ==================== -->
+    <div class="modal-overlay hidden" id="brandsModal">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">sell</span> Manage Brands
+          </h2>
+          <button class="modal-close" data-close="brandsModal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+            <input
+              type="text"
+              class="form-input"
+              id="newBrandName"
+              placeholder="Brand name"
+              style="flex: 1"
+            /><button class="btn btn-primary btn-sm" id="addBrandBtn">
+              <span class="material-icons">add</span> Add
+            </button>
+          </div>
+          <div style="max-height: 300px; overflow-y: auto" id="brandList"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close="brandsModal">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-overlay hidden" id="categoryModal">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">category</span> Manage Categories
+          </h2>
+          <button class="modal-close" data-close="categoryModal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+            <input
+              type="text"
+              class="form-input"
+              id="newCategoryName"
+              placeholder="Category name"
+              style="flex: 1"
+            /><button class="btn btn-primary btn-sm" id="addCategoryBtn">
+              <span class="material-icons">add</span> Add
+            </button>
+          </div>
+          <div
+            style="max-height: 250px; overflow-y: auto"
+            id="categoryList"
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close="categoryModal">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-overlay hidden" id="vehicleTypesModal">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">directions_car</span> Vehicle Types
+          </h2>
+          <button class="modal-close" data-close="vehicleTypesModal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+            <input
+              type="text"
+              class="form-input"
+              id="newVehicleTypeName"
+              placeholder="e.g. SUV, Bus"
+              style="flex: 1"
+            /><button class="btn btn-primary btn-sm" id="addVehicleTypeBtn">
+              <span class="material-icons">add</span> Add
+            </button>
+          </div>
+          <div
+            style="max-height: 300px; overflow-y: auto"
+            id="vehicleTypeList"
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close="vehicleTypesModal">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-overlay hidden" id="pricingServicesModal">
+      <div class="modal modal--sm">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">build</span> Services
+          </h2>
+          <button class="modal-close" data-close="pricingServicesModal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
+            <input
+              type="text"
+              class="form-input"
+              id="newPricingServiceName"
+              placeholder="Service name"
+              style="flex: 1"
+            /><button class="btn btn-primary btn-sm" id="addPricingServiceBtn">
+              <span class="material-icons">add</span> Add
+            </button>
+          </div>
+          <div
+            style="max-height: 300px; overflow-y: auto"
+            id="pricingServiceList"
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close="pricingServicesModal">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Token Modal -->
     <div class="modal-overlay hidden" id="tokenModal">
       <div class="modal">
         <div class="modal-header">
-          <h2 class="modal-title">
+          <h2 class="modal-title" id="tokenModalTitle">
             <span class="material-icons">token</span> Generate Token
           </h2>
           <button class="modal-close" data-close="tokenModal">
@@ -1653,7 +1830,22 @@
         <div class="modal-body">
           <div class="token-number-display">
             <span class="token-number-label">Token Number</span
-            ><span class="token-number-value" id="autoTokenNumber">TK-001</span>
+            ><span class="token-number-value" id="autoTokenNumber"
+              >20260707-001</span
+            >
+          </div>
+          <div
+            style="
+              text-align: center;
+              padding: 0.5rem;
+              margin-bottom: 0.5rem;
+              background: var(--warning-light);
+              border-radius: 8px;
+              font-size: 0.85rem;
+              color: #92400e;
+            "
+          >
+            <span>Price auto-fills based on Service + Vehicle Type</span>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -1671,22 +1863,38 @@
                 >Vehicle Type <span class="required">*</span></label
               ><select class="form-input" id="tokenVehicleType">
                 <option value="">Select</option>
-                <option value="Car">Car</option>
-                <option value="Motorcycle">Motorcycle</option>
-                <option value="Truck">Truck</option>
-                <option value="Van">Van</option>
-                <option value="SUV">SUV</option>
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Owner</label
-            ><input
-              type="text"
-              class="form-input"
-              id="tokenOwnerName"
-              placeholder="Customer name"
-            />
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Customer Name</label
+              ><input
+                type="text"
+                class="form-input"
+                id="tokenOwnerName"
+                placeholder="Customer name"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label"
+                >Contact Number <span class="required">*</span></label
+              ><input
+                type="tel"
+                class="form-input contact-input"
+                id="tokenContactNumber"
+                placeholder="03XX-XXXXXXX"
+                maxlength="13"
+              /><span
+                style="
+                  font-size: 0.65rem;
+                  color: var(--text-muted);
+                  margin-top: 3px;
+                  display: block;
+                "
+                >Format: 03XXXXXXXXX or +923XXXXXXXXX</span
+              >
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label"
@@ -1704,15 +1912,44 @@
               placeholder="Describe..."
             />
           </div>
+          <div class="invoice-section-label" style="margin-top: 1rem">
+            <span class="material-icons">inventory_2</span> Products
+          </div>
+          <div id="tokenProductsList"></div>
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            onclick="addTokenProduct()"
+          >
+            <span class="material-icons">add</span> Add Product
+          </button>
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              margin-top: 1rem;
+              padding-top: 0.75rem;
+              border-top: 2px solid var(--primary);
+            "
+          >
+            <span style="font-weight: 700">Grand Total:</span
+            ><span
+              style="font-size: 1.3rem; font-weight: 700; color: var(--primary)"
+              id="tokenGrandTotal"
+              >Rs. 0</span
+            >
+          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" data-close="tokenModal">Cancel</button
           ><button class="btn btn-primary" id="saveTokenBtn">
-            <span class="material-icons">check</span> Generate
+            <span class="material-icons">check</span> Save Token
           </button>
         </div>
       </div>
     </div>
+
+    <!-- Vehicle Modal -->
     <div class="modal-overlay hidden" id="vehicleModal">
       <div class="modal">
         <div class="modal-header">
@@ -1741,11 +1978,6 @@
                 >Type <span class="required">*</span></label
               ><select class="form-input" id="vehicleType">
                 <option value="">Select</option>
-                <option value="Car">Car</option>
-                <option value="Motorcycle">Motorcycle</option>
-                <option value="Truck">Truck</option>
-                <option value="Van">Van</option>
-                <option value="SUV">SUV</option>
               </select>
             </div>
           </div>
@@ -1770,90 +2002,20 @@
               />
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Notes</label
-            ><textarea
-              class="form-input form-textarea"
-              id="vehicleNotes"
-              placeholder="Notes..."
-            ></textarea>
-          </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" data-close="vehicleModal">Cancel</button
-          ><button class="btn btn-primary" id="saveVehicleBtn">
-            <span class="material-icons">save</span> Save
-          </button>
+          ><button class="btn btn-primary" id="saveVehicleBtn">Save</button>
         </div>
       </div>
     </div>
-    <div class="modal-overlay hidden" id="serviceModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h2 class="modal-title">
-            <span class="material-icons">build</span> Service
-          </h2>
-          <button class="modal-close" data-close="serviceModal">
-            <span class="material-icons">close</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <input type="hidden" id="serviceEditId" />
-          <div class="form-group">
-            <label class="form-label"
-              >Name <span class="required">*</span></label
-            ><input
-              type="text"
-              class="form-input"
-              id="serviceName"
-              placeholder="Service name"
-            />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label"
-                >Price <span class="required">*</span></label
-              ><input
-                type="number"
-                class="form-input"
-                id="servicePrice"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Duration (min)</label
-              ><input
-                type="number"
-                class="form-input"
-                id="serviceDuration"
-                placeholder="30"
-                min="1"
-              />
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Description</label
-            ><textarea
-              class="form-input form-textarea"
-              id="serviceDescription"
-              placeholder="Description..."
-            ></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" data-close="serviceModal">Cancel</button
-          ><button class="btn btn-primary" id="saveServiceBtn">
-            <span class="material-icons">save</span> Save
-          </button>
-        </div>
-      </div>
-    </div>
+
+    <!-- Product Modal with Variants -->
     <div class="modal-overlay hidden" id="productModal">
-      <div class="modal">
+      <div class="modal modal--lg">
         <div class="modal-header">
-          <h2 class="modal-title">
-            <span class="material-icons">inventory_2</span> Product
+          <h2 class="modal-title" id="productModalTitle">
+            <span class="material-icons">inventory_2</span> Add Product
           </h2>
           <button class="modal-close" data-close="productModal">
             <span class="material-icons">close</span>
@@ -1861,78 +2023,40 @@
         </div>
         <div class="modal-body">
           <input type="hidden" id="productEditId" />
-          <div class="form-group">
-            <label class="form-label"
-              >Name <span class="required">*</span></label
-            ><input
-              type="text"
-              class="form-input"
-              id="productName"
-              placeholder="Product name"
-            />
-          </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Category</label
-              ><select class="form-input" id="productCategory">
-                <option value="oil">Engine Oils</option>
-                <option value="filter">Filters</option>
-                <option value="coolant">Coolants</option>
-                <option value="misc">Misc</option>
-              </select>
+              ><select class="form-input" id="productCategory"></select>
             </div>
             <div class="form-group">
-              <label class="form-label">Unit</label
+              <label class="form-label"
+                >Product Type <span class="required">*</span></label
               ><input
                 type="text"
                 class="form-input"
-                id="productUnit"
-                placeholder="Litre, Piece"
+                id="productName"
+                placeholder="e.g. Engine Oil, Air Filter"
               />
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label"
-                >Stock <span class="required">*</span></label
-              ><input
-                type="number"
-                class="form-input"
-                id="productStock"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Min Stock</label
-              ><input
-                type="number"
-                class="form-input"
-                id="productMinStock"
-                placeholder="5"
-                min="0"
-              />
-            </div>
+          <div class="invoice-section-label" style="margin-top: 1.5rem">
+            <span class="material-icons">layers</span> Variants
           </div>
-          <div class="form-group">
-            <label class="form-label">Price</label
-            ><input
-              type="number"
-              class="form-input"
-              id="productPrice"
-              placeholder="0"
-              min="0"
-            />
-          </div>
+          <div id="variantsContainer"></div>
+          <button class="add-variant-btn" type="button" id="addVariantBtn">
+            <span class="material-icons">add</span> Add Variant
+          </button>
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" data-close="productModal">Cancel</button
           ><button class="btn btn-primary" id="saveProductBtn">
-            <span class="material-icons">save</span> Save
+            <span class="material-icons">save</span> Save Product
           </button>
         </div>
       </div>
     </div>
+
+    <!-- Stock Modal -->
     <div class="modal-overlay hidden" id="stockModal">
       <div class="modal modal--sm">
         <div class="modal-header">
@@ -1958,10 +2082,10 @@
             <label class="form-label">Type</label>
             <div class="radio-group">
               <label class="radio-label"
-                ><input type="radio" name="stockType" value="in" checked />
-                Stock In</label
+                ><input type="radio" name="stockType" value="in" checked />Stock
+                In</label
               ><label class="radio-label"
-                ><input type="radio" name="stockType" value="out" /> Stock
+                ><input type="radio" name="stockType" value="out" />Stock
                 Out</label
               >
             </div>
@@ -1979,12 +2103,12 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" data-close="stockModal">Cancel</button
-          ><button class="btn btn-primary" id="saveStockBtn">
-            <span class="material-icons">check</span> Confirm
-          </button>
+          ><button class="btn btn-primary" id="saveStockBtn">Confirm</button>
         </div>
       </div>
     </div>
+
+    <!-- Confirm Modal -->
     <div class="modal-overlay hidden" id="confirmModal">
       <div class="modal modal--sm">
         <div class="modal-header">
@@ -1998,12 +2122,52 @@
         <div class="modal-body"><p id="confirmMessage">Are you sure?</p></div>
         <div class="modal-footer">
           <button class="btn btn-ghost" data-close="confirmModal">Cancel</button
-          ><button class="btn btn-danger" id="confirmActionBtn">
-            <span class="material-icons">delete</span> Delete
+          ><button class="btn btn-danger" id="confirmActionBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import Preview Modal -->
+    <div class="modal-overlay hidden" id="importPreviewModal">
+      <div class="modal modal--lg">
+        <div class="modal-header">
+          <h2 class="modal-title">
+            <span class="material-icons">preview</span> Import Preview
+          </h2>
+          <button class="modal-close" data-close="importPreviewModal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="import-stats">
+            <div class="import-stat-card import-stat-card--add">
+              <div class="import-stat-value" id="importAddCount">0</div>
+              <div class="import-stat-label">Records to Add</div>
+            </div>
+            <div class="import-stat-card import-stat-card--update">
+              <div class="import-stat-value" id="importUpdateCount">0</div>
+              <div class="import-stat-label">Records to Update</div>
+            </div>
+            <div class="import-stat-card import-stat-card--skip">
+              <div class="import-stat-value" id="importSkipCount">0</div>
+              <div class="import-stat-label">Records to Skip</div>
+            </div>
+          </div>
+          <div
+            style="max-height: 300px; overflow-y: auto"
+            id="importPreviewContent"
+          ></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close="importPreviewModal">
+            Cancel</button
+          ><button class="btn btn-primary" id="confirmImportBtn">
+            <span class="material-icons">check</span> Confirm Import
           </button>
         </div>
       </div>
     </div>
+
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="app.js"></script>
