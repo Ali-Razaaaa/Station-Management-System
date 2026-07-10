@@ -451,34 +451,34 @@ function validateContactNumber(phone) {
     message: "Enter: 03XXXXXXXXX or +923XXXXXXXXX",
   };
 }
-// function formatContactDisplay(phone) {
-//   if (!phone || phone === "N/A") return "N/A";
-//   let c = phone.replace(/[\s\-\(\)]/g, "").trim();
-//   if (c.startsWith("+923") && c.length === 13)
-//     return `${c.substring(0, 3)} ${c.substring(3, 6)} ${c.substring(6)}`;
-//   if (c.startsWith("03") && c.length === 11)
-//     return `${c.substring(0, 4)}-${c.substring(4)}`;
-//   return phone;
-// }
+function formatContactDisplay(phone) {
+  if (!phone || phone === "N/A") return "N/A";
+  let c = phone.replace(/[\s\-\(\)]/g, "").trim();
+  if (c.startsWith("+923") && c.length === 13)
+    return `${c.substring(0, 3)} ${c.substring(3, 6)} ${c.substring(6)}`;
+  if (c.startsWith("03") && c.length === 11)
+    return `${c.substring(0, 4)}-${c.substring(4)}`;
+  return phone;
+}
 
-// // ==================== WHATSAPP ====================
-// function getWhatsAppNumber(phone) {
-//   if (!phone || phone === "N/A") return null;
-//   let c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
-//   if (c.startsWith("92") && c.length === 12) return c;
-//   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
-//   return c;
-// }
-// function openWhatsApp(phone, cn, vn, svc, sd) {
-//   const wa = getWhatsAppNumber(phone);
-//   if (!wa) {
-//     toast("Invalid phone", "error");
-//     return;
-//   }
-//   const bn = STATE.settings.businessName || "Wheel Works Service Station";
-//   const msg = `Assalamualaikum ${cn}%0A%0AThis is a friendly reminder from ${bn}.%0A%0AYour vehicle service is due.%0A%0AVehicle: ${vn}%0ALast Service: ${svc}%0ALast Service Date: ${sd}%0A%0APlease visit us for your next service.%0A%0AThank you.%0A${bn}`;
-//   window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
-// }
+// ==================== WHATSAPP ====================
+function getWhatsAppNumber(phone) {
+  if (!phone || phone === "N/A") return null;
+  let c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
+  if (c.startsWith("92") && c.length === 12) return c;
+  if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
+  return c;
+}
+function openWhatsApp(phone, cn, vn, svc, sd) {
+  const wa = getWhatsAppNumber(phone);
+  if (!wa) {
+    toast("Invalid phone", "error");
+    return;
+  }
+  const bn = STATE.settings.businessName || "Wheel Works Service Station";
+  const msg = `Assalamualaikum ${cn}%0A%0AThis is a friendly reminder from ${bn}.%0A%0AYour vehicle service is due.%0A%0AVehicle: ${vn}%0ALast Service: ${svc}%0ALast Service Date: ${sd}%0A%0APlease visit us for your next service.%0A%0AThank you.%0A${bn}`;
+  window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
+}
 
 // ==================== REMINDERS ====================
 function createReminderFromToken(token) {
