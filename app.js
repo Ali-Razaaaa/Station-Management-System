@@ -2663,15 +2663,15 @@ function renderReports() {
 }
 
 // ==================== EXPENSES ====================
-function initExpenses() {
-  qs("#addExpenseBtn")?.addEventListener("click", showExpenseForm);
-  qs("#saveExpenseBtn")?.addEventListener("click", saveExpense);
-  qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm);
-  qs("#expenseSearch")?.addEventListener("input", renderExpenseTable);
-  const di = qs("#expenseDate");
-  if (di) di.value = toDateInputValue(new Date());
-  hideExpenseForm();
-  renderExpenses();
+function initExpenses() { 
+  qs("#addExpenseBtn")?.addEventListener("click", showExpenseForm); 
+  qs("#saveExpenseBtn")?.addEventListener("click", saveExpense); 
+  qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm); 
+  qs("#expenseSearch")?.addEventListener("input", renderExpenses); 
+  var di = qs("#expenseDate"); 
+  if (di) di.value = toDateInputValue(new Date()); 
+  hideExpenseForm(); 
+  renderExpenses(); 
 }
 function showExpenseForm() {
   qs("#expenseFormCard").style.display = "";
