@@ -1,6 +1,6 @@
 /**
  * Wheel Works Service Station — Enterprise Management System V6.0
- * ALL DUPLICATES REMOVED - PRODUCTION READY
+ * ALL MODULES WORKING - FINAL FIX
  */
 "use strict";
 
@@ -91,7 +91,6 @@ function migrateAllInventory() {
   persist(KEYS.brands, brands);
   localStorage.setItem(KEYS.inventoryMigratedFinal, "true");
 }
-
 function generateVariantSKU(brand, model, grade, size, index) {
   const b = brand.replace(/\s+/g, "").substring(0, 3).toUpperCase();
   const m = (model || "STD").replace(/\s+/g, "").substring(0, 4).toUpperCase();
@@ -99,7 +98,6 @@ function generateVariantSKU(brand, model, grade, size, index) {
   const s = (size || "").replace(/\s+/g, "").substring(0, 4).toUpperCase();
   return `${b}-${m}${g ? "-" + g : ""}${s ? "-" + s : ""}-${String(index + 1).padStart(3, "0")}`;
 }
-
 migrateAllInventory();
 
 const STATE = {
@@ -269,11 +267,11 @@ function toDateInputValue(d = new Date()) {
 function fmtPrice(n) {
   return "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
 }
-function qs(s, c = document) {
-  return c.querySelector(s);
+function qs(s, c) {
+  return (c || document).querySelector(s);
 }
-function qsa(s, c = document) {
-  return Array.from(c.querySelectorAll(s));
+function qsa(s, c) {
+  return Array.from((c || document).querySelectorAll(s));
 }
 function sanitize(s) {
   if (s == null) return "";
@@ -293,8 +291,8 @@ function setHTML(s, v) {
   const e = qs(s);
   if (e) e.innerHTML = v;
 }
-
-function toast(m, t = "info") {
+function toast(m, t) {
+  t = t || "info";
   const c = qs("#toastContainer");
   if (!c) return;
   const icons = {
@@ -304,36 +302,41 @@ function toast(m, t = "info") {
     info: "info",
   };
   const e = document.createElement("div");
-  e.className = `toast toast--${t}`;
-  e.innerHTML = `<span class="material-icons">${icons[t] || "info"}</span><span>${sanitize(m)}</span>`;
+  e.className = "toast toast--" + t;
+  e.innerHTML =
+    '<span class="material-icons">' +
+    (icons[t] || "info") +
+    "</span><span>" +
+    sanitize(m) +
+    "</span>";
   c.appendChild(e);
-  setTimeout(() => {
+  setTimeout(function () {
     e.style.animation = "toastOut 0.3s ease forwards";
-    setTimeout(() => e.remove(), 300);
+    setTimeout(function () {
+      e.remove();
+    }, 300);
   }, 3200);
 }
 
-// ==================== MODAL SYSTEM ====================
 function openModal(id) {
-  const m = qs(`#${id}`);
+  const m = qs("#" + id);
   if (m) {
     m.classList.remove("hidden");
     document.body.style.overflow = "hidden";
   }
 }
 function closeModal(id) {
-  const m = qs(`#${id}`);
+  const m = qs("#" + id);
   if (m) {
     m.classList.add("hidden");
     document.body.style.overflow = "";
   }
 }
-
 function setupModalClosers() {
   document.addEventListener("click", function (e) {
-    const closeBtn = e.target.closest("[data-close]");
-    if (closeBtn) {
-      closeModal(closeBtn.getAttribute("data-close"));
+    const cb = e.target.closest("[data-close]");
+    if (cb) {
+      closeModal(cb.getAttribute("data-close"));
       return;
     }
     if (e.target.classList.contains("modal-overlay")) {
@@ -343,18 +346,17 @@ function setupModalClosers() {
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-      const openModals = qsa(".modal-overlay:not(.hidden)");
-      if (openModals.length > 0)
-        closeModal(openModals[openModals.length - 1].id);
+      const om = qsa(".modal-overlay:not(.hidden)");
+      if (om.length > 0) closeModal(om[om.length - 1].id);
     }
   });
 }
-
-function confirm(m, fn, l = "Delete") {
+function confirm(m, fn, l) {
+  l = l || "Delete";
   setText("#confirmMessage", m);
   setHTML(
     "#confirmActionBtn",
-    `<span class="material-icons">delete</span> ${l}`,
+    '<span class="material-icons">delete</span> ' + l,
   );
   STATE.confirmCallback = fn;
   openModal("confirmModal");
@@ -365,10 +367,9 @@ function setLoginBrandName() {
   if (lb) lb.textContent = s?.businessName || "Wheel Works Service Station";
 }
 
-// ==================== INVENTORY HELPERS ====================
 function getVariantDisplayName(v) {
   if (!v) return "Unknown";
-  let n = "";
+  var n = "";
   if (v.brand && v.brand !== "General") n += v.brand + " ";
   if (v.model && v.model !== "Standard") n += v.model + " ";
   if (v.grade) n += v.grade + " ";
@@ -376,17 +377,26 @@ function getVariantDisplayName(v) {
   return n.trim() || "Product";
 }
 function getFullProductName(p, v) {
-  let n = p.productType || p.name || "Product";
-  const vn = getVariantDisplayName(v);
+  var n = p.productType || p.name || "Product";
+  var vn = getVariantDisplayName(v);
   if (vn) n += " - " + vn;
   return n;
 }
 function getAllVariantsFlat() {
-  const f = [];
-  STATE.inventory.forEach((p) => {
-    (p.variants || []).forEach((v) => {
+  var f = [];
+  STATE.inventory.forEach(function (p) {
+    (p.variants || []).forEach(function (v) {
       f.push({
-        ...v,
+        id: v.id,
+        brand: v.brand,
+        model: v.model,
+        grade: v.grade,
+        size: v.size,
+        sku: v.sku,
+        purchasePrice: v.purchasePrice,
+        sellingPrice: v.sellingPrice,
+        stock: v.stock,
+        minStock: v.minStock,
         productId: p.id,
         productType: p.productType,
         category: p.category,
@@ -397,24 +407,26 @@ function getAllVariantsFlat() {
   return f;
 }
 function findVariantById(vid) {
-  for (const p of STATE.inventory) {
-    const v = (p.variants || []).find((v) => v.id === vid);
+  for (var i = 0; i < STATE.inventory.length; i++) {
+    var p = STATE.inventory[i];
+    var v = (p.variants || []).find(function (v) {
+      return v.id === vid;
+    });
     if (v)
       return { product: p, variant: v, fullName: getFullProductName(p, v) };
   }
   return null;
 }
 function getLowStockCount() {
-  let c = 0;
-  STATE.inventory.forEach((p) => {
-    (p.variants || []).forEach((v) => {
+  var c = 0;
+  STATE.inventory.forEach(function (p) {
+    (p.variants || []).forEach(function (v) {
       if (v.stock < v.minStock) c++;
     });
   });
   return c;
 }
 
-// ==================== CONTACT ====================
 function validateContactNumber(phone) {
   if (!phone || phone.trim() === "")
     return {
@@ -422,7 +434,7 @@ function validateContactNumber(phone) {
       formatted: "",
       message: "Contact number is required",
     };
-  let c = phone.replace(/[\s\-\(\)]/g, "").trim();
+  var c = phone.replace(/[\s\-\(\)]/g, "").trim();
   if (c.startsWith("+92")) {
     if (/^\+92\d{10}$/.test(c))
       return { valid: true, formatted: c, message: "" };
@@ -453,40 +465,50 @@ function validateContactNumber(phone) {
 }
 function formatContactDisplay(phone) {
   if (!phone || phone === "N/A") return "N/A";
-  let c = phone.replace(/[\s\-\(\)]/g, "").trim();
+  var c = phone.replace(/[\s\-\(\)]/g, "").trim();
   if (c.startsWith("+923") && c.length === 13)
-    return `${c.substring(0, 3)} ${c.substring(3, 6)} ${c.substring(6)}`;
+    return c.substring(0, 3) + " " + c.substring(3, 6) + " " + c.substring(6);
   if (c.startsWith("03") && c.length === 11)
-    return `${c.substring(0, 4)}-${c.substring(4)}`;
+    return c.substring(0, 4) + "-" + c.substring(4);
   return phone;
 }
-
-// ==================== WHATSAPP ====================
-function getWhatsAppNumber(phone) {
-  if (!phone || phone === "N/A") return null;
-  let c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
-  if (c.startsWith("92") && c.length === 12) return c;
-  if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
-  return c;
-}
-function openWhatsApp(phone, cn, vn, svc, sd) {
-  const wa = getWhatsAppNumber(phone);
-  if (!wa) {
-    toast("Invalid phone", "error");
-    return;
-  }
-  const bn = STATE.settings.businessName || "Wheel Works Service Station";
-  const msg = `Assalamualaikum ${cn}%0A%0AThis is a friendly reminder from ${bn}.%0A%0AYour vehicle service is due.%0A%0AVehicle: ${vn}%0ALast Service: ${svc}%0ALast Service Date: ${sd}%0A%0APlease visit us for your next service.%0A%0AThank you.%0A${bn}`;
-  window.open(`https://wa.me/${wa}?text=${msg}`, "_blank");
-}
-
-// ==================== REMINDERS ====================
+// function getWhatsAppNumber(phone) {
+//   if (!phone || phone === "N/A") return null;
+//   var c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
+//   if (c.startsWith("92") && c.length === 12) return c;
+//   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
+//   return c;
+// }
+// function openWhatsApp(phone, cn, vn, svc, sd) {
+//   var wa = getWhatsAppNumber(phone);
+//   if (!wa) {
+//     toast("Invalid phone", "error");
+//     return;
+//   }
+//   var bn = STATE.settings.businessName || "Wheel Works Service Station";
+//   var msg =
+//     "Assalamualaikum " +
+//     cn +
+//     "%0A%0AThis is a friendly reminder from " +
+//     bn +
+//     ".%0A%0AYour vehicle service is due.%0A%0AVehicle: " +
+//     vn +
+//     "%0ALast Service: " +
+//     svc +
+//     "%0ALast Service Date: " +
+//     sd +
+//     "%0A%0APlease visit us for your next service.%0A%0AThank you.%0A" +
+//     bn;
+//   window.open("https://wa.me/" + wa + "?text=" + msg, "_blank");
+// }
 function createReminderFromToken(token) {
   if (!token.contactNumber || token.contactNumber === "N/A") return;
-  const rd = getReminderDays(token.service);
-  const dd = new Date();
+  var rd = getReminderDays(token.service);
+  var dd = new Date();
   dd.setDate(dd.getDate() + rd);
-  const ex = STATE.reminders.find((r) => r.tokenId === token.id);
+  var ex = STATE.reminders.find(function (r) {
+    return r.tokenId === token.id;
+  });
   if (ex) {
     ex.customerName = token.ownerName || "Customer";
     ex.phone = token.contactNumber;
@@ -513,14 +535,14 @@ function createReminderFromToken(token) {
   saveReminders();
 }
 function updateReminderStatuses() {
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
-  STATE.reminders.forEach((r) => {
+  STATE.reminders.forEach(function (r) {
     if (r.status === "completed") return;
-    const dd = parseDate(r.dueDate);
+    var dd = parseDate(r.dueDate);
     if (!dd) return;
     dd.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((dd.getTime() - today.getTime()) / 86400000);
+    var diff = Math.ceil((dd.getTime() - today.getTime()) / 86400000);
     r.status = diff < 0 ? "overdue" : diff === 0 ? "due-today" : "upcoming";
     r.daysRemaining = diff;
   });
@@ -528,21 +550,21 @@ function updateReminderStatuses() {
 }
 function getReminderStats() {
   updateReminderStatuses();
-  const s = {
+  var s = {
     dueToday: 0,
     overdue: 0,
     upcoming: 0,
     completed: 0,
     upcomingWeek: 0,
   };
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
-  STATE.reminders.forEach((r) => {
+  STATE.reminders.forEach(function (r) {
     if (r.status === "completed") s.completed++;
     else if (r.status === "due-today") s.dueToday++;
     else if (r.status === "overdue") s.overdue++;
     else if (r.status === "upcoming") {
-      const dd = parseDate(r.dueDate);
+      var dd = parseDate(r.dueDate);
       if (dd) {
         dd.setHours(0, 0, 0, 0);
         if (Math.ceil((dd.getTime() - today.getTime()) / 86400000) <= 7)
@@ -556,9 +578,9 @@ function getReminderStats() {
 function initReminders() {
   qs("#reminderSearch")?.addEventListener("input", renderReminderTable);
   qs("#reminderStatusFilter")?.addEventListener("change", renderReminderTable);
-  qs("#markAllCompletedBtn")?.addEventListener("click", () => {
-    confirm("Mark all as completed?", () => {
-      STATE.reminders.forEach((r) => {
+  qs("#markAllCompletedBtn")?.addEventListener("click", function () {
+    confirm("Mark all as completed?", function () {
+      STATE.reminders.forEach(function (r) {
         if (r.status !== "completed") r.status = "completed";
       });
       saveReminders();
@@ -569,10 +591,10 @@ function initReminders() {
 }
 function renderReminderTable() {
   updateReminderStatuses();
-  const sr = (qs("#reminderSearch")?.value || "").toLowerCase(),
-    sf = qs("#reminderStatusFilter")?.value || "";
-  let fl = STATE.reminders.filter((r) => {
-    const ms =
+  var sr = (qs("#reminderSearch")?.value || "").toLowerCase();
+  var sf = qs("#reminderStatusFilter")?.value || "";
+  var fl = STATE.reminders.filter(function (r) {
+    var ms =
       !sr ||
       r.customerName.toLowerCase().includes(sr) ||
       r.phone.includes(sr) ||
@@ -580,23 +602,24 @@ function renderReminderTable() {
       r.service.toLowerCase().includes(sr);
     return ms && (!sf || r.status === sf);
   });
-  fl.sort(
-    (a, b) =>
+  fl.sort(function (a, b) {
+    return (
       (parseDate(a.dueDate) || new Date()) -
-      (parseDate(b.dueDate) || new Date()),
-  );
-  const tb = qs("#reminderTableBody");
+      (parseDate(b.dueDate) || new Date())
+    );
+  });
+  var tb = qs("#reminderTableBody");
   if (!tb) return;
-  const bg = qs("#reminderCountBadge");
-  if (bg) bg.textContent = `${fl.length}`;
-  const stats = getReminderStats();
+  var bg = qs("#reminderCountBadge");
+  if (bg) bg.textContent = fl.length;
+  var stats = getReminderStats();
   setText("#remDueToday", stats.dueToday);
   setText("#remOverdue", stats.overdue);
   setText("#remUpcoming", stats.upcomingWeek);
   setText("#remCompleted", stats.completed);
-  const badge = qs("#reminderBadge");
+  var badge = qs("#reminderBadge");
   if (badge) {
-    const a = stats.dueToday + stats.overdue;
+    var a = stats.dueToday + stats.overdue;
     badge.textContent = a;
     badge.classList.toggle("hidden", a === 0);
   }
@@ -606,8 +629,8 @@ function renderReminderTable() {
     return;
   }
   tb.innerHTML = fl
-    .map((r) => {
-      const sc =
+    .map(function (r) {
+      var sc =
         r.status === "overdue"
           ? "badge--red"
           : r.status === "due-today"
@@ -615,7 +638,7 @@ function renderReminderTable() {
             : r.status === "completed"
               ? "badge--green"
               : "badge--blue";
-      const sl =
+      var sl =
         r.status === "due-today"
           ? "Due Today"
           : r.status === "overdue"
@@ -623,37 +646,73 @@ function renderReminderTable() {
             : r.status === "completed"
               ? "Completed"
               : "Upcoming";
-      const dr =
+      var dr =
         r.daysRemaining !== undefined
           ? r.daysRemaining < 0
-            ? `${Math.abs(r.daysRemaining)}d ago`
+            ? Math.abs(r.daysRemaining) + "d ago"
             : r.daysRemaining === 0
               ? "Today"
-              : `${r.daysRemaining}d left`
+              : r.daysRemaining + "d left"
           : "—";
-      return `<tr><td>${sanitize(r.customerName)}</td><td><span class="contact-display">${sanitize(formatContactDisplay(r.phone))}</span></td><td><span class="table-vehicle-no">${sanitize(r.vehicleNo)}</span></td><td>${sanitize(r.service)}</td><td>${sanitize(r.serviceDate)}</td><td>${sanitize(r.dueDate)}</td><td style="font-weight:600;color:${r.status === "overdue" ? "var(--danger)" : r.status === "due-today" ? "var(--warning)" : "var(--text)"};">${dr}</td><td><span class="badge ${sc}">${sl}</span></td><td><div class="table-actions"><button class="btn btn-sm btn-primary whatsapp-btn" data-wa="${r.id}">WhatsApp</button>${r.status !== "completed" ? `<button class="btn btn-sm btn-outline" data-cr="${r.id}">Done</button>` : ""}<button class="btn-icon btn btn-danger-ghost" data-dr="${r.id}"><span class="material-icons">delete</span></button></div></td></tr>`;
+      return (
+        "<tr><td>" +
+        sanitize(r.customerName) +
+        '</td><td><span class="contact-display">' +
+        sanitize(formatContactDisplay(r.phone)) +
+        '</span></td><td><span class="table-vehicle-no">' +
+        sanitize(r.vehicleNo) +
+        "</span></td><td>" +
+        sanitize(r.service) +
+        "</td><td>" +
+        sanitize(r.serviceDate) +
+        "</td><td>" +
+        sanitize(r.dueDate) +
+        '</td><td style="font-weight:600;color:' +
+        (r.status === "overdue"
+          ? "var(--danger)"
+          : r.status === "due-today"
+            ? "var(--warning)"
+            : "var(--text)") +
+        ';">' +
+        dr +
+        '</td><td><span class="badge ' +
+        sc +
+        '">' +
+        sl +
+        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-primary whatsapp-btn" data-wa="' +
+        r.id +
+        '">WhatsApp</button>' +
+        (r.status !== "completed"
+          ? '<button class="btn btn-sm btn-outline" data-cr="' +
+            r.id +
+            '">Done</button>'
+          : "") +
+        '<button class="btn-icon btn btn-danger-ghost" data-dr="' +
+        r.id +
+        '"><span class="material-icons">delete</span></button></div></td></tr>'
+      );
     })
     .join("");
 }
 
 // ==================== LOGIN ====================
 function initLogin() {
-  const f = qs("#loginForm"),
+  var f = qs("#loginForm"),
     er = qs("#loginError"),
     tg = qs("#togglePassword"),
     pi = qs("#loginPassword");
   if (!f || !er) return;
   if (tg && pi)
-    tg.addEventListener("click", () => {
-      const p = pi.type === "password";
+    tg.addEventListener("click", function () {
+      var p = pi.type === "password";
       pi.type = p ? "text" : "password";
       tg.querySelector(".material-icons").textContent = p
         ? "visibility"
         : "visibility_off";
     });
-  f.addEventListener("submit", (e) => {
+  f.addEventListener("submit", function (e) {
     e.preventDefault();
-    const u = qs("#loginUsername").value.trim(),
+    var u = qs("#loginUsername").value.trim(),
       p = qs("#loginPassword").value;
     er.classList.remove("visible");
     if (
@@ -678,7 +737,7 @@ function initApp() {
   setInterval(updateSessionTime, 60000);
   updateAllBrandNames();
   setupModalClosers();
-  const mb = qs("#mobileMenuBtn"),
+  var mb = qs("#mobileMenuBtn"),
     sb = qs("#sidebarCloseBtn"),
     s = qs("#sidebar"),
     bd = qs("#sidebarBackdrop");
@@ -697,21 +756,21 @@ function initApp() {
   if (mb) mb.addEventListener("click", openSidebar);
   if (sb) sb.addEventListener("click", closeSidebar);
   if (bd) bd.addEventListener("click", closeSidebar);
-  qs("#sidebarToggle")?.addEventListener("click", () => {
-    const sb2 = qs("#sidebar"),
+  qs("#sidebarToggle")?.addEventListener("click", function () {
+    var sb2 = qs("#sidebar"),
       mw = qs("#mainWrapper");
     if (!sb2 || !mw) return;
     sb2.classList.toggle("collapsed");
     mw.classList.toggle("sidebar-collapsed");
   });
-  qsa(".nav-link").forEach((l) =>
-    l.addEventListener("click", (e) => {
+  qsa(".nav-link").forEach(function (l) {
+    l.addEventListener("click", function (e) {
       e.preventDefault();
       if (l.dataset.module) navigateTo(l.dataset.module);
       if (window.innerWidth <= 768) closeSidebar();
-    }),
-  );
-  qs("#logoutBtn")?.addEventListener("click", () => {
+    });
+  });
+  qs("#logoutBtn")?.addEventListener("click", function () {
     if (window.confirm("Sign out?")) {
       qs("#app").classList.add("hidden");
       qs("#loginScreen").classList.remove("hidden");
@@ -719,7 +778,7 @@ function initApp() {
       setValue("#loginPassword", "");
     }
   });
-  qs("#confirmActionBtn")?.addEventListener("click", () => {
+  qs("#confirmActionBtn")?.addEventListener("click", function () {
     if (STATE.confirmCallback) {
       STATE.confirmCallback();
       STATE.confirmCallback = null;
@@ -727,21 +786,22 @@ function initApp() {
     closeModal("confirmModal");
   });
 
-  // SINGLE GLOBAL CLICK HANDLER
   document.addEventListener("click", function (e) {
-    const ab = e.target.closest("[data-action]");
+    var ab = e.target.closest("[data-action]");
     if (ab) {
       handleQuickAction(ab.dataset.action);
       return;
     }
-    const nb = e.target.closest("[data-nav]");
+    var nb = e.target.closest("[data-nav]");
     if (nb) {
       navigateTo(nb.dataset.nav);
       return;
     }
-    const wa = e.target.closest("[data-wa]");
+    var wa = e.target.closest("[data-wa]");
     if (wa) {
-      const r = STATE.reminders.find((r) => r.id === wa.dataset.wa);
+      var r = STATE.reminders.find(function (r) {
+        return r.id === wa.dataset.wa;
+      });
       if (r)
         openWhatsApp(
           r.phone,
@@ -752,9 +812,11 @@ function initApp() {
         );
       return;
     }
-    const cr = e.target.closest("[data-cr]");
+    var cr = e.target.closest("[data-cr]");
     if (cr) {
-      const r = STATE.reminders.find((r) => r.id === cr.dataset.cr);
+      var r = STATE.reminders.find(function (r) {
+        return r.id === cr.dataset.cr;
+      });
       if (r) {
         r.status = "completed";
         saveReminders();
@@ -763,24 +825,28 @@ function initApp() {
       }
       return;
     }
-    const dr = e.target.closest("[data-dr]");
+    var dr = e.target.closest("[data-dr]");
     if (dr) {
-      confirm("Delete reminder?", () => {
-        STATE.reminders = STATE.reminders.filter((r) => r.id !== dr.dataset.dr);
+      confirm("Delete reminder?", function () {
+        STATE.reminders = STATE.reminders.filter(function (r) {
+          return r.id !== dr.dataset.dr;
+        });
         saveReminders();
         renderReminderTable();
         refreshDashboard();
       });
       return;
     }
-    const tp = e.target.closest("[data-token-progress]");
+    var tp = e.target.closest("[data-token-progress]");
     if (tp) {
       updateTokenStatus(tp.dataset.tokenProgress, "in-progress");
       return;
     }
-    const tc = e.target.closest("[data-token-complete]");
+    var tc = e.target.closest("[data-token-complete]");
     if (tc) {
-      const t = STATE.tokens.find((t) => t.id === tc.dataset.tokenComplete);
+      var t = STATE.tokens.find(function (t) {
+        return t.id === tc.dataset.tokenComplete;
+      });
       if (t) {
         t.status = "completed";
         saveTokens();
@@ -790,74 +856,78 @@ function initApp() {
       }
       return;
     }
-    const ti = e.target.closest("[data-token-invoice]");
+    var ti = e.target.closest("[data-token-invoice]");
     if (ti) {
       openInvoiceForToken(ti.dataset.tokenInvoice);
       return;
     }
-    const te = e.target.closest("[data-token-edit]");
+    var te = e.target.closest("[data-token-edit]");
     if (te) {
       openEditTokenModal(te.dataset.tokenEdit);
       return;
     }
-    const td = e.target.closest("[data-token-delete]");
+    var td = e.target.closest("[data-token-delete]");
     if (td) {
-      confirm("Remove token?", () => {
-        const t = STATE.tokens.find((t) => t.id === td.dataset.tokenDelete);
-        if (t?.products) {
-          t.products.forEach((p) => {
-            const f = findVariantById(p.variantId);
+      confirm("Remove token?", function () {
+        var t = STATE.tokens.find(function (t) {
+          return t.id === td.dataset.tokenDelete;
+        });
+        if (t && t.products) {
+          t.products.forEach(function (p) {
+            var f = findVariantById(p.variantId);
             if (f) f.variant.stock += p.qty;
           });
           saveInventory();
         }
-        STATE.tokens = STATE.tokens.filter(
-          (t) => t.id !== td.dataset.tokenDelete,
-        );
+        STATE.tokens = STATE.tokens.filter(function (t) {
+          return t.id !== td.dataset.tokenDelete;
+        });
         saveTokens();
         renderTokenTable();
         refreshDashboard();
       });
       return;
     }
-    const ve = e.target.closest("[data-vehicle-edit]");
+    var ve = e.target.closest("[data-vehicle-edit]");
     if (ve) {
-      const v = STATE.vehicles.find((v) => v.id === ve.dataset.vehicleEdit);
+      var v = STATE.vehicles.find(function (v) {
+        return v.id === ve.dataset.vehicleEdit;
+      });
       if (v) openNewVehicleModal(v);
       return;
     }
-    const vd = e.target.closest("[data-vehicle-delete]");
+    var vd = e.target.closest("[data-vehicle-delete]");
     if (vd) {
-      confirm("Delete vehicle?", () => {
-        STATE.vehicles = STATE.vehicles.filter(
-          (v) => v.id !== vd.dataset.vehicleDelete,
-        );
+      confirm("Delete vehicle?", function () {
+        STATE.vehicles = STATE.vehicles.filter(function (v) {
+          return v.id !== vd.dataset.vehicleDelete;
+        });
         saveVehicles();
         renderVehicleTable();
       });
       return;
     }
-    const si = e.target.closest("[data-stock-in]");
+    var si = e.target.closest("[data-stock-in]");
     if (si) {
       openStockModal(si.dataset.stockIn, "in");
       return;
     }
-    const so = e.target.closest("[data-stock-out]");
+    var so = e.target.closest("[data-stock-out]");
     if (so) {
       openStockModal(so.dataset.stockOut, "out");
       return;
     }
-    const vdd = e.target.closest("[data-variant-delete]");
+    var vdd = e.target.closest("[data-variant-delete]");
     if (vdd) {
-      confirm("Delete variant?", () => {
-        STATE.inventory.forEach((p) => {
-          p.variants = (p.variants || []).filter(
-            (v) => v.id !== vdd.dataset.variantDelete,
-          );
+      confirm("Delete variant?", function () {
+        STATE.inventory.forEach(function (p) {
+          p.variants = (p.variants || []).filter(function (v) {
+            return v.id !== vdd.dataset.variantDelete;
+          });
         });
-        STATE.inventory = STATE.inventory.filter(
-          (p) => (p.variants || []).length > 0,
-        );
+        STATE.inventory = STATE.inventory.filter(function (p) {
+          return (p.variants || []).length > 0;
+        });
         saveInventory();
         renderInventoryTable();
         updateInventoryKPI();
@@ -865,84 +935,99 @@ function initApp() {
       });
       return;
     }
-    const vi = e.target.closest("[data-view-invoice]");
+    var vi = e.target.closest("[data-view-invoice]");
     if (vi) {
       viewInvoice(vi.dataset.viewInvoice);
       return;
     }
-    const pi = e.target.closest("[data-print-receipt]");
+    var pi = e.target.closest("[data-print-receipt]");
     if (pi) {
       printSavedReceipt(pi.dataset.printReceipt);
       return;
     }
-    const di = e.target.closest("[data-delete-invoice]");
+    var di = e.target.closest("[data-delete-invoice]");
     if (di) {
-      confirm("Delete invoice?", () => {
-        STATE.invoices = STATE.invoices.filter(
-          (i) => i.id !== di.dataset.deleteInvoice,
-        );
+      confirm("Delete invoice?", function () {
+        STATE.invoices = STATE.invoices.filter(function (i) {
+          return i.id !== di.dataset.deleteInvoice;
+        });
         saveInvoices();
         renderSavedInvoices();
       });
       return;
     }
-    const ed = e.target.closest("[data-expense-del]");
+    var ed = e.target.closest("[data-expense-del]");
     if (ed) {
-      confirm("Delete?", () => {
-        STATE.expenses = STATE.expenses.filter(
-          (ex) => ex.id !== ed.dataset.expenseDel,
-        );
+      confirm("Delete?", function () {
+        STATE.expenses = STATE.expenses.filter(function (ex) {
+          return ex.id !== ed.dataset.expenseDel;
+        });
         saveExpenses();
         renderExpenses();
         refreshDashboard();
       });
       return;
     }
-    const bd2 = e.target.closest("[data-brand-delete]");
+    var bd2 = e.target.closest("[data-brand-delete]");
     if (bd2) {
-      const id = bd2.dataset.brandDelete;
+      var id = bd2.dataset.brandDelete;
       if (
-        getAllVariantsFlat().some(
-          (v) => v.brand === STATE.brands.find((b) => b.id === id)?.name,
-        )
+        getAllVariantsFlat().some(function (v) {
+          return (
+            v.brand ===
+            (
+              STATE.brands.find(function (b) {
+                return b.id === id;
+              }) || {}
+            ).name
+          );
+        })
       ) {
         toast("Brand in use", "warning");
         return;
       }
-      STATE.brands = STATE.brands.filter((b) => b.id !== id);
+      STATE.brands = STATE.brands.filter(function (b) {
+        return b.id !== id;
+      });
       saveBrands();
       populateBrandDropdowns();
       renderBrandList();
       return;
     }
-    const cd = e.target.closest("[data-cat-delete]");
+    var cd = e.target.closest("[data-cat-delete]");
     if (cd) {
-      const id = cd.dataset.catDelete;
-      if (STATE.inventory.some((p) => p.category === id)) {
+      var id = cd.dataset.catDelete;
+      if (
+        STATE.inventory.some(function (p) {
+          return p.category === id;
+        })
+      ) {
         toast("Category in use", "warning");
         return;
       }
-      STATE.categories = STATE.categories.filter((c) => c.id !== id);
+      STATE.categories = STATE.categories.filter(function (c) {
+        return c.id !== id;
+      });
       saveCategories();
       populateCategoryDropdowns();
       renderCategoryList();
       return;
     }
-    const vtd = e.target.closest("[data-vtype-delete]");
+    var vtd = e.target.closest("[data-vtype-delete]");
     if (vtd) {
-      STATE.pricingVehicles = STATE.pricingVehicles.filter(
-        (v) => v.id !== vtd.dataset.vtypeDelete,
-      );
+      STATE.pricingVehicles = STATE.pricingVehicles.filter(function (v) {
+        return v.id !== vtd.dataset.vtypeDelete;
+      });
       savePricingVehicles();
       renderVehicleTypeList();
       renderPricingMatrix();
       return;
     }
-    const psd = e.target.closest("[data-psvc-delete]");
+    var psd = e.target.closest("[data-psvc-delete]");
     if (psd) {
-      STATE.pricingServices = STATE.pricingServices.filter(
-        (s) => s.id !== psd.dataset.psvcDelete,
-      );
+      STATE.pricingServices = STATE.pricingServices.filter(function (s) {
+        return s.id !== psd.dataset.psvcDelete;
+      });
       savePricingServices();
       renderPricingServiceList();
       renderPricingMatrix();
@@ -966,21 +1051,24 @@ function initApp() {
 }
 
 function updateSessionTime() {
-  const e = qs("#sessionTime");
+  var e = qs("#sessionTime");
   if (!e) return;
-  e.textContent = `Session: ${Math.floor((new Date() - STATE.sessionStart) / 60000)} min`;
+  e.textContent =
+    "Session: " +
+    Math.floor((new Date() - STATE.sessionStart) / 60000) +
+    " min";
 }
 function updateAllBrandNames() {
-  const s = STATE.settings;
-  const lb = qs("#loginBrandName");
+  var s = STATE.settings;
+  var lb = qs("#loginBrandName");
   if (lb) lb.textContent = s.businessName;
-  const sb = qs(".sidebar-brand");
+  var sb = qs(".sidebar-brand");
   if (sb) sb.textContent = s.businessName;
-  const ib = qs("#invBusinessName");
+  var ib = qs("#invBusinessName");
   if (ib) ib.textContent = s.businessName;
 }
 
-const MODULE_TITLES = {
+var MODULE_TITLES = {
   dashboard: ["Dashboard", "Overview"],
   tokens: ["Token Management", "Track tokens"],
   vehicles: ["Vehicle Records", "Customer vehicles"],
@@ -994,98 +1082,98 @@ const MODULE_TITLES = {
   importexport: ["Import/Export", "Data management"],
   settings: ["Settings", "Configuration"],
 };
+
 function navigateTo(mod) {
-  qsa(".nav-link").forEach((l) =>
-    l.classList.toggle("active", l.dataset.module === mod),
-  );
-  qsa(".module").forEach((m) => m.classList.add("hidden"));
-  const tgt = qs(`#module-${mod}`);
+  qsa(".nav-link").forEach(function (l) {
+    l.classList.toggle("active", l.dataset.module === mod);
+  });
+  qsa(".module").forEach(function (m) {
+    m.classList.add("hidden");
+  });
+  var tgt = qs("#module-" + mod);
   if (tgt) tgt.classList.remove("hidden");
-  const [t, s] = MODULE_TITLES[mod] || [mod, ""];
-  setText("#pageTitle", t);
-  setText("#pageSubtitle", s);
-  switch (mod) {
-    case "dashboard":
-      refreshDashboard();
-      break;
-    case "tokens":
-      renderTokenTable();
-      break;
-    case "vehicles":
-      renderVehicleTable();
-      break;
-    case "inventory":
-      renderInventoryTable();
-      break;
-    case "reports":
-      renderReports();
-      break;
-    case "expenses":
-      renderExpenses();
-      break;
-    case "services":
-      renderPricingMatrix();
-      break;
-    case "productsale":
-      renderProductSalePage();
-      break;
-    case "reminders":
-      renderReminderTable();
-      break;
-    case "settings":
-      loadSettingsForm();
-      break;
-  }
+  var title = MODULE_TITLES[mod] || [mod, ""];
+  setText("#pageTitle", title[0]);
+  setText("#pageSubtitle", title[1]);
+  if (mod === "dashboard") refreshDashboard();
+  else if (mod === "tokens") renderTokenTable();
+  else if (mod === "vehicles") renderVehicleTable();
+  else if (mod === "inventory") renderInventoryTable();
+  else if (mod === "reports") renderReports();
+  else if (mod === "expenses") renderExpenses();
+  else if (mod === "services") renderPricingMatrix();
+  else if (mod === "productsale") renderProductSalePage();
+  else if (mod === "reminders") renderReminderTable();
+  else if (mod === "settings") loadSettingsForm();
 }
+
 function handleQuickAction(a) {
-  const m = {
-    newToken: () => {
+  var m = {
+    newToken: function () {
       navigateTo("tokens");
       openNewTokenModal();
     },
-    newVehicle: () => {
+    newVehicle: function () {
       navigateTo("vehicles");
       openNewVehicleModal();
     },
-    newInvoice: () => navigateTo("billing"),
-    stockIn: () => navigateTo("inventory"),
-    dailyReport: () => navigateTo("reports"),
-    inventory: () => navigateTo("inventory"),
+    newInvoice: function () {
+      navigateTo("billing");
+    },
+    stockIn: function () {
+      navigateTo("inventory");
+    },
+    dailyReport: function () {
+      navigateTo("reports");
+    },
+    inventory: function () {
+      navigateTo("inventory");
+    },
   };
   if (m[a]) m[a]();
 }
 
 function getTotalRevenue() {
-  let t = 0;
-  STATE.tokens.forEach((tk) => {
+  var t = 0;
+  STATE.tokens.forEach(function (tk) {
     if (tk.status === "completed") {
       if (tk.servicePrice > 0) t += tk.servicePrice;
       if (tk.products)
-        tk.products.forEach((p) => {
+        tk.products.forEach(function (p) {
           t += p.price * p.qty;
         });
     }
   });
-  STATE.productSales.forEach((sale) => {
+  STATE.productSales.forEach(function (sale) {
     t += sale.total;
   });
   return t;
 }
 function getTotalExpenses() {
   return STATE.expenses
-    .filter((e) => e.category !== "labour")
-    .reduce((s, e) => s + (e.amount || 0), 0);
+    .filter(function (e) {
+      return e.category !== "labour";
+    })
+    .reduce(function (s, e) {
+      return s + (e.amount || 0);
+    }, 0);
 }
 function getLabourCost() {
   return STATE.expenses
-    .filter((e) => e.category === "labour")
-    .reduce((s, e) => s + (e.amount || 0), 0);
+    .filter(function (e) {
+      return e.category === "labour";
+    })
+    .reduce(function (s, e) {
+      return s + (e.amount || 0);
+    }, 0);
 }
 function getAllExpensesTotal() {
-  return STATE.expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  return STATE.expenses.reduce(function (s, e) {
+    return s + (e.amount || 0);
+  }, 0);
 }
 function getMatrixPrice(sn, vt) {
-  const key = `${sn}__${vt}`;
+  var key = sn + "__" + vt;
   return STATE.pricingMatrix[key] || 0;
 }
 
@@ -1094,12 +1182,14 @@ function initDashboard() {
   refreshDashboard();
 }
 function refreshDashboard() {
-  const tv = STATE.tokens.length,
-    at = STATE.tokens.filter(
-      (t) => t.status === "waiting" || t.status === "in-progress",
-    ).length;
-  const ct = STATE.tokens.filter((t) => t.status === "completed").length;
-  const dr = getTotalRevenue(),
+  var tv = STATE.tokens.length,
+    at = STATE.tokens.filter(function (t) {
+      return t.status === "waiting" || t.status === "in-progress";
+    }).length;
+  var ct = STATE.tokens.filter(function (t) {
+    return t.status === "completed";
+  }).length;
+  var dr = getTotalRevenue(),
     ls = getLowStockCount();
   setText("#kpiVehicles", tv);
   setText("#kpiTokens", at);
@@ -1107,23 +1197,23 @@ function refreshDashboard() {
   setText("#kpiRevenue", fmtPrice(dr));
   setText("#kpiAlerts", ls);
   setText("#kpiLowStock", ls);
-  const ab = qs("#activeTokenBadge");
+  var ab = qs("#activeTokenBadge");
   if (ab) {
     ab.textContent = at;
     ab.classList.toggle("hidden", at === 0);
   }
-  const lb = qs("#lowStockBadge");
+  var lb = qs("#lowStockBadge");
   if (lb) {
     lb.textContent = ls;
     lb.classList.toggle("hidden", ls === 0);
   }
-  const rs = getReminderStats();
+  var rs = getReminderStats();
   setText("#kpiDueToday", rs.dueToday);
   setText("#kpiOverdue", rs.overdue);
   setText("#kpiUpcomingWeek", rs.upcomingWeek);
-  const rb = qs("#reminderBadge");
+  var rb = qs("#reminderBadge");
   if (rb) {
-    const a = rs.dueToday + rs.overdue;
+    var a = rs.dueToday + rs.overdue;
     rb.textContent = a;
     rb.classList.toggle("hidden", a === 0);
   }
@@ -1131,41 +1221,56 @@ function refreshDashboard() {
   updateLowStockAlert(ls);
 }
 function updateLowStockAlert(c) {
-  const ae = qs("#lowStockAlert");
+  var ae = qs("#lowStockAlert");
   if (!ae) return;
   ae.classList.toggle("hidden", c === 0);
 }
 function renderRecentActivity() {
-  const tb = qs("#recentActivityTable");
+  var tb = qs("#recentActivityTable");
   if (!tb) return;
-  const recent = [...STATE.tokens].reverse().slice(0, 10);
+  var recent = STATE.tokens.slice().reverse().slice(0, 10);
   if (!recent.length) {
     tb.innerHTML =
       '<tr><td colspan="6" style="text-align:center;padding:3rem;">No activity yet</td></tr>';
     return;
   }
   tb.innerHTML = recent
-    .map(
-      (t) =>
-        `<tr><td><span class="table-token-no">${sanitize(t.number)}</span></td><td><span class="table-vehicle-no">${sanitize(t.vehicleNo)}</span></td><td style="font-weight:500;">${sanitize(t.ownerName || "—")}</td><td><span class="contact-display">${sanitize(formatContactDisplay(t.contactNumber || "N/A"))}</span></td><td>${sanitize(t.service)}</td><td>${statusBadge(t.status)}</td></tr>`,
-    )
+    .map(function (t) {
+      return (
+        '<tr><td><span class="table-token-no">' +
+        sanitize(t.number) +
+        '</span></td><td><span class="table-vehicle-no">' +
+        sanitize(t.vehicleNo) +
+        '</span></td><td style="font-weight:500;">' +
+        sanitize(t.ownerName || "—") +
+        '</td><td><span class="contact-display">' +
+        sanitize(formatContactDisplay(t.contactNumber || "N/A")) +
+        "</span></td><td>" +
+        sanitize(t.service) +
+        "</td><td>" +
+        statusBadge(t.status) +
+        "</td></tr>"
+      );
+    })
     .join("");
 }
 function statusBadge(s) {
-  const m = {
+  var m = {
     waiting: "status-waiting",
     "in-progress": "status-in-progress",
     completed: "status-completed",
   };
-  const l = {
+  var l = {
     waiting: "Waiting",
     "in-progress": "In Progress",
     completed: "Completed",
   };
-  return `<span class="status-badge ${m[s] || ""}">${l[s] || s}</span>`;
+  return (
+    '<span class="status-badge ' + (m[s] || "") + '">' + (l[s] || s) + "</span>"
+  );
 }
 
-// ==================== TOKEN MANAGEMENT (COMPLETE - NO DUPLICATES) ====================
+// ==================== TOKEN MANAGEMENT ====================
 function initTokens() {
   qs("#newTokenBtn")?.addEventListener("click", openNewTokenModal);
   qs("#newTokenBtn2")?.addEventListener("click", openNewTokenModal);
@@ -1180,36 +1285,35 @@ function initTokens() {
   qs("#tokenVehicleType")?.addEventListener("change", updateTokenPrice);
   renderTokenTable();
 }
-
 function populateTokenServices() {
-  const sel = qs("#tokenServiceType");
+  var sel = qs("#tokenServiceType");
   if (!sel) return;
   sel.innerHTML = '<option value="">Select service</option>';
-  STATE.pricingServices.forEach((s) => {
-    const o = document.createElement("option");
+  STATE.pricingServices.forEach(function (s) {
+    var o = document.createElement("option");
     o.value = s.name;
     o.textContent = s.name;
     sel.appendChild(o);
   });
-  const co = document.createElement("option");
+  var co = document.createElement("option");
   co.value = "Custom";
   co.textContent = "Custom Service";
   sel.appendChild(co);
 }
 function populateVehicleTypes() {
-  const sel = qs("#tokenVehicleType");
+  var sel = qs("#tokenVehicleType");
   if (!sel) return;
   sel.innerHTML = '<option value="">Select type</option>';
-  STATE.pricingVehicles.forEach((v) => {
-    const o = document.createElement("option");
+  STATE.pricingVehicles.forEach(function (v) {
+    var o = document.createElement("option");
     o.value = v.name;
     o.textContent = v.name;
     sel.appendChild(o);
   });
 }
 function updateTokenPrice() {
-  const sv = qs("#tokenServiceType")?.value || "";
-  const vt = qs("#tokenVehicleType")?.value || "";
+  var sv = qs("#tokenServiceType")?.value || "";
+  var vt = qs("#tokenVehicleType")?.value || "";
   setText(
     "#autoTokenPrice",
     sv && sv !== "Custom" && vt ? fmtPrice(getMatrixPrice(sv, vt)) : "—",
@@ -1217,23 +1321,41 @@ function updateTokenPrice() {
   updateTokenTotal();
 }
 function addTokenProduct() {
-  const c = qs("#tokenProductsList");
+  var c = qs("#tokenProductsList");
   if (!c) return;
-  const opts = getAllVariantsFlat()
-    .filter((v) => v.stock > 0)
-    .map(
-      (v) =>
-        `<option value="${v.id}" data-price="${v.sellingPrice}" data-stock="${v.stock}">${sanitize(v.fullName)} | Stock: ${v.stock} | ${fmtPrice(v.sellingPrice)}</option>`,
-    )
+  var opts = getAllVariantsFlat()
+    .filter(function (v) {
+      return v.stock > 0;
+    })
+    .map(function (v) {
+      return (
+        '<option value="' +
+        v.id +
+        '" data-price="' +
+        v.sellingPrice +
+        '" data-stock="' +
+        v.stock +
+        '">' +
+        sanitize(v.fullName) +
+        " | Stock: " +
+        v.stock +
+        " | " +
+        fmtPrice(v.sellingPrice) +
+        "</option>"
+      );
+    })
     .join("");
-  const r = document.createElement("div");
+  var r = document.createElement("div");
   r.style.cssText =
     "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-  r.innerHTML = `<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>${opts}</select><input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('div').remove();updateTokenTotal();"><span class="material-icons">close</span></button>`;
+  r.innerHTML =
+    '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' +
+    opts +
+    '</select><input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateTokenTotal();"><span class="material-icons">close</span></button>';
   c.appendChild(r);
-  const s = r.querySelector(".token-product-select");
+  var s = r.querySelector(".token-product-select");
   s.addEventListener("change", function () {
-    const o = this.options[this.selectedIndex];
+    var o = this.options[this.selectedIndex];
     r.querySelector(".token-product-price").value =
       parseFloat(o?.dataset?.price) || 0;
     r.querySelector(".token-product-qty").max =
@@ -1246,11 +1368,11 @@ function addTokenProduct() {
   );
 }
 function updateTokenTotal() {
-  let t = 0;
-  const sv = qs("#tokenServiceType")?.value || "";
-  const vt = qs("#tokenVehicleType")?.value || "";
+  var t = 0;
+  var sv = qs("#tokenServiceType")?.value || "";
+  var vt = qs("#tokenVehicleType")?.value || "";
   if (sv && sv !== "Custom" && vt) t += getMatrixPrice(sv, vt);
-  qsa("#tokenProductsList .token-product-select").forEach((s, i) => {
+  qsa("#tokenProductsList .token-product-select").forEach(function (s, i) {
     t +=
       (parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 0) *
       (parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) ||
@@ -1275,22 +1397,23 @@ function openNewTokenModal() {
   qs("#tokenModalTitle").innerHTML =
     '<span class="material-icons">token</span> Generate Token';
   openModal("tokenModal");
-  setTimeout(() => qs("#tokenVehicleNo")?.focus(), 100);
+  setTimeout(function () {
+    qs("#tokenVehicleNo")?.focus();
+  }, 100);
 }
-
 function saveToken() {
-  const editId = qs("#tokenModal")?.dataset?.editId || "";
-  const vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase(),
-    vt = qs("#tokenVehicleType")?.value || "",
-    on = (qs("#tokenOwnerName")?.value || "").trim();
-  const cn = (qs("#tokenContactNumber")?.value || "").trim(),
-    st = qs("#tokenServiceType")?.value || "",
-    cs = (qs("#tokenCustomService")?.value || "").trim();
+  var editId = qs("#tokenModal")?.dataset?.editId || "";
+  var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
+  var vt = qs("#tokenVehicleType")?.value || "";
+  var on = (qs("#tokenOwnerName")?.value || "").trim();
+  var cn = (qs("#tokenContactNumber")?.value || "").trim();
+  var st = qs("#tokenServiceType")?.value || "";
+  var cs = (qs("#tokenCustomService")?.value || "").trim();
   if (!vn || !vt || !st) {
     toast("Please fill all required fields", "error");
     return;
   }
-  const cv = validateContactNumber(cn);
+  var cv = validateContactNumber(cn);
   if (!cv.valid) {
     toast(cv.message, "error");
     qs("#tokenContactNumber")?.focus();
@@ -1300,26 +1423,26 @@ function saveToken() {
     toast("Please describe the custom service", "error");
     return;
   }
-  let fs = st === "Custom" ? cs : st,
-    sp = st !== "Custom" ? getMatrixPrice(st, vt) : 0;
-  const newProducts = [];
-  let hasError = false;
-  qsa("#tokenProductsList .token-product-select").forEach((s, i) => {
-    const vid = s.value;
+  var fs = st === "Custom" ? cs : st;
+  var sp = st !== "Custom" ? getMatrixPrice(st, vt) : 0;
+  var newProducts = [];
+  var hasError = false;
+  qsa("#tokenProductsList .token-product-select").forEach(function (s, i) {
+    var vid = s.value;
     if (!vid) return;
-    const f = findVariantById(vid);
+    var f = findVariantById(vid);
     if (!f) return;
-    const q =
+    var q =
       parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 1;
     if (q > f.variant.stock) {
       toast(
-        `Only ${f.variant.stock} units available for ${f.fullName}`,
+        "Only " + f.variant.stock + " units available for " + f.fullName,
         "error",
       );
       hasError = true;
       return;
     }
-    const p =
+    var p =
       parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) ||
       f.variant.sellingPrice;
     newProducts.push({
@@ -1331,15 +1454,17 @@ function saveToken() {
   });
   if (hasError) return;
   if (editId) {
-    const t = STATE.tokens.find((t) => t.id === editId);
+    var t = STATE.tokens.find(function (t) {
+      return t.id === editId;
+    });
     if (!t) return;
     if (t.products)
-      t.products.forEach((p) => {
-        const f = findVariantById(p.variantId);
+      t.products.forEach(function (p) {
+        var f = findVariantById(p.variantId);
         if (f) f.variant.stock += p.qty;
       });
-    newProducts.forEach((p) => {
-      const f = findVariantById(p.variantId);
+    newProducts.forEach(function (p) {
+      var f = findVariantById(p.variantId);
       if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty);
     });
     t.vehicleNo = vn;
@@ -1357,11 +1482,13 @@ function saveToken() {
     refreshDashboard();
     toast("Token updated successfully", "success");
   } else {
-    newProducts.forEach((p) => {
-      const f = findVariantById(p.variantId);
+    newProducts.forEach(function (p) {
+      var f = findVariantById(p.variantId);
       if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty);
     });
-    const ex = STATE.vehicles.find((v) => v.vehicleNo === vn);
+    var ex = STATE.vehicles.find(function (v) {
+      return v.vehicleNo === vn;
+    });
     if (!ex) {
       STATE.vehicles.push({
         id: uid(),
@@ -1380,7 +1507,7 @@ function saveToken() {
       if (cv.formatted) ex.contact = cv.formatted;
       saveVehicles();
     }
-    const newToken = {
+    var newToken = {
       id: uid(),
       number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(),
       vehicleNo: vn,
@@ -1400,17 +1527,14 @@ function saveToken() {
     closeModal("tokenModal");
     renderTokenTable();
     refreshDashboard();
-    toast(`Token ${newToken.number} generated successfully`, "success");
+    toast("Token " + newToken.number + " generated successfully", "success");
   }
 }
-
-// ===== SINGLE renderTokenTable - NO DUPLICATES =====
 function renderTokenTable() {
-  const sr = (qs("#tokenSearch")?.value || "").toLowerCase();
-  const sf = qs("#tokenStatusFilter")?.value || "";
-
-  let fl = STATE.tokens.filter((t) => {
-    const ms =
+  var sr = (qs("#tokenSearch")?.value || "").toLowerCase();
+  var sf = qs("#tokenStatusFilter")?.value || "";
+  var fl = STATE.tokens.filter(function (t) {
+    var ms =
       !sr ||
       t.number.toLowerCase().includes(sr) ||
       t.vehicleNo.toLowerCase().includes(sr) ||
@@ -1419,30 +1543,31 @@ function renderTokenTable() {
       t.service.toLowerCase().includes(sr);
     return ms && (!sf || t.status === sf);
   });
-
-  // Update KPI stat cards
   setText("#tokenStatsTotal", STATE.tokens.length);
   setText(
     "#tokenStatsWaiting",
-    STATE.tokens.filter((t) => t.status === "waiting").length,
+    STATE.tokens.filter(function (t) {
+      return t.status === "waiting";
+    }).length,
   );
   setText(
     "#tokenStatsProgress",
-    STATE.tokens.filter((t) => t.status === "in-progress").length,
+    STATE.tokens.filter(function (t) {
+      return t.status === "in-progress";
+    }).length,
   );
   setText(
     "#tokenStatsCompleted",
-    STATE.tokens.filter((t) => t.status === "completed").length,
+    STATE.tokens.filter(function (t) {
+      return t.status === "completed";
+    }).length,
   );
-
-  const badge = qs("#tokenCountBadge");
+  var badge = qs("#tokenCountBadge");
   if (badge)
-    badge.textContent = `${fl.length} token${fl.length !== 1 ? "s" : ""}`;
-
-  const tableContainer = qs("#tokenTableContainer");
-  const emptyContainer = qs("#tokenEmptyStateContainer");
-  const tableBody = qs("#tokenTableBody");
-
+    badge.textContent = fl.length + " token" + (fl.length !== 1 ? "s" : "");
+  var tableContainer = qs("#tokenTableContainer");
+  var emptyContainer = qs("#tokenEmptyStateContainer");
+  var tableBody = qs("#tokenTableBody");
   if (!fl.length) {
     if (tableContainer) tableContainer.style.display = "none";
     if (emptyContainer) emptyContainer.style.display = "";
@@ -1453,33 +1578,58 @@ function renderTokenTable() {
     if (tableBody) {
       tableBody.innerHTML = fl
         .reverse()
-        .map(
-          (t) => `
-        <tr>
-          <td><span class="table-token-no">${sanitize(t.number)}</span></td>
-          <td><span class="table-vehicle-no">${sanitize(t.vehicleNo)}</span></td>
-          <td>${sanitize(t.vehicleType)}</td>
-          <td style="font-weight:500;">${sanitize(t.ownerName || "—")}</td>
-          <td><span class="contact-display">${sanitize(formatContactDisplay(t.contactNumber || "N/A"))}</span></td>
-          <td>${sanitize(t.service)}</td>
-          <td style="color:var(--text-muted);font-size:0.78rem;">${sanitize(t.time)}</td>
-          <td>${statusBadge(t.status)}</td>
-          <td><div class="table-actions">
-            ${t.status === "waiting" || t.status === "in-progress" ? `<button class="btn btn-sm btn-ghost" data-token-edit="${t.id}" title="Edit"><span class="material-icons">edit</span></button>` : ""}
-            ${t.status === "waiting" ? `<button class="btn btn-sm btn-outline" data-token-progress="${t.id}" title="Start"><span class="material-icons">play_arrow</span></button>` : ""}
-            ${t.status === "in-progress" ? `<button class="btn btn-sm btn-primary" data-token-complete="${t.id}" title="Complete"><span class="material-icons">check</span></button>` : ""}
-            ${t.status === "completed" ? `<button class="btn btn-sm btn-ghost" data-token-invoice="${t.id}" title="Invoice"><span class="material-icons">receipt</span></button>` : ""}
-            <button class="btn-icon btn btn-danger-ghost" data-token-delete="${t.id}" title="Delete"><span class="material-icons">delete</span></button>
-          </div></td>
-        </tr>`,
-        )
+        .map(function (t) {
+          return (
+            '<tr><td><span class="table-token-no">' +
+            sanitize(t.number) +
+            '</span></td><td><span class="table-vehicle-no">' +
+            sanitize(t.vehicleNo) +
+            "</span></td><td>" +
+            sanitize(t.vehicleType) +
+            '</td><td style="font-weight:500;">' +
+            sanitize(t.ownerName || "—") +
+            '</td><td><span class="contact-display">' +
+            sanitize(formatContactDisplay(t.contactNumber || "N/A")) +
+            "</span></td><td>" +
+            sanitize(t.service) +
+            '</td><td style="color:var(--text-muted);font-size:0.78rem;">' +
+            sanitize(t.time) +
+            "</td><td>" +
+            statusBadge(t.status) +
+            '</td><td><div class="table-actions">' +
+            (t.status === "waiting" || t.status === "in-progress"
+              ? '<button class="btn btn-sm btn-ghost" data-token-edit="' +
+                t.id +
+                '" title="Edit"><span class="material-icons">edit</span></button>'
+              : "") +
+            (t.status === "waiting"
+              ? '<button class="btn btn-sm btn-outline" data-token-progress="' +
+                t.id +
+                '" title="Start"><span class="material-icons">play_arrow</span></button>'
+              : "") +
+            (t.status === "in-progress"
+              ? '<button class="btn btn-sm btn-primary" data-token-complete="' +
+                t.id +
+                '" title="Complete"><span class="material-icons">check</span></button>'
+              : "") +
+            (t.status === "completed"
+              ? '<button class="btn btn-sm btn-ghost" data-token-invoice="' +
+                t.id +
+                '" title="Invoice"><span class="material-icons">receipt</span></button>'
+              : "") +
+            '<button class="btn-icon btn btn-danger-ghost" data-token-delete="' +
+            t.id +
+            '" title="Delete"><span class="material-icons">delete</span></button></div></td></tr>'
+          );
+        })
         .join("");
     }
   }
 }
-
 function updateTokenStatus(id, s) {
-  const tk = STATE.tokens.find((t) => t.id === id);
+  var tk = STATE.tokens.find(function (t) {
+    return t.id === id;
+  });
   if (tk) {
     tk.status = s;
     saveTokens();
@@ -1489,28 +1639,38 @@ function updateTokenStatus(id, s) {
   }
 }
 function openInvoiceForToken(id) {
-  const t = STATE.tokens.find((t) => t.id === id);
+  var t = STATE.tokens.find(function (t) {
+    return t.id === id;
+  });
   if (!t) return;
   navigateTo("billing");
-  setTimeout(() => {
+  setTimeout(function () {
     setValue("#invoiceToken", t.number);
     autoFillFromToken(t.number);
     updateInvoicePreview();
   }, 150);
 }
 function openEditTokenModal(tid) {
-  const t = STATE.tokens.find((t) => t.id === tid);
+  var t = STATE.tokens.find(function (t) {
+    return t.id === tid;
+  });
   if (!t) return;
   setText("#autoTokenNumber", t.number);
   setValue("#tokenVehicleNo", t.vehicleNo);
   populateVehicleTypes();
-  setTimeout(() => setValue("#tokenVehicleType", t.vehicleType), 50);
+  setTimeout(function () {
+    setValue("#tokenVehicleType", t.vehicleType);
+  }, 50);
   setValue("#tokenOwnerName", t.ownerName || "");
   setValue("#tokenContactNumber", t.contactNumber || "");
   populateTokenServices();
-  setTimeout(() => {
-    const svc = qs("#tokenServiceType");
-    if (Array.from(svc.options).some((o) => o.value === t.service)) {
+  setTimeout(function () {
+    var svc = qs("#tokenServiceType");
+    if (
+      Array.from(svc.options).some(function (o) {
+        return o.value === t.service;
+      })
+    ) {
       setValue("#tokenServiceType", t.service);
       qs("#customServiceGroup").style.display = "none";
     } else {
@@ -1519,28 +1679,50 @@ function openEditTokenModal(tid) {
       qs("#customServiceGroup").style.display = "";
     }
   }, 50);
-  const pl = qs("#tokenProductsList");
+  var pl = qs("#tokenProductsList");
   if (pl) pl.innerHTML = "";
   if (t.products)
-    t.products.forEach((p) => {
-      const c = qs("#tokenProductsList");
+    t.products.forEach(function (p) {
+      var c = qs("#tokenProductsList");
       if (!c) return;
-      const av = getAllVariantsFlat();
-      const opts = av
-        .map(
-          (v) =>
-            `<option value="${v.id}" data-price="${v.sellingPrice}" ${v.id === p.variantId ? "selected" : ""}>${sanitize(v.fullName)} | ${fmtPrice(v.sellingPrice)}</option>`,
-        )
+      var av = getAllVariantsFlat();
+      var opts = av
+        .map(function (v) {
+          return (
+            '<option value="' +
+            v.id +
+            '" data-price="' +
+            v.sellingPrice +
+            '" ' +
+            (v.id === p.variantId ? "selected" : "") +
+            ">" +
+            sanitize(v.fullName) +
+            " | " +
+            fmtPrice(v.sellingPrice) +
+            "</option>"
+          );
+        })
         .join("");
-      const r = document.createElement("div");
+      var r = document.createElement("div");
       r.style.cssText =
         "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-      r.innerHTML = `<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>${opts}</select><input type="number" class="form-input token-product-qty" value="${p.qty}" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="${p.price}" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('div').remove();updateTokenTotal();"><span class="material-icons">close</span></button>`;
+      r.innerHTML =
+        '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' +
+        opts +
+        '</select><input type="number" class="form-input token-product-qty" value="' +
+        p.qty +
+        '" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="' +
+        p.price +
+        '" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateTokenTotal();"><span class="material-icons">close</span></button>';
       c.appendChild(r);
       r.querySelector(".token-product-select").addEventListener(
         "change",
         function () {
-          const v = av.find((x) => x.id === this.value);
+          var v = av.find(
+            function (x) {
+              return x.id === this.value;
+            }.bind(this),
+          );
           if (v) {
             r.querySelector(".token-product-price").value = v.sellingPrice;
             updateTokenTotal();
@@ -1552,7 +1734,7 @@ function openEditTokenModal(tid) {
         updateTokenTotal,
       );
     });
-  setTimeout(() => {
+  setTimeout(function () {
     updateTokenPrice();
     updateTokenTotal();
   }, 100);
@@ -1563,14 +1745,14 @@ function openEditTokenModal(tid) {
 }
 
 // ==================== BILLING ====================
-let ivc = 0;
+var ivc = 0;
 function initBilling() {
-  qs("#addInvoiceService")?.addEventListener("click", () =>
-    addInvoiceServiceRow("", 0),
-  );
-  qs("#addInvoiceProduct")?.addEventListener("click", () =>
-    addInvoiceProductRow("", 0, 1),
-  );
+  qs("#addInvoiceService")?.addEventListener("click", function () {
+    addInvoiceServiceRow("", 0);
+  });
+  qs("#addInvoiceProduct")?.addEventListener("click", function () {
+    addInvoiceProductRow("", 0, 1);
+  });
   qs("#saveInvoiceBtn")?.addEventListener("click", saveInvoice);
   qs("#printReceiptBtn")?.addEventListener("click", printThermalReceipt);
   qs("#invoiceToken")?.addEventListener("input", function () {
@@ -1580,8 +1762,8 @@ function initBilling() {
   qs("#invoiceVehicle")?.addEventListener("input", updateInvoicePreview);
   qs("#invoiceCustomer")?.addEventListener("input", updateInvoicePreview);
   qs("#cashReceived")?.addEventListener("input", function () {
-    const cash = parseFloat(this.value) || 0;
-    const total =
+    var cash = parseFloat(this.value) || 0;
+    var total =
       parseFloat(
         (qs("#invTotal")?.textContent || "0").replace(/[^0-9]/g, ""),
       ) || 0;
@@ -1594,9 +1776,9 @@ function initBilling() {
 }
 function autoFillFromToken(tn) {
   if (!tn) return;
-  const t = STATE.tokens.find(
-    (t) => t.number.toLowerCase() === tn.toLowerCase(),
-  );
+  var t = STATE.tokens.find(function (t) {
+    return t.number.toLowerCase() === tn.toLowerCase();
+  });
   if (!t) {
     toast("Token not found", "warning");
     return;
@@ -1612,21 +1794,39 @@ function autoFillFromToken(tn) {
       t.servicePrice || getMatrixPrice(t.service, t.vehicleType) || 0,
     );
   if (t.products)
-    t.products.forEach((p) => addInvoiceProductRow(p.fullName, p.price, p.qty));
+    t.products.forEach(function (p) {
+      addInvoiceProductRow(p.fullName, p.price, p.qty);
+    });
   updateInvoicePreview();
   setValue("#cashReceived", "");
   setText("#changeReturned", "Rs. 0");
 }
-function addInvoiceServiceRow(nm = "", pr = 0) {
-  const op = STATE.pricingServices
-    .map(
-      (s) =>
-        `<option value="${s.name}" data-price="${getMatrixPrice(s.name, qs("#invoiceVehicle")?.value || "") || 0}" ${s.name === nm ? "selected" : ""}>${sanitize(s.name)}</option>`,
-    )
+function addInvoiceServiceRow(nm, pr) {
+  nm = nm || "";
+  pr = pr || 0;
+  var op = STATE.pricingServices
+    .map(function (s) {
+      return (
+        '<option value="' +
+        s.name +
+        '" data-price="' +
+        (getMatrixPrice(s.name, qs("#invoiceVehicle")?.value || "") || 0) +
+        '" ' +
+        (s.name === nm ? "selected" : "") +
+        ">" +
+        sanitize(s.name) +
+        "</option>"
+      );
+    })
     .join("");
-  const r = document.createElement("div");
+  var r = document.createElement("div");
   r.className = "invoice-line-row";
-  r.innerHTML = `<div class="form-group"><select class="form-input invoice-svc-select"><option value="">Select...</option>${op}</select></div><div class="form-group"><input type="number" class="form-input invoice-svc-price" value="${pr}" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-svc-qty" value="1" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('.invoice-line-row').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>`;
+  r.innerHTML =
+    '<div class="form-group"><select class="form-input invoice-svc-select"><option value="">Select...</option>' +
+    op +
+    '</select></div><div class="form-group"><input type="number" class="form-input invoice-svc-price" value="' +
+    pr +
+    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-svc-qty" value="1" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
   qs("#invoiceServicesContainer")?.appendChild(r);
   r.querySelector(".invoice-svc-select")?.addEventListener(
     "change",
@@ -1641,17 +1841,38 @@ function addInvoiceServiceRow(nm = "", pr = 0) {
     updateInvoicePreview,
   );
 }
-function addInvoiceProductRow(nm = "", pr = 0, qt = 1) {
-  const av = getAllVariantsFlat();
-  const op = av
-    .map(
-      (v) =>
-        `<option value="${v.sellingPrice}" data-fullname="${sanitize(v.fullName)}" ${v.fullName === nm ? "selected" : ""}>${sanitize(v.fullName)} | ${fmtPrice(v.sellingPrice)}</option>`,
-    )
+function addInvoiceProductRow(nm, pr, qt) {
+  nm = nm || "";
+  pr = pr || 0;
+  qt = qt || 1;
+  var av = getAllVariantsFlat();
+  var op = av
+    .map(function (v) {
+      return (
+        '<option value="' +
+        v.sellingPrice +
+        '" data-fullname="' +
+        sanitize(v.fullName) +
+        '" ' +
+        (v.fullName === nm ? "selected" : "") +
+        ">" +
+        sanitize(v.fullName) +
+        " | " +
+        fmtPrice(v.sellingPrice) +
+        "</option>"
+      );
+    })
     .join("");
-  const r = document.createElement("div");
+  var r = document.createElement("div");
   r.className = "invoice-line-row";
-  r.innerHTML = `<div class="form-group"><select class="form-input invoice-prd-select"><option value="">Select...</option>${op}</select></div><div class="form-group"><input type="number" class="form-input invoice-prd-price" value="${pr}" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-prd-qty" value="${qt}" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('.invoice-line-row').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>`;
+  r.innerHTML =
+    '<div class="form-group"><select class="form-input invoice-prd-select"><option value="">Select...</option>' +
+    op +
+    '</select></div><div class="form-group"><input type="number" class="form-input invoice-prd-price" value="' +
+    pr +
+    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-prd-qty" value="' +
+    qt +
+    '" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
   qs("#invoiceProductsContainer")?.appendChild(r);
   r.querySelector(".invoice-prd-select")?.addEventListener(
     "change",
@@ -1666,37 +1887,43 @@ function addInvoiceProductRow(nm = "", pr = 0, qt = 1) {
   );
 }
 function saveInvoice() {
-  const cu = (qs("#invoiceCustomer")?.value || "").trim();
+  var cu = (qs("#invoiceCustomer")?.value || "").trim();
   if (!cu) {
     toast("Enter customer", "error");
     return;
   }
-  const it = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach((r) => {
-    const s = r.querySelector(".invoice-svc-select"),
-      nm = s?.options[s.selectedIndex]?.text || "",
-      pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
-      qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-    if (nm && nm !== "Select...")
-      it.push({ name: nm, price: pr, qty: qt, type: "service" });
-  });
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach((r) => {
-    const s = r.querySelector(".invoice-prd-select"),
-      nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
-      pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
-      qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-    if (nm) it.push({ name: nm, price: pr, qty: qt, type: "product" });
-  });
+  var it = [];
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-svc-select"),
+        nm = s?.options[s.selectedIndex]?.text || "",
+        pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+      if (nm && nm !== "Select...")
+        it.push({ name: nm, price: pr, qty: qt, type: "service" });
+    },
+  );
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-prd-select"),
+        nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
+        pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+      if (nm) it.push({ name: nm, price: pr, qty: qt, type: "product" });
+    },
+  );
   if (!it.length) {
     toast("Add items", "error");
     return;
   }
-  let st = 0;
-  it.forEach((i) => (st += i.price * i.qty));
-  const tx = st * (STATE.settings.taxRate / 100),
+  var st = 0;
+  it.forEach(function (i) {
+    st += i.price * i.qty;
+  });
+  var tx = st * (STATE.settings.taxRate / 100),
     cr = parseFloat(qs("#cashReceived")?.value) || 0,
     gt = st + tx;
-  const inv = {
+  var inv = {
     id: uid(),
     number:
       STATE.settings.invoicePrefix +
@@ -1719,18 +1946,18 @@ function saveInvoice() {
   STATE.counters.invoiceCounter++;
   saveInvoices();
   saveCounters();
-  const tn = inv.token;
+  var tn = inv.token;
   if (tn) {
-    const tk = STATE.tokens.find(
-      (t) => t.number.toLowerCase() === tn.toLowerCase(),
-    );
+    var tk = STATE.tokens.find(function (t) {
+      return t.number.toLowerCase() === tn.toLowerCase();
+    });
     if (tk && tk.status !== "completed") {
       tk.status = "completed";
       createReminderFromToken(tk);
       saveTokens();
     }
   }
-  toast(`Invoice ${inv.number} saved`, "success");
+  toast("Invoice " + inv.number + " saved", "success");
   setValue("#invoiceToken", "");
   setValue("#invoiceVehicle", "");
   setValue("#invoiceCustomer", "");
@@ -1748,9 +1975,9 @@ function updateInvoicePreview() {
   setText("#invToken", (qs("#invoiceToken")?.value || "").trim() || "—");
   setText("#invVehicle", (qs("#invoiceVehicle")?.value || "").trim() || "—");
   setText("#invCustomer", (qs("#invoiceCustomer")?.value || "").trim() || "—");
-  const ct = qs("#invoiceCustomer")?.dataset?.contact || "";
-  const ce = qs("#invCustomerContact");
-  if (ce) ce.textContent = ct ? `📱 ${formatContactDisplay(ct)}` : "";
+  var ct = qs("#invoiceCustomer")?.dataset?.contact || "";
+  var ce = qs("#invCustomerContact");
+  if (ce) ce.textContent = ct ? "📱 " + formatContactDisplay(ct) : "";
   setText("#invDate", fmtDate());
   setText(
     "#invNumber",
@@ -1758,60 +1985,106 @@ function updateInvoicePreview() {
       String(STATE.counters.invoiceCounter).padStart(3, "0"),
   );
   setText("#invBusinessName", STATE.settings.businessName);
-  const it = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach((r) => {
-    const s = r.querySelector(".invoice-svc-select"),
-      nm = s?.options[s.selectedIndex]?.text || "",
-      pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
-      qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-    if (nm && nm !== "Select...")
-      it.push({ name: nm, price: pr, qty: qt, type: "service" });
-  });
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach((r) => {
-    const s = r.querySelector(".invoice-prd-select"),
-      nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
-      pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
-      qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-    if (nm) it.push({ name: nm, price: pr, qty: qt, type: "product" });
-  });
-  const tb = qs("#invoiceItemsBody");
+  var it = [];
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-svc-select"),
+        nm = s?.options[s.selectedIndex]?.text || "",
+        pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+      if (nm && nm !== "Select...")
+        it.push({ name: nm, price: pr, qty: qt, type: "service" });
+    },
+  );
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-prd-select"),
+        nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
+        pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+      if (nm) it.push({ name: nm, price: pr, qty: qt, type: "product" });
+    },
+  );
+  var tb = qs("#invoiceItemsBody");
   if (!it.length) {
     if (tb) tb.innerHTML = '<tr><td colspan="5">No items</td></tr>';
     setText("#invSubtotal", fmtPrice(0));
     setText("#invTotal", fmtPrice(0));
     return;
   }
-  let st = 0;
+  var st = 0;
   if (tb)
     tb.innerHTML = it
-      .map((item, i) => {
-        const am = item.price * item.qty;
+      .map(function (item, i) {
+        var am = item.price * item.qty;
         st += am;
-        return `<tr><td>${i + 1}</td><td>${sanitize(item.name)}</td><td>${item.qty}</td><td>${fmtPrice(item.price)}</td><td style="font-weight:600;">${fmtPrice(am)}</td></tr>`;
+        return (
+          "<tr><td>" +
+          (i + 1) +
+          "</td><td>" +
+          sanitize(item.name) +
+          "</td><td>" +
+          item.qty +
+          "</td><td>" +
+          fmtPrice(item.price) +
+          '</td><td style="font-weight:600;">' +
+          fmtPrice(am) +
+          "</td></tr>"
+        );
       })
       .join("");
-  const tx = st * (STATE.settings.taxRate / 100);
+  var tx = st * (STATE.settings.taxRate / 100);
   setText("#invTaxRate", STATE.settings.taxRate);
   setText("#invTaxAmount", fmtPrice(tx));
   setText("#invSubtotal", fmtPrice(st));
   setText("#invTotal", fmtPrice(st + tx));
 }
 function renderSavedInvoices() {
-  const tb = qs("#savedInvoiceTableBody");
+  var tb = qs("#savedInvoiceTableBody");
   if (!tb) return;
   if (!STATE.invoices.length) {
     tb.innerHTML = '<tr><td colspan="8">No invoices</td></tr>';
     return;
   }
   tb.innerHTML = STATE.invoices
-    .map(
-      (inv) =>
-        `<tr><td style="font-weight:700;color:var(--primary);">${sanitize(inv.number)}</td><td>${sanitize(inv.date)}</td><td>${sanitize(inv.customer)}${inv.contactNumber ? `<br><small>${sanitize(formatContactDisplay(inv.contactNumber))}</small>` : ""}</td><td>${sanitize(inv.vehicle || "—")}</td><td>${sanitize(inv.token || "—")}</td><td style="font-weight:600;">${fmtPrice(inv.total)}</td><td><span class="badge ${inv.status === "PAID" ? "badge--green" : "badge--red"}">${inv.status}</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="${inv.id}"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="${inv.id}"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="${inv.id}"><span class="material-icons">delete</span></button></div></td></tr>`,
-    )
+    .map(function (inv) {
+      return (
+        '<tr><td style="font-weight:700;color:var(--primary);">' +
+        sanitize(inv.number) +
+        "</td><td>" +
+        sanitize(inv.date) +
+        "</td><td>" +
+        sanitize(inv.customer) +
+        (inv.contactNumber
+          ? "<br><small>" +
+            sanitize(formatContactDisplay(inv.contactNumber)) +
+            "</small>"
+          : "") +
+        "</td><td>" +
+        sanitize(inv.vehicle || "—") +
+        "</td><td>" +
+        sanitize(inv.token || "—") +
+        '</td><td style="font-weight:600;">' +
+        fmtPrice(inv.total) +
+        '</td><td><span class="badge ' +
+        (inv.status === "PAID" ? "badge--green" : "badge--red") +
+        '">' +
+        inv.status +
+        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' +
+        inv.id +
+        '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="' +
+        inv.id +
+        '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' +
+        inv.id +
+        '"><span class="material-icons">delete</span></button></div></td></tr>'
+      );
+    })
     .join("");
 }
 function viewInvoice(id) {
-  const inv = STATE.invoices.find((i) => i.id === id);
+  var inv = STATE.invoices.find(function (i) {
+    return i.id === id;
+  });
   if (!inv) return;
   setValue("#invoiceToken", inv.token || "");
   setValue("#invoiceVehicle", inv.vehicle || "");
@@ -1821,7 +2094,7 @@ function viewInvoice(id) {
   setValue("#cashReceived", inv.cashReceived || "");
   qs("#invoiceServicesContainer").innerHTML = "";
   qs("#invoiceProductsContainer").innerHTML = "";
-  inv.items.forEach((item) => {
+  inv.items.forEach(function (item) {
     if (item.type === "service") addInvoiceServiceRow(item.name, item.price);
     else addInvoiceProductRow(item.name, item.price, item.qty);
   });
@@ -1831,241 +2104,204 @@ function viewInvoice(id) {
 }
 function printSavedReceipt(id) {
   viewInvoice(id);
-  setTimeout(() => printThermalReceipt(), 400);
+  setTimeout(function () {
+    printThermalReceipt();
+  }, 400);
 }
-// ==================== PROFESSIONAL COMPACT 80mm THERMAL RECEIPT ====================
+
+// ==================== THERMAL RECEIPT ====================
 function printThermalReceipt() {
-  const invNumber = (qs("#invNumber")?.textContent || "").trim();
-  const invDate = (qs("#invDate")?.textContent || "").trim();
-  const invToken = (qs("#invToken")?.textContent || "").trim();
-  const invVehicle = (qs("#invVehicle")?.textContent || "").trim();
-  const invCustomer = (qs("#invCustomer")?.textContent || "").trim();
-  const invContact = qs("#invCustomer")?.dataset?.contact || "";
-  const businessName = STATE.settings.businessName || "Wheel Works Service Station";
-  const address = STATE.settings.address || "Main Road, City";
-  const phone = STATE.settings.phone || "0300-0000000";
-
-  // Collect items
-  const items = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(r => {
-    const s = r.querySelector(".invoice-svc-select");
-    const nm = s?.options[s.selectedIndex]?.text || "";
-    const pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
-    const qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt, type: "service" });
-  });
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(r => {
-    const s = r.querySelector(".invoice-prd-select");
-    const nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
-    const pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
-    const qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-    if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
-  });
-
-  // Calculate totals
-  let svcTotal = 0, prdTotal = 0;
-  items.forEach(i => {
-    const am = i.price * i.qty;
+  var invNumber = (qs("#invNumber")?.textContent || "").trim(),
+    invDate = (qs("#invDate")?.textContent || "").trim(),
+    invToken = (qs("#invToken")?.textContent || "").trim(),
+    invVehicle = (qs("#invVehicle")?.textContent || "").trim(),
+    invCustomer = (qs("#invCustomer")?.textContent || "").trim(),
+    invContact = qs("#invCustomer")?.dataset?.contact || "";
+  var businessName =
+      STATE.settings.businessName || "Wheel Works Service Station",
+    address = STATE.settings.address || "Main Road, City",
+    phone = STATE.settings.phone || "0300-0000000";
+  var items = [];
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-svc-select"),
+        nm = s?.options[s.selectedIndex]?.text || "",
+        pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+      if (nm && nm !== "Select...")
+        items.push({ name: nm, price: pr, qty: qt, type: "service" });
+    },
+  );
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
+    function (r) {
+      var s = r.querySelector(".invoice-prd-select"),
+        nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
+        pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
+        qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+      if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
+    },
+  );
+  var svcTotal = 0,
+    prdTotal = 0;
+  items.forEach(function (i) {
+    var am = i.price * i.qty;
     if (i.type === "service") svcTotal += am;
     else prdTotal += am;
   });
-  const grandTotal = svcTotal + prdTotal;
-  const cashReceived = parseFloat(qs("#cashReceived")?.value) || 0;
-  const changeReturned = cashReceived > 0 ? cashReceived - grandTotal : 0;
-  const paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
-
-  const now = new Date();
-  const printTime = now.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true });
-  const printDate = fmtDate(now);
-  const fmtRs = (n) => "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
-
-  // Build services section
-  let svcHTML = "";
+  var grandTotal = svcTotal + prdTotal,
+    cashReceived = parseFloat(qs("#cashReceived")?.value) || 0,
+    changeReturned = cashReceived > 0 ? cashReceived - grandTotal : 0,
+    paymentStatus =
+      cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
+  var now = new Date(),
+    printTime = now.toLocaleTimeString("en-PK", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }),
+    printDate = fmtDate(now);
+  var fmtRs = function (n) {
+    return "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
+  };
+  var svcHTML = "",
+    prdHTML = "";
   if (svcTotal > 0) {
-    svcHTML = `<div class="sec-title">SERVICES</div>`;
-    items.filter(i => i.type === "service").forEach(i => {
-      const lineTotal = i.price * i.qty;
-      svcHTML += `<div class="item-line"><span class="item-name">${sanitize(i.name)}</span><span class="item-qty">x${i.qty}</span><span class="item-amt">${fmtRs(lineTotal)}</span></div>`;
-    });
-    svcHTML += `<div class="total-line"><span>Service Total</span><span>${fmtRs(svcTotal)}</span></div>`;
+    svcHTML = '<div class="sec-title">SERVICES</div>';
+    items
+      .filter(function (i) {
+        return i.type === "service";
+      })
+      .forEach(function (i) {
+        svcHTML +=
+          '<div class="item-line"><span class="item-name">' +
+          sanitize(i.name) +
+          '</span><span class="item-qty">x' +
+          i.qty +
+          '</span><span class="item-amt">' +
+          fmtRs(i.price * i.qty) +
+          "</span></div>";
+      });
+    svcHTML +=
+      '<div class="total-line"><span>Service Total</span><span>' +
+      fmtRs(svcTotal) +
+      "</span></div>";
   }
-
-  // Build products section
-  let prdHTML = "";
   if (prdTotal > 0) {
-    prdHTML = `<div class="sec-title">PRODUCTS</div>`;
-    items.filter(i => i.type === "product").forEach(i => {
-      const lineTotal = i.price * i.qty;
-      prdHTML += `<div class="item-line"><span class="item-name">${sanitize(i.name)}</span><span class="item-qty">x${i.qty}</span><span class="item-amt">${fmtRs(lineTotal)}</span></div>`;
-    });
-    prdHTML += `<div class="total-line"><span>Product Total</span><span>${fmtRs(prdTotal)}</span></div>`;
+    prdHTML = '<div class="sec-title">PRODUCTS</div>';
+    items
+      .filter(function (i) {
+        return i.type === "product";
+      })
+      .forEach(function (i) {
+        prdHTML +=
+          '<div class="item-line"><span class="item-name">' +
+          sanitize(i.name) +
+          '</span><span class="item-qty">x' +
+          i.qty +
+          '</span><span class="item-amt">' +
+          fmtRs(i.price * i.qty) +
+          "</span></div>";
+      });
+    prdHTML +=
+      '<div class="total-line"><span>Product Total</span><span>' +
+      fmtRs(prdTotal) +
+      "</span></div>";
   }
-
-  // Payment info
-  let paymentHTML = "";
+  var paymentHTML = "";
   if (cashReceived > 0) {
-    paymentHTML = `<div class="divider-dash"></div>
-      <div class="info-line"><span>Cash Received</span><span>${fmtRs(cashReceived)}</span></div>
-      <div class="info-line"><span>Change Returned</span><span>${fmtRs(changeReturned)}</span></div>`;
+    paymentHTML =
+      '<div class="divider-dash"></div><div class="info-line"><span>Cash Received</span><span>' +
+      fmtRs(cashReceived) +
+      '</span></div><div class="info-line"><span>Change Returned</span><span>' +
+      fmtRs(changeReturned) +
+      "</span></div>";
   }
-
-  // Contact line
-  const contactLine = invContact ? `<div class="info-line"><span>Phone</span><span>${sanitize(formatContactDisplay(invContact))}</span></div>` : "";
-
-  const receiptHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Receipt ${sanitize(invNumber)}</title><style>
-@page{size:80mm auto;margin:0;}
-*{margin:0;padding:0;box-sizing:border-box;}
-html{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;}
-body{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;background:#fff;font-family:"Courier New","Consolas","Monaco",monospace;font-size:8.5pt;color:#000;line-height:1.3;word-wrap:break-word;overflow-wrap:break-word;}
-.receipt-inner{padding:2mm 2.5mm 3mm 2.5mm;}
-
-/* Header */
-.rcpt-header{text-align:center;padding:1.5mm 0;border-bottom:1px solid #000;margin-bottom:2mm;}
-.rcpt-name{font-size:10pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.2;}
-.rcpt-addr{font-size:7.5pt;color:#333;line-height:1.2;}
-.rcpt-phone{font-size:7.5pt;color:#333;}
-
-/* Dividers */
-.divider{border:none;border-top:1px solid #000;margin:1.5mm 0;height:0;}
-.divider-dash{border:none;border-top:1px dashed #000;margin:1.5mm 0;height:0;}
-.divider-dot{border:none;border-top:1px dotted #888;margin:1mm 0;height:0;}
-
-/* Info lines */
-.info-line{display:flex;justify-content:space-between;align-items:baseline;padding:0.4mm 0;font-size:8pt;line-height:1.3;}
-.info-line span:first-child{color:#444;min-width:30mm;}
-.info-line span:last-child{font-weight:600;text-align:right;}
-
-/* Section titles */
-.sec-title{text-align:center;font-size:8.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;padding:1.2mm 0;margin:2mm 0 1mm 0;background:#000;color:#fff;}
-
-/* Item lines */
-.item-line{display:flex;justify-content:space-between;align-items:baseline;padding:0.5mm 0;font-size:8pt;line-height:1.3;}
-.item-name{flex:1;padding-right:1mm;}
-.item-qty{min-width:8mm;text-align:center;color:#555;font-size:7.5pt;}
-.item-amt{min-width:20mm;text-align:right;font-weight:600;}
-
-/* Total lines */
-.total-line{display:flex;justify-content:space-between;align-items:baseline;padding:1.2mm 0;margin-top:0.5mm;border-top:1px solid #000;font-size:8.5pt;font-weight:700;}
-
-/* Grand total */
-.grand-box{margin:2mm 0;padding:1.5mm 0;text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000;}
-.grand-label{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5mm;}
-.grand-value{font-size:12pt;font-weight:900;line-height:1.1;}
-
-/* Status */
-.status-line{text-align:center;margin:2mm 0;font-size:9pt;font-weight:900;letter-spacing:2px;text-transform:uppercase;}
-
-/* Footer */
-.rcpt-footer{text-align:center;margin-top:2mm;padding-top:1.5mm;border-top:1px dashed #000;font-size:7pt;color:#444;line-height:1.5;}
-.rcpt-thanks{font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;}
-.rcpt-dev{margin-top:1.5mm;font-size:7.5pt;font-weight:900;letter-spacing:1px;}
-.rcpt-time{text-align:center;font-size:6.5pt;color:#999;margin-top:1.5mm;padding-top:1mm;border-top:1px dotted #ccc;}
-
-@media print{
-  html,body{width:80mm!important;max-width:80mm!important;min-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important;height:auto!important;min-height:0!important;overflow:visible!important;}
-  .sec-title{background:#000!important;color:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-}
-@media screen{
-  html{background:#e0e0e0;margin:10px auto;}
-  body{box-shadow:0 2px 12px rgba(0,0,0,0.2);margin:10px auto;}
-}
-</style></head><body><div class="receipt-inner">
-
-<!-- HEADER -->
-<div class="rcpt-header">
-  <div class="rcpt-name">${sanitize(businessName).toUpperCase()}</div>
-  <div class="rcpt-addr">${sanitize(address)}</div>
-  <div class="rcpt-phone">Tel: ${sanitize(phone)}</div>
-</div>
-
-<div class="divider"></div>
-
-<!-- CUSTOMER INFO -->
-<div class="info-line"><span>Receipt #</span><span>${sanitize(invNumber)}</span></div>
-<div class="info-line"><span>Date / Time</span><span>${sanitize(invDate)} ${sanitize(printTime)}</span></div>
-${invToken && invToken !== "—" ? `<div class="info-line"><span>Token #</span><span>${sanitize(invToken)}</span></div>` : ""}
-<div class="info-line"><span>Customer</span><span>${sanitize(invCustomer)}</span></div>
-${contactLine}
-${invVehicle && invVehicle !== "—" ? `<div class="info-line"><span>Vehicle</span><span>${sanitize(invVehicle)}</span></div>` : ""}
-
-<div class="divider"></div>
-
-<!-- SERVICES & PRODUCTS -->
-${svcHTML}
-${prdHTML ? `<div style="height:1mm;"></div>${prdHTML}` : ""}
-
-<!-- GRAND TOTAL -->
-<div class="grand-box">
-  <div class="grand-label">Grand Total</div>
-  <div class="grand-value">${fmtRs(grandTotal)}</div>
-</div>
-
-<!-- PAYMENT -->
-${paymentHTML}
-
-<!-- STATUS -->
-<div class="status-line">*** ${paymentStatus} ***</div>
-
-<div class="divider-dash"></div>
-
-<!-- FOOTER -->
-<div class="rcpt-footer">
-  <div class="rcpt-thanks">Thank You For Visiting</div>
-  <div>We Appreciate Your Business</div>
-  <div>Please Visit Again</div>
-  <div class="rcpt-dev">Developed By<br>DESIGN ORBITS</div>
-</div>
-
-<div class="rcpt-time">Printed: ${sanitize(printDate)} ${sanitize(printTime)}</div>
-
-</div></body></html>`;
-
-  const oldFrame = document.getElementById("thermalPrintFrame");
-  if (oldFrame) oldFrame.remove();
-
-  const iframe = document.createElement("iframe");
-  iframe.id = "thermalPrintFrame";
-  iframe.style.cssText = "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-  iframeDoc.open();
-  iframeDoc.write(receiptHTML);
-  iframeDoc.close();
-
-  iframe.onload = () => {
-    setTimeout(() => {
+  var contactLine = invContact
+    ? '<div class="info-line"><span>Phone</span><span>' +
+      sanitize(formatContactDisplay(invContact)) +
+      "</span></div>"
+    : "";
+  var h =
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:80mm auto;margin:0}*{margin:0;padding:0;box-sizing:border-box}html{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto}body{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;background:#fff;font-family:"Courier New","Consolas","Monaco",monospace;font-size:8.5pt;color:#000;line-height:1.3;word-wrap:break-word}.receipt-inner{padding:2mm 2.5mm 3mm 2.5mm}.rcpt-header{text-align:center;padding:1.5mm 0;border-bottom:1px solid #000;margin-bottom:2mm}.rcpt-name{font-size:10pt;font-weight:900;text-transform:uppercase}.rcpt-addr,.rcpt-phone{font-size:7.5pt;color:#333}.divider{border:none;border-top:1px solid #000;margin:1.5mm 0;height:0}.divider-dash{border:none;border-top:1px dashed #000;margin:1.5mm 0;height:0}.info-line{display:flex;justify-content:space-between;padding:0.4mm 0;font-size:8pt}.info-line span:first-child{color:#444;min-width:30mm}.info-line span:last-child{font-weight:600;text-align:right}.sec-title{text-align:center;font-size:8.5pt;font-weight:900;text-transform:uppercase;padding:1.2mm 0;margin:2mm 0 1mm 0;background:#000;color:#fff}.item-line{display:flex;justify-content:space-between;padding:0.5mm 0;font-size:8pt}.item-name{flex:1}.item-qty{min-width:8mm;text-align:center;color:#555;font-size:7.5pt}.item-amt{min-width:20mm;text-align:right;font-weight:600}.total-line{display:flex;justify-content:space-between;padding:1.2mm 0;margin-top:0.5mm;border-top:1px solid #000;font-size:8.5pt;font-weight:700}.grand-box{margin:2mm 0;padding:1.5mm 0;text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000}.grand-label{font-size:7.5pt;font-weight:700;text-transform:uppercase}.grand-value{font-size:12pt;font-weight:900}.status-line{text-align:center;margin:2mm 0;font-size:9pt;font-weight:900;text-transform:uppercase}.rcpt-footer{text-align:center;margin-top:2mm;padding-top:1.5mm;border-top:1px dashed #000;font-size:7pt;color:#444;line-height:1.5}.rcpt-thanks{font-size:7.5pt;font-weight:700;text-transform:uppercase}.rcpt-dev{margin-top:1.5mm;font-size:7.5pt;font-weight:900}.rcpt-time{text-align:center;font-size:6.5pt;color:#999;margin-top:1.5mm;padding-top:1mm;border-top:1px dotted #ccc}@media print{html,body{width:80mm!important;max-width:80mm!important;min-width:80mm!important}.sec-title{background:#000!important;color:#fff!important}}@media screen{html{background:#e0e0e0;margin:10px auto}body{box-shadow:0 2px 12px rgba(0,0,0,0.2);margin:10px auto}}</style></head><body><div class="receipt-inner"><div class="rcpt-header"><div class="rcpt-name">' +
+    sanitize(businessName).toUpperCase() +
+    '</div><div class="rcpt-addr">' +
+    sanitize(address) +
+    '</div><div class="rcpt-phone">Tel: ' +
+    sanitize(phone) +
+    '</div></div><div class="divider"></div><div class="info-line"><span>Receipt #</span><span>' +
+    sanitize(invNumber) +
+    '</span></div><div class="info-line"><span>Date / Time</span><span>' +
+    sanitize(invDate) +
+    " " +
+    sanitize(printTime) +
+    "</span></div>" +
+    (invToken && invToken !== "—"
+      ? '<div class="info-line"><span>Token #</span><span>' +
+        sanitize(invToken) +
+        "</span></div>"
+      : "") +
+    '<div class="info-line"><span>Customer</span><span>' +
+    sanitize(invCustomer) +
+    "</span></div>" +
+    contactLine +
+    (invVehicle && invVehicle !== "—"
+      ? '<div class="info-line"><span>Vehicle</span><span>' +
+        sanitize(invVehicle) +
+        "</span></div>"
+      : "") +
+    '<div class="divider"></div>' +
+    svcHTML +
+    (prdHTML ? '<div style="height:1mm;"></div>' + prdHTML : "") +
+    '<div class="grand-box"><div class="grand-label">Grand Total</div><div class="grand-value">' +
+    fmtRs(grandTotal) +
+    "</div></div>" +
+    paymentHTML +
+    '<div class="status-line">*** ' +
+    paymentStatus +
+    ' ***</div><div class="divider-dash"></div><div class="rcpt-footer"><div class="rcpt-thanks">Thank You For Visiting</div><div>We Appreciate Your Business</div><div>Please Visit Again</div><div class="rcpt-dev">Developed By<br>DESIGN ORBITS</div></div><div class="rcpt-time">Printed: ' +
+    sanitize(printDate) +
+    " " +
+    sanitize(printTime) +
+    "</div></div></body></html>";
+  var of = document.getElementById("thermalPrintFrame");
+  if (of) of.remove();
+  var ifr = document.createElement("iframe");
+  ifr.id = "thermalPrintFrame";
+  ifr.style.cssText =
+    "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
+  document.body.appendChild(ifr);
+  ifr.contentDocument.open();
+  ifr.contentDocument.write(h);
+  ifr.contentDocument.close();
+  ifr.onload = function () {
+    setTimeout(function () {
       try {
-        iframe.contentWindow.focus();
-        iframe.contentWindow.print();
+        ifr.contentWindow.focus();
+        ifr.contentWindow.print();
       } catch (e) {
-        const pw = window.open("", "_blank", "width=320,height=600");
+        var pw = window.open("", "_blank");
         if (pw) {
-          pw.document.write(receiptHTML);
+          pw.document.write(h);
           pw.document.close();
-          pw.focus();
-          setTimeout(() => { pw.print(); pw.onafterprint = () => pw.close(); }, 300);
-        } else {
-          toast("Please allow pop-ups for printing", "error");
+          setTimeout(function () {
+            pw.print();
+            pw.close();
+          }, 300);
         }
       }
     }, 250);
   };
-
-  window.addEventListener("afterprint", function cleanup() {
-    setTimeout(() => {
-      const f = document.getElementById("thermalPrintFrame");
-      if (f) f.remove();
-      window.removeEventListener("afterprint", cleanup);
-    }, 500);
-  }, { once: true });
-
-  setTimeout(() => {
-    const f = document.getElementById("thermalPrintFrame");
-    if (f && !f.contentWindow.closed) f.remove();
-  }, 30000);
-
-  toast("Receipt printing...", "success");
+  window.addEventListener(
+    "afterprint",
+    function c() {
+      setTimeout(function () {
+        var f = document.getElementById("thermalPrintFrame");
+        if (f) f.remove();
+        window.removeEventListener("afterprint", c);
+      }, 500);
+    },
+    { once: true },
+  );
 }
 
 // ==================== PRODUCT SALE ====================
@@ -2078,24 +2314,40 @@ function initProductSales() {
   );
 }
 function addSaleProductRow() {
-  const c = qs("#saleProductsContainer");
+  var c = qs("#saleProductsContainer");
   if (!c) return;
-  const opts = getAllVariantsFlat()
-    .filter((v) => v.stock > 0)
-    .map(
-      (v) =>
-        `<option value="${v.id}" data-price="${v.sellingPrice}" data-stock="${v.stock}">${sanitize(v.fullName)} | ${fmtPrice(v.sellingPrice)}</option>`,
-    )
+  var opts = getAllVariantsFlat()
+    .filter(function (v) {
+      return v.stock > 0;
+    })
+    .map(function (v) {
+      return (
+        '<option value="' +
+        v.id +
+        '" data-price="' +
+        v.sellingPrice +
+        '" data-stock="' +
+        v.stock +
+        '">' +
+        sanitize(v.fullName) +
+        " | " +
+        fmtPrice(v.sellingPrice) +
+        "</option>"
+      );
+    })
     .join("");
-  const r = document.createElement("div");
+  var r = document.createElement("div");
   r.style.cssText =
     "display:grid;grid-template-columns:1fr 50px 75px 75px 28px;gap:5px;align-items:center;margin-bottom:6px;";
-  r.innerHTML = `<select class="form-input sale-product-select" style="padding:5px 3px;font-size:0.7rem;"><option value="">Select</option>${opts}</select><input type="number" class="form-input sale-product-qty" value="1" min="1" style="padding:5px 2px;font-size:0.75rem;text-align:center;" /><input type="number" class="form-input sale-product-price" value="0" readonly style="padding:5px 2px;font-size:0.75rem;background:var(--surface-active);text-align:right;" /><span class="sale-product-subtotal" style="font-weight:600;font-size:0.78rem;text-align:right;">Rs. 0</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('div').remove();updateSaleTotal();"><span class="material-icons">close</span></button>`;
+  r.innerHTML =
+    '<select class="form-input sale-product-select" style="padding:5px 3px;font-size:0.7rem;"><option value="">Select</option>' +
+    opts +
+    '</select><input type="number" class="form-input sale-product-qty" value="1" min="1" style="padding:5px 2px;font-size:0.75rem;text-align:center;" /><input type="number" class="form-input sale-product-price" value="0" readonly style="padding:5px 2px;font-size:0.75rem;background:var(--surface-active);text-align:right;" /><span class="sale-product-subtotal" style="font-weight:600;font-size:0.78rem;text-align:right;">Rs. 0</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateSaleTotal();"><span class="material-icons">close</span></button>';
   c.appendChild(r);
-  const s = r.querySelector(".sale-product-select");
+  var s = r.querySelector(".sale-product-select");
   s.addEventListener("change", function () {
-    const o = this.options[this.selectedIndex];
-    const pr = parseFloat(o?.dataset?.price) || 0;
+    var o = this.options[this.selectedIndex];
+    var pr = parseFloat(o?.dataset?.price) || 0;
     r.querySelector(".sale-product-price").value = pr;
     r.querySelector(".sale-product-qty").max = parseInt(o?.dataset?.stock) || 0;
     updateSaleTotal();
@@ -2106,24 +2358,24 @@ function addSaleProductRow() {
   );
 }
 function updateSaleTotal() {
-  let t = 0;
-  qsa("#saleProductsContainer .sale-product-subtotal").forEach((el) => {
+  var t = 0;
+  qsa("#saleProductsContainer .sale-product-subtotal").forEach(function (el) {
     t += parseInt(el.textContent.replace(/[^0-9]/g, "")) || 0;
   });
   setText("#saleGrandTotal", fmtPrice(t));
 }
 function saveProductSale() {
-  const cu = (qs("#saleCustomerName")?.value || "").trim(),
+  var cu = (qs("#saleCustomerName")?.value || "").trim(),
     vn = (qs("#saleVehicleNo")?.value || "").trim();
-  const items = [];
-  qsa("#saleProductsContainer .sale-product-select").forEach((s, i) => {
-    const vid = s.value;
+  var items = [];
+  qsa("#saleProductsContainer .sale-product-select").forEach(function (s, i) {
+    var vid = s.value;
     if (!vid) return;
-    const f = findVariantById(vid);
+    var f = findVariantById(vid);
     if (!f) return;
-    const q =
+    var q =
       parseInt(qsa("#saleProductsContainer .sale-product-qty")[i]?.value) || 1;
-    const p =
+    var p =
       parseFloat(qsa("#saleProductsContainer .sale-product-price")[i]?.value) ||
       f.variant.sellingPrice;
     items.push({ variantId: vid, fullName: f.fullName, qty: q, price: p });
@@ -2132,10 +2384,12 @@ function saveProductSale() {
     toast("Add products", "error");
     return;
   }
-  let t = 0;
-  items.forEach((i) => (t += i.qty * i.price));
-  items.forEach((i) => {
-    const f = findVariantById(i.variantId);
+  var t = 0;
+  items.forEach(function (i) {
+    t += i.qty * i.price;
+  });
+  items.forEach(function (i) {
+    var f = findVariantById(i.variantId);
     if (f) f.variant.stock = Math.max(0, f.variant.stock - i.qty);
   });
   saveInventory();
@@ -2143,13 +2397,16 @@ function saveProductSale() {
     id: uid(),
     customer: cu,
     vehicleNo: vn,
-    items,
+    items: items,
     total: t,
     date: fmtDate(),
     time: fmtTime(),
   });
   saveProductSales();
-  const inv = {
+  var invItems = items.map(function (i) {
+    return { name: i.fullName, price: i.price, qty: i.qty, type: "product" };
+  });
+  var inv = {
     id: uid(),
     number:
       STATE.settings.invoicePrefix +
@@ -2160,12 +2417,7 @@ function saveProductSale() {
     vehicle: vn,
     customer: cu || "Walk-in",
     contactNumber: "",
-    items: items.map((i) => ({
-      name: i.fullName,
-      price: i.price,
-      qty: i.qty,
-      type: "product",
-    })),
+    items: invItems,
     subtotal: t,
     tax: 0,
     total: t,
@@ -2179,7 +2431,7 @@ function saveProductSale() {
   saveInvoices();
   saveCounters();
   refreshDashboard();
-  toast(`Sale completed - ${fmtPrice(t)}`, "success");
+  toast("Sale completed - " + fmtPrice(t), "success");
   qs("#saleProductsContainer").innerHTML = "";
   setValue("#saleCustomerName", "");
   setValue("#saleVehicleNo", "");
@@ -2200,20 +2452,22 @@ function renderProductSalePage() {
 
 // ==================== VEHICLES ====================
 function initVehicles() {
-  qs("#newVehicleBtn")?.addEventListener("click", () => openNewVehicleModal());
+  qs("#newVehicleBtn")?.addEventListener("click", function () {
+    openNewVehicleModal();
+  });
   qs("#saveVehicleBtn")?.addEventListener("click", saveVehicle);
   qs("#vehicleSearch")?.addEventListener("input", renderVehicleTable);
   qs("#vehicleTypeFilter")?.addEventListener("change", renderVehicleTable);
   renderVehicleTable();
 }
-function openNewVehicleModal(d = null) {
+function openNewVehicleModal(d) {
   setValue("#vehicleEditId", d ? d.id : "");
   setValue("#vehicleNumber", d ? d.vehicleNo : "");
-  const s = qs("#vehicleType");
+  var s = qs("#vehicleType");
   if (s) {
     s.innerHTML = '<option value="">Select</option>';
-    STATE.pricingVehicles.forEach((v) => {
-      const o = document.createElement("option");
+    STATE.pricingVehicles.forEach(function (v) {
+      var o = document.createElement("option");
       o.value = v.name;
       o.textContent = v.name;
       s.appendChild(o);
@@ -2225,18 +2479,24 @@ function openNewVehicleModal(d = null) {
   openModal("vehicleModal");
 }
 function saveVehicle() {
-  const ei = qs("#vehicleEditId")?.value || "",
+  var ei = qs("#vehicleEditId")?.value || "",
     vn = (qs("#vehicleNumber")?.value || "").trim().toUpperCase(),
     tp = qs("#vehicleType")?.value || "",
     ow = (qs("#vehicleOwner")?.value || "").trim(),
     ct = (qs("#vehicleContact")?.value || "").trim();
   if (!vn || !tp || !ow) return;
   if (ei) {
-    const v = STATE.vehicles.find((v) => v.id === ei);
+    var v = STATE.vehicles.find(function (v) {
+      return v.id === ei;
+    });
     if (v)
       Object.assign(v, { vehicleNo: vn, type: tp, owner: ow, contact: ct });
   } else {
-    if (STATE.vehicles.find((v) => v.vehicleNo === vn)) {
+    if (
+      STATE.vehicles.find(function (v) {
+        return v.vehicleNo === vn;
+      })
+    ) {
       toast("Already registered", "warning");
       return;
     }
@@ -2256,8 +2516,8 @@ function saveVehicle() {
   renderVehicleTable();
 }
 function renderVehicleTable() {
-  const fl = STATE.vehicles.filter((v) => {
-    const sr = (qs("#vehicleSearch")?.value || "").toLowerCase(),
+  var fl = STATE.vehicles.filter(function (v) {
+    var sr = (qs("#vehicleSearch")?.value || "").toLowerCase(),
       tf = (qs("#vehicleTypeFilter")?.value || "").toLowerCase();
     return (
       (!sr ||
@@ -2266,32 +2526,53 @@ function renderVehicleTable() {
       (!tf || v.type.toLowerCase() === tf)
     );
   });
-  const tb = qs("#vehicleTableBody");
+  var tb = qs("#vehicleTableBody");
   if (!tb) return;
-  qs("#vehicleCountBadge").textContent = `${fl.length} vehicles`;
+  qs("#vehicleCountBadge").textContent = fl.length + " vehicles";
   if (!fl.length) {
     tb.innerHTML = '<tr><td colspan="7">No vehicles</td></tr>';
     return;
   }
   tb.innerHTML = fl
-    .map(
-      (v) =>
-        `<tr><td><span class="table-vehicle-no">${sanitize(v.vehicleNo)}</span></td><td>${sanitize(v.owner)}</td><td><span class="contact-display">${sanitize(formatContactDisplay(v.contact || "N/A"))}</span></td><td><span class="badge badge--blue">${sanitize(v.type)}</span></td><td>${sanitize(v.lastService || "—")}</td><td>${v.visits || 0}</td><td><div class="table-actions"><button class="btn-icon btn btn-ghost" data-vehicle-edit="${v.id}"><span class="material-icons">edit</span></button><button class="btn-icon btn btn-danger-ghost" data-vehicle-delete="${v.id}"><span class="material-icons">delete</span></button></div></td></tr>`,
-    )
+    .map(function (v) {
+      return (
+        '<tr><td><span class="table-vehicle-no">' +
+        sanitize(v.vehicleNo) +
+        "</span></td><td>" +
+        sanitize(v.owner) +
+        '</td><td><span class="contact-display">' +
+        sanitize(formatContactDisplay(v.contact || "N/A")) +
+        '</span></td><td><span class="badge badge--blue">' +
+        sanitize(v.type) +
+        "</span></td><td>" +
+        sanitize(v.lastService || "—") +
+        "</td><td>" +
+        (v.visits || 0) +
+        '</td><td><div class="table-actions"><button class="btn-icon btn btn-ghost" data-vehicle-edit="' +
+        v.id +
+        '"><span class="material-icons">edit</span></button><button class="btn-icon btn btn-danger-ghost" data-vehicle-delete="' +
+        v.id +
+        '"><span class="material-icons">delete</span></button></div></td></tr>'
+      );
+    })
     .join("");
 }
 
 // ==================== INVENTORY ====================
 function initInventory() {
-  qs("#addProductBtn")?.addEventListener("click", () => openProductModal());
+  qs("#addProductBtn")?.addEventListener("click", function () {
+    openProductModal();
+  });
   qs("#saveProductBtn")?.addEventListener("click", saveProduct);
-  qs("#addVariantBtn")?.addEventListener("click", () => addVariantRow());
-  qs("#stockInBtn")?.addEventListener("click", () =>
-    openStockModal(null, "in"),
-  );
-  qs("#stockOutBtn")?.addEventListener("click", () =>
-    openStockModal(null, "out"),
-  );
+  qs("#addVariantBtn")?.addEventListener("click", function () {
+    addVariantRow();
+  });
+  qs("#stockInBtn")?.addEventListener("click", function () {
+    openStockModal(null, "in");
+  });
+  qs("#stockOutBtn")?.addEventListener("click", function () {
+    openStockModal(null, "out");
+  });
   qs("#saveStockBtn")?.addEventListener("click", saveStock);
   qs("#inventorySearch")?.addEventListener("input", renderInventoryTable);
   qs("#inventoryCategoryFilter")?.addEventListener(
@@ -2307,41 +2588,72 @@ function initInventory() {
   populateCategoryDropdowns();
   renderInventoryTable();
 }
-let vc = 0;
-function addVariantRow(data = null) {
-  const c = qs("#variantsContainer");
+var vc = 0;
+function addVariantRow(data) {
+  var c = qs("#variantsContainer");
   if (!c) return;
   vc++;
-  const brands = STATE.brands
-    .map(
-      (b) =>
-        `<option value="${b.name}" ${data?.brand === b.name ? "selected" : ""}>${sanitize(b.name)}</option>`,
-    )
+  var brands = STATE.brands
+    .map(function (b) {
+      return (
+        '<option value="' +
+        b.name +
+        '" ' +
+        (data && data.brand === b.name ? "selected" : "") +
+        ">" +
+        sanitize(b.name) +
+        "</option>"
+      );
+    })
     .join("");
-  const card = document.createElement("div");
+  var card = document.createElement("div");
   card.className = "variant-card";
-  card.innerHTML = `<div class="variant-card-header"><span>Variant #${vc}</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest('.variant-card').remove()"><span class="material-icons">close</span></button></div><div class="variant-grid"><div class="variant-field"><label>Brand</label><select class="form-input variant-brand">${brands}</select></div><div class="variant-field"><label>Model</label><input type="text" class="form-input variant-model" value="${sanitize(data?.model || "")}" placeholder="e.g. HX3" /></div><div class="variant-field"><label>Grade</label><input type="text" class="form-input variant-grade" value="${sanitize(data?.grade || "")}" placeholder="e.g. 20W-50" /></div><div class="variant-field"><label>Size</label><input type="text" class="form-input variant-size" value="${sanitize(data?.size || "")}" placeholder="e.g. 3L" /></div><div class="variant-field"><label>Purchase Price</label><input type="number" class="form-input variant-purchase-price" value="${data?.purchasePrice || ""}" min="0" /></div><div class="variant-field"><label>Selling Price *</label><input type="number" class="form-input variant-selling-price" value="${data?.sellingPrice || ""}" min="0" /></div><div class="variant-field"><label>Stock *</label><input type="number" class="form-input variant-stock" value="${data?.stock || ""}" min="0" /></div><div class="variant-field"><label>Min Stock</label><input type="number" class="form-input variant-min-stock" value="${data?.minStock || "5"}" min="0" /></div><div class="variant-field"><label>SKU</label><input type="text" class="form-input variant-sku" value="${sanitize(data?.sku || "")}" placeholder="Auto" /></div></div>`;
+  card.innerHTML =
+    '<div class="variant-card-header"><span>Variant #' +
+    vc +
+    '</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.variant-card\').remove()"><span class="material-icons">close</span></button></div><div class="variant-grid"><div class="variant-field"><label>Brand</label><select class="form-input variant-brand">' +
+    brands +
+    '</select></div><div class="variant-field"><label>Model</label><input type="text" class="form-input variant-model" value="' +
+    sanitize((data && data.model) || "") +
+    '" placeholder="e.g. HX3" /></div><div class="variant-field"><label>Grade</label><input type="text" class="form-input variant-grade" value="' +
+    sanitize((data && data.grade) || "") +
+    '" placeholder="e.g. 20W-50" /></div><div class="variant-field"><label>Size</label><input type="text" class="form-input variant-size" value="' +
+    sanitize((data && data.size) || "") +
+    '" placeholder="e.g. 3L" /></div><div class="variant-field"><label>Purchase Price</label><input type="number" class="form-input variant-purchase-price" value="' +
+    ((data && data.purchasePrice) || "") +
+    '" min="0" /></div><div class="variant-field"><label>Selling Price *</label><input type="number" class="form-input variant-selling-price" value="' +
+    ((data && data.sellingPrice) || "") +
+    '" min="0" /></div><div class="variant-field"><label>Stock *</label><input type="number" class="form-input variant-stock" value="' +
+    ((data && data.stock) || "") +
+    '" min="0" /></div><div class="variant-field"><label>Min Stock</label><input type="number" class="form-input variant-min-stock" value="' +
+    ((data && data.minStock) || "5") +
+    '" min="0" /></div><div class="variant-field"><label>SKU</label><input type="text" class="form-input variant-sku" value="' +
+    sanitize((data && data.sku) || "") +
+    '" placeholder="Auto" /></div></div>';
   c.appendChild(card);
 }
-function openProductModal(d = null) {
+function openProductModal(d) {
   setValue("#productEditId", d ? d.id : "");
   setValue("#productName", d ? d.productType : "");
   populateCategoryDropdowns();
   setValue("#productCategory", d ? d.category : "misc");
   qs("#variantsContainer").innerHTML = "";
   vc = 0;
-  if (d?.variants) d.variants.forEach((v) => addVariantRow(v));
+  if (d && d.variants)
+    d.variants.forEach(function (v) {
+      addVariantRow(v);
+    });
   else addVariantRow();
   openModal("productModal");
 }
 function saveProduct() {
-  const ei = qs("#productEditId")?.value || "";
-  const pt = (qs("#productName")?.value || "").trim();
-  const cat = qs("#productCategory")?.value || "misc";
+  var ei = qs("#productEditId")?.value || "";
+  var pt = (qs("#productName")?.value || "").trim();
+  var cat = qs("#productCategory")?.value || "misc";
   if (!pt) return;
-  const variants = [];
-  qsa("#variantsContainer .variant-card").forEach((card, idx) => {
-    const b = card.querySelector(".variant-brand")?.value || "General",
+  var variants = [];
+  qsa("#variantsContainer .variant-card").forEach(function (card, idx) {
+    var b = card.querySelector(".variant-brand")?.value || "General",
       m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
       g = card.querySelector(".variant-grade")?.value?.trim() || "",
       s = card.querySelector(".variant-size")?.value?.trim() || "",
@@ -2350,9 +2662,9 @@ function saveProduct() {
       sp = parseFloat(card.querySelector(".variant-selling-price")?.value) || 0,
       st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
       ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
-    let sku = card.querySelector(".variant-sku")?.value?.trim() || "";
+    var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
     if (!sp) {
-      toast(`Variant #${idx + 1}: Enter price`, "error");
+      toast("Variant #" + (idx + 1) + ": Enter price", "error");
       return;
     }
     if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
@@ -2362,7 +2674,7 @@ function saveProduct() {
       model: m,
       grade: g,
       size: s,
-      sku,
+      sku: sku,
       purchasePrice: pp,
       sellingPrice: sp,
       stock: st,
@@ -2371,7 +2683,9 @@ function saveProduct() {
   });
   if (!variants.length) return;
   if (ei) {
-    const p = STATE.inventory.find((p) => p.id === ei);
+    var p = STATE.inventory.find(function (p) {
+      return p.id === ei;
+    });
     if (p) {
       p.productType = pt;
       p.category = cat;
@@ -2382,7 +2696,7 @@ function saveProduct() {
       id: uid(),
       productType: pt,
       category: cat,
-      variants,
+      variants: variants,
     });
   }
   saveInventory();
@@ -2391,31 +2705,36 @@ function saveProduct() {
   updateInventoryKPI();
   refreshDashboard();
 }
-function openStockModal(vid, tp = "in") {
+function openStockModal(vid, tp) {
   setValue("#stockQty", "");
   if (vid) {
-    const f = findVariantById(vid);
+    var f = findVariantById(vid);
     if (f) {
       setValue("#stockProductId", vid);
-      setValue("#stockProductName", `${f.fullName} [SKU: ${f.variant.sku}]`);
+      setValue(
+        "#stockProductName",
+        f.fullName + " [SKU: " + f.variant.sku + "]",
+      );
     }
   } else {
     setValue("#stockProductId", "");
     setValue("#stockProductName", "Select from table");
   }
-  qsa('input[name="stockType"]').forEach((r) => (r.checked = r.value === tp));
+  qsa('input[name="stockType"]').forEach(function (r) {
+    r.checked = r.value === tp;
+  });
   openModal("stockModal");
 }
 function saveStock() {
-  const vid = qs("#stockProductId")?.value || "",
+  var vid = qs("#stockProductId")?.value || "",
     qt = parseInt(qs("#stockQty")?.value) || 0,
     tp =
       document.querySelector('input[name="stockType"]:checked')?.value || "in";
   if (!vid || !qt) return;
-  const f = findVariantById(vid);
+  var f = findVariantById(vid);
   if (!f) return;
   if (tp === "out" && qt > f.variant.stock) {
-    toast(`Only ${f.variant.stock} available`, "error");
+    toast("Only " + f.variant.stock + " available", "error");
     return;
   }
   f.variant.stock = tp === "in" ? f.variant.stock + qt : f.variant.stock - qt;
@@ -2426,38 +2745,78 @@ function saveStock() {
   refreshDashboard();
 }
 function updateInventoryKPI() {
-  const all = getAllVariantsFlat();
+  var all = getAllVariantsFlat();
   setText("#invTotalProducts", all.length);
-  setText("#invLowStock", all.filter((v) => v.stock < v.minStock).length);
+  setText(
+    "#invLowStock",
+    all.filter(function (v) {
+      return v.stock < v.minStock;
+    }).length,
+  );
   setText(
     "#invValue",
-    fmtPrice(all.reduce((s, v) => s + v.stock * (v.sellingPrice || 0), 0)),
+    fmtPrice(
+      all.reduce(function (s, v) {
+        return s + v.stock * (v.sellingPrice || 0);
+      }, 0),
+    ),
   );
 }
 function renderInventoryTable() {
-  const sr = (qs("#inventorySearch")?.value || "").toLowerCase(),
+  var sr = (qs("#inventorySearch")?.value || "").toLowerCase(),
     cf = qs("#inventoryCategoryFilter")?.value || "",
     bf = qs("#inventoryBrandFilter")?.value || "";
-  let all = getAllVariantsFlat().filter(
-    (v) =>
+  var all = getAllVariantsFlat().filter(function (v) {
+    return (
       (!sr ||
         v.fullName.toLowerCase().includes(sr) ||
         v.sku.toLowerCase().includes(sr)) &&
       (!cf || v.category === cf) &&
-      (!bf || v.brand === bf),
-  );
-  const tb = qs("#inventoryTableBody");
+      (!bf || v.brand === bf)
+    );
+  });
+  var tb = qs("#inventoryTableBody");
   if (!tb) return;
   updateInventoryKPI();
-  qs("#productCountBadge").textContent = `${all.length} variants`;
+  qs("#productCountBadge").textContent = all.length + " variants";
   if (!all.length) {
     tb.innerHTML = '<tr><td colspan="9">No variants</td></tr>';
     return;
   }
   tb.innerHTML = all
-    .map((v) => {
-      const lo = v.stock < v.minStock;
-      return `<tr><td><div style="font-weight:500;">${sanitize(v.productType)}</div><div style="font-size:0.7rem;color:var(--text-muted);">${sanitize(v.fullName)}</div></td><td><span class="badge badge--blue" style="font-size:0.6rem;">${sanitize(v.sku)}</span></td><td><span class="badge badge--gray">${sanitize(v.category || "Misc")}</span></td><td><span style="font-weight:700;color:${lo ? "var(--danger)" : "var(--success)"};">${v.stock}</span></td><td>${v.minStock}</td><td>${fmtPrice(v.purchasePrice)}</td><td style="font-weight:600;">${fmtPrice(v.sellingPrice)}</td><td>${lo ? '<span class="badge badge--red">Low</span>' : '<span class="badge badge--green">OK</span>'}</td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-stock-in="${v.id}">+</button><button class="btn btn-sm btn-ghost" data-stock-out="${v.id}">-</button><button class="btn-icon btn btn-danger-ghost" data-variant-delete="${v.id}"><span class="material-icons">delete</span></button></div></td></tr>`;
+    .map(function (v) {
+      var lo = v.stock < v.minStock;
+      return (
+        '<tr><td><div style="font-weight:500;">' +
+        sanitize(v.productType) +
+        '</div><div style="font-size:0.7rem;color:var(--text-muted);">' +
+        sanitize(v.fullName) +
+        '</div></td><td><span class="badge badge--blue" style="font-size:0.6rem;">' +
+        sanitize(v.sku) +
+        '</span></td><td><span class="badge badge--gray">' +
+        sanitize(v.category || "Misc") +
+        '</span></td><td><span style="font-weight:700;color:' +
+        (lo ? "var(--danger)" : "var(--success)") +
+        ';">' +
+        v.stock +
+        "</span></td><td>" +
+        v.minStock +
+        "</td><td>" +
+        fmtPrice(v.purchasePrice) +
+        '</td><td style="font-weight:600;">' +
+        fmtPrice(v.sellingPrice) +
+        "</td><td>" +
+        (lo
+          ? '<span class="badge badge--red">Low</span>'
+          : '<span class="badge badge--green">OK</span>') +
+        '</td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-stock-in="' +
+        v.id +
+        '">+</button><button class="btn btn-sm btn-ghost" data-stock-out="' +
+        v.id +
+        '">-</button><button class="btn-icon btn btn-danger-ghost" data-variant-delete="' +
+        v.id +
+        '"><span class="material-icons">delete</span></button></div></td></tr>'
+      );
     })
     .join("");
 }
@@ -2466,17 +2825,26 @@ function openBrandsModal() {
   openModal("brandsModal");
 }
 function renderBrandList() {
-  const c = qs("#brandList");
+  var c = qs("#brandList");
   if (!c) return;
   c.innerHTML = STATE.brands
-    .map(
-      (b) =>
-        `<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>${sanitize(b.name)}</span>${b.id === "general" ? '<span class="badge badge--gray">Default</span>' : `<button class="btn-icon btn btn-danger-ghost" data-brand-delete="${b.id}"><span class="material-icons">close</span></button>`}</div>`,
-    )
+    .map(function (b) {
+      return (
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>' +
+        sanitize(b.name) +
+        "</span>" +
+        (b.id === "general"
+          ? '<span class="badge badge--gray">Default</span>'
+          : '<button class="btn-icon btn btn-danger-ghost" data-brand-delete="' +
+            b.id +
+            '"><span class="material-icons">close</span></button>') +
+        "</div>"
+      );
+    })
     .join("");
 }
 function addBrand() {
-  const n = (qs("#newBrandName")?.value || "").trim();
+  var n = (qs("#newBrandName")?.value || "").trim();
   if (!n) return;
   STATE.brands.push({ id: uid(), name: n });
   saveBrands();
@@ -2485,26 +2853,26 @@ function addBrand() {
   setValue("#newBrandName", "");
 }
 function populateBrandDropdowns() {
-  const el = qs("#inventoryBrandFilter");
+  var el = qs("#inventoryBrandFilter");
   if (!el) return;
   el.innerHTML = '<option value="">All Brands</option>';
-  STATE.brands.forEach((b) => {
-    const o = document.createElement("option");
+  STATE.brands.forEach(function (b) {
+    var o = document.createElement("option");
     o.value = b.name;
     o.textContent = b.name;
     el.appendChild(o);
   });
 }
 function populateCategoryDropdowns() {
-  ["#inventoryCategoryFilter", "#productCategory"].forEach((sel) => {
-    const el = qs(sel);
+  ["#inventoryCategoryFilter", "#productCategory"].forEach(function (sel) {
+    var el = qs(sel);
     if (!el) return;
     el.innerHTML =
       sel === "#inventoryCategoryFilter"
         ? '<option value="">All Categories</option>'
         : "";
-    STATE.categories.forEach((c) => {
-      const o = document.createElement("option");
+    STATE.categories.forEach(function (c) {
+      var o = document.createElement("option");
       o.value = c.id;
       o.textContent = c.name;
       el.appendChild(o);
@@ -2516,17 +2884,26 @@ function openCategoryModal() {
   openModal("categoryModal");
 }
 function renderCategoryList() {
-  const c = qs("#categoryList");
+  var c = qs("#categoryList");
   if (!c) return;
   c.innerHTML = STATE.categories
-    .map(
-      (cat) =>
-        `<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>${sanitize(cat.name)}</span>${["oil", "filter", "coolant", "misc"].includes(cat.id) ? '<span class="badge badge--gray">Default</span>' : `<button class="btn-icon btn btn-danger-ghost" data-cat-delete="${cat.id}"><span class="material-icons">close</span></button>`}</div>`,
-    )
+    .map(function (cat) {
+      return (
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>' +
+        sanitize(cat.name) +
+        "</span>" +
+        (["oil", "filter", "coolant", "misc"].indexOf(cat.id) >= 0
+          ? '<span class="badge badge--gray">Default</span>'
+          : '<button class="btn-icon btn btn-danger-ghost" data-cat-delete="' +
+            cat.id +
+            '"><span class="material-icons">close</span></button>') +
+        "</div>"
+      );
+    })
     .join("");
 }
 function addCategory() {
-  const n = (qs("#newCategoryName")?.value || "").trim();
+  var n = (qs("#newCategoryName")?.value || "").trim();
   if (!n) return;
   STATE.categories.push({ id: uid(), name: n });
   saveCategories();
@@ -2539,8 +2916,10 @@ function addCategory() {
 function initReports() {
   qs("#applyRptFilter")?.addEventListener("click", renderReports);
   qs("#resetRptFilter")?.addEventListener("click", resetReportFilters);
-  qs("#downloadCSV")?.addEventListener("click", () => exportCSV("reports"));
-  const td = new Date(),
+  qs("#downloadCSV")?.addEventListener("click", function () {
+    exportCSV("reports");
+  });
+  var td = new Date(),
     wa = new Date(td);
   wa.setDate(wa.getDate() - 30);
   setValue("#rptFromDate", toDateInputValue(wa));
@@ -2548,7 +2927,7 @@ function initReports() {
   renderReports();
 }
 function resetReportFilters() {
-  const td = new Date(),
+  var td = new Date(),
     wa = new Date(td);
   wa.setDate(wa.getDate() - 30);
   setValue("#rptFromDate", toDateInputValue(wa));
@@ -2561,19 +2940,19 @@ function renderReports() {
   setText("#rptExpenses", fmtPrice(getTotalExpenses()));
   setText("#rptLabour", fmtPrice(getLabourCost()));
   setText("#rptProfit", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  const rows = [];
-  STATE.tokens.forEach((tk) => {
+  var rows = [];
+  STATE.tokens.forEach(function (tk) {
     if (tk.status === "completed") {
       rows.push({
         date: fmtDate(),
         type: "Revenue",
         cat: "Service",
-        desc: `Token ${tk.number}`,
+        desc: "Token " + tk.number,
         amt: tk.servicePrice || 0,
         bal: "credit",
       });
       if (tk.products)
-        tk.products.forEach((p) =>
+        tk.products.forEach(function (p) {
           rows.push({
             date: fmtDate(),
             type: "Revenue",
@@ -2581,11 +2960,11 @@ function renderReports() {
             desc: p.fullName || p.name,
             amt: p.price * p.qty,
             bal: "credit",
-          }),
-        );
+          });
+        });
     }
   });
-  STATE.productSales.forEach((s) =>
+  STATE.productSales.forEach(function (s) {
     rows.push({
       date: s.date,
       type: "Revenue",
@@ -2593,9 +2972,9 @@ function renderReports() {
       desc: s.customer || "Walk-in",
       amt: s.total,
       bal: "credit",
-    }),
-  );
-  STATE.expenses.forEach((e) =>
+    });
+  });
+  STATE.expenses.forEach(function (e) {
     rows.push({
       date: e.date,
       type: "Expense",
@@ -2603,63 +2982,104 @@ function renderReports() {
       desc: e.title,
       amt: e.amount,
       bal: "debit",
-    }),
-  );
-  rows.sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0));
-  const tb = qs("#reportTableBody");
+    });
+  });
+  rows.sort(function (a, b) {
+    return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
+  });
+  var tb = qs("#reportTableBody");
   if (tb)
     tb.innerHTML = rows.length
       ? rows
-          .map(
-            (r) =>
-              `<tr><td>${sanitize(r.date)}</td><td>${r.type}</td><td>${sanitize(r.cat)}</td><td>${sanitize(r.desc)}</td><td style="text-align:right;font-weight:700;">${r.bal === "credit" ? "+" : "-"} ${fmtPrice(r.amt)}</td></tr>`,
-          )
+          .map(function (r) {
+            return (
+              "<tr><td>" +
+              sanitize(r.date) +
+              "</td><td>" +
+              r.type +
+              "</td><td>" +
+              sanitize(r.cat) +
+              "</td><td>" +
+              sanitize(r.desc) +
+              '</td><td style="text-align:right;font-weight:700;">' +
+              (r.bal === "credit" ? "+" : "-") +
+              " " +
+              fmtPrice(r.amt) +
+              "</td></tr>"
+            );
+          })
           .join("")
       : '<tr><td colspan="5">No transactions</td></tr>';
-  const ss = {};
-  STATE.tokens.forEach((t) => {
+}
+function renderServicesSold() {
+  var tb = qs("#servicesSoldTableBody");
+  if (!tb) return;
+  var ss = {};
+  STATE.tokens.forEach(function (t) {
     if (t.status === "completed" && t.service) {
       if (!ss[t.service]) ss[t.service] = { count: 0, revenue: 0 };
       ss[t.service].count++;
       ss[t.service].revenue += t.servicePrice || 0;
     }
   });
-  const sst = qs("#servicesSoldTableBody");
-  if (sst) {
-    const sd = Object.entries(ss).map(([n, s]) => ({ name: n, ...s }));
-    sst.innerHTML = sd.length
-      ? sd
-          .sort((a, b) => b.count - a.count)
-          .map(
-            (d) =>
-              `<tr><td>${sanitize(d.name)}</td><td>${d.count}x</td><td>${fmtPrice(d.revenue)}</td></tr>`,
-          )
-          .join("")
-      : '<tr><td colspan="3">No services</td></tr>';
-  }
-  const ps = {};
-  STATE.invoices.forEach((inv) => {
+  var data = Object.entries(ss).map(function (e) {
+    return { name: e[0], count: e[1].count, revenue: e[1].revenue };
+  });
+  tb.innerHTML = data.length
+    ? data
+        .sort(function (a, b) {
+          return b.count - a.count;
+        })
+        .map(function (d) {
+          return (
+            "<tr><td>" +
+            sanitize(d.name) +
+            "</td><td>" +
+            d.count +
+            "x</td><td>" +
+            fmtPrice(d.revenue) +
+            "</td></tr>"
+          );
+        })
+        .join("")
+    : '<tr><td colspan="3">No services</td></tr>';
+}
+function renderProductsSold() {
+  var tb = qs("#productsSoldTableBody");
+  if (!tb) return;
+  var ps = {};
+  STATE.invoices.forEach(function (inv) {
     inv.items
-      .filter((i) => i.type === "product")
-      .forEach((item) => {
+      .filter(function (i) {
+        return i.type === "product";
+      })
+      .forEach(function (item) {
         if (!ps[item.name]) ps[item.name] = { qty: 0, revenue: 0 };
         ps[item.name].qty += item.qty;
         ps[item.name].revenue += item.price * item.qty;
       });
   });
-  const pst = qs("#productsSoldTableBody");
-  if (pst) {
-    const pd = Object.entries(ps).map(([n, s]) => ({ name: n, ...s }));
-    pst.innerHTML = pd.length
-      ? pd
-          .sort((a, b) => b.qty - a.qty)
-          .map(
-            (d) =>
-              `<tr><td>${sanitize(d.name)}</td><td>${d.qty}x</td><td>${fmtPrice(d.revenue)}</td></tr>`,
-          )
-          .join("")
-      : '<tr><td colspan="3">No products</td></tr>';
-  }
+  var data = Object.entries(ps).map(function (e) {
+    return { name: e[0], qty: e[1].qty, revenue: e[1].revenue };
+  });
+  tb.innerHTML = data.length
+    ? data
+        .sort(function (a, b) {
+          return b.qty - a.qty;
+        })
+        .map(function (d) {
+          return (
+            "<tr><td>" +
+            sanitize(d.name) +
+            "</td><td>" +
+            d.qty +
+            "x</td><td>" +
+            fmtPrice(d.revenue) +
+            "</td></tr>"
+          );
+        })
+        .join("")
+    : '<tr><td colspan="3">No products</td></tr>';
 }
 
 // ==================== EXPENSES ====================
@@ -2685,7 +3105,7 @@ function hideExpenseForm() {
   qs("#addExpenseBtn").style.display = "";
 }
 function saveExpense() {
-  const tl = (qs("#expenseTitle")?.value || "").trim(),
+  var tl = (qs("#expenseTitle")?.value || "").trim(),
     ct = qs("#expenseCategory")?.value || "",
     am = parseFloat(qs("#expenseAmount")?.value) || 0;
   if (!tl || !ct || !am) return;
@@ -2707,256 +3127,493 @@ function renderExpenses() {
   setText("#totalExpenseAmt", fmtPrice(getTotalExpenses()));
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  const fl = STATE.expenses.sort(
-    (a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0),
-  );
-  const tb = qs("#expenseTableBody");
+  var fl = STATE.expenses.sort(function (a, b) {
+    return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
+  });
+  var tb = qs("#expenseTableBody");
   if (tb)
     tb.innerHTML = fl.length
       ? fl
-          .map(
-            (e) =>
-              `<tr><td>${sanitize(e.date)}</td><td>${sanitize(e.title)}</td><td>${sanitize(e.category)}</td><td style="font-weight:600;color:var(--danger);">${fmtPrice(e.amount)}</td><td><button class="btn-icon btn btn-danger-ghost" data-expense-del="${e.id}"><span class="material-icons">delete</span></button></td></tr>`,
-          )
+          .map(function (e) {
+            return (
+              "<tr><td>" +
+              sanitize(e.date) +
+              "</td><td>" +
+              sanitize(e.title) +
+              "</td><td>" +
+              sanitize(e.category) +
+              '</td><td style="font-weight:600;color:var(--danger);">' +
+              fmtPrice(e.amount) +
+              '</td><td><button class="btn-icon btn btn-danger-ghost" data-expense-del="' +
+              e.id +
+              '"><span class="material-icons">delete</span></button></td></tr>'
+            );
+          })
           .join("")
       : '<tr><td colspan="5">No expenses</td></tr>';
 }
 
-// ==================== SERVICES ====================
+// ==================== SERVICES (PRICING MATRIX) - COMPLETE FIX ====================
 function initServices() {
-  qs("#manageVehicleTypesBtn")?.addEventListener("click", () =>
-    openModal("vehicleTypesModal"),
-  );
-  qs("#managePricingServicesBtn")?.addEventListener("click", () =>
-    openModal("pricingServicesModal"),
-  );
-  qs("#addVehicleTypeBtn")?.addEventListener("click", addVehicleType);
-  qs("#addPricingServiceBtn")?.addEventListener("click", addPricingService);
+  console.log("initServices() called - binding buttons");
+
+  // Bind the "Vehicle Types" toolbar button
+  var vBtn = document.getElementById("manageVehicleTypesBtn");
+  if (vBtn) {
+    console.log("Found manageVehicleTypesBtn, binding click handler");
+    vBtn.addEventListener("click", function (e) {
+      console.log("manageVehicleTypesBtn clicked!");
+      e.preventDefault();
+      renderVehicleTypeList();
+      openModal("vehicleTypesModal");
+    });
+  } else {
+    console.log("ERROR: manageVehicleTypesBtn NOT FOUND in DOM");
+  }
+
+  // Bind the "Services" toolbar button
+  var sBtn = document.getElementById("managePricingServicesBtn");
+  if (sBtn) {
+    console.log("Found managePricingServicesBtn, binding click handler");
+    sBtn.addEventListener("click", function (e) {
+      console.log("managePricingServicesBtn clicked!");
+      e.preventDefault();
+      renderPricingServiceList();
+      openModal("pricingServicesModal");
+    });
+  } else {
+    console.log("ERROR: managePricingServicesBtn NOT FOUND in DOM");
+  }
+
+  // Bind the "Add Vehicle Type" button inside modal
+  var avBtn = document.getElementById("addVehicleTypeBtn");
+  if (avBtn) {
+    console.log("Found addVehicleTypeBtn, binding click handler");
+    avBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      addVehicleType();
+    });
+  } else {
+    console.log("ERROR: addVehicleTypeBtn NOT FOUND in DOM");
+  }
+
+  // Bind the "Add Service" button inside modal
+  var asBtn = document.getElementById("addPricingServiceBtn");
+  if (asBtn) {
+    console.log("Found addPricingServiceBtn, binding click handler");
+    asBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      addPricingService();
+    });
+  } else {
+    console.log("ERROR: addPricingServiceBtn NOT FOUND in DOM");
+  }
+
+  // Bind Enter key for modal inputs
+  var vtInput = document.getElementById("newVehicleTypeName");
+  if (vtInput) {
+    vtInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addVehicleType();
+      }
+    });
+  }
+
+  var psInput = document.getElementById("newPricingServiceName");
+  if (psInput) {
+    psInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addPricingService();
+      }
+    });
+  }
+
   renderVehicleTypeList();
   renderPricingServiceList();
+  renderPricingMatrix();
 }
+
 function addVehicleType() {
-  const n = (qs("#newVehicleTypeName")?.value || "").trim();
-  if (!n) return;
-  STATE.pricingVehicles.push({ id: uid(), name: n });
+  var input = document.getElementById("newVehicleTypeName");
+  var name = input && input.value ? input.value.trim() : "";
+  if (!name) {
+    toast("Enter vehicle type name", "warning");
+    return;
+  }
+  for (var i = 0; i < STATE.pricingVehicles.length; i++) {
+    if (STATE.pricingVehicles[i].name.toLowerCase() === name.toLowerCase()) {
+      toast("Already exists", "warning");
+      return;
+    }
+  }
+  STATE.pricingVehicles.push({ id: uid(), name: name });
   savePricingVehicles();
   renderVehicleTypeList();
   renderPricingMatrix();
-  setValue("#newVehicleTypeName", "");
+  if (input) {
+    input.value = "";
+    input.focus();
+  }
+  toast(name + " added", "success");
 }
+
 function addPricingService() {
-  const n = (qs("#newPricingServiceName")?.value || "").trim();
-  if (!n) return;
-  STATE.pricingServices.push({ id: uid(), name: n });
+  var input = document.getElementById("newPricingServiceName");
+  var name = input && input.value ? input.value.trim() : "";
+  if (!name) {
+    toast("Enter service name", "warning");
+    return;
+  }
+  for (var i = 0; i < STATE.pricingServices.length; i++) {
+    if (STATE.pricingServices[i].name.toLowerCase() === name.toLowerCase()) {
+      toast("Already exists", "warning");
+      return;
+    }
+  }
+  STATE.pricingServices.push({ id: uid(), name: name });
   savePricingServices();
   renderPricingServiceList();
   renderPricingMatrix();
-  setValue("#newPricingServiceName", "");
+  if (input) {
+    input.value = "";
+    input.focus();
+  }
+  toast(name + " added", "success");
 }
+
 function renderVehicleTypeList() {
-  const c = qs("#vehicleTypeList");
+  var c = document.getElementById("vehicleTypeList");
   if (!c) return;
-  c.innerHTML = STATE.pricingVehicles
-    .map(
-      (v) =>
-        `<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>${sanitize(v.name)}</span><button class="btn-icon btn btn-danger-ghost" data-vtype-delete="${v.id}"><span class="material-icons">close</span></button></div>`,
-    )
-    .join("");
-}
-function renderPricingServiceList() {
-  const c = qs("#pricingServiceList");
-  if (!c) return;
-  c.innerHTML = STATE.pricingServices
-    .map(
-      (s) =>
-        `<div style="display:flex;justify-content:space-between;padding:8px 0;"><span>${sanitize(s.name)}</span><button class="btn-icon btn btn-danger-ghost" data-psvc-delete="${s.id}"><span class="material-icons">close</span></button></div>`,
-    )
-    .join("");
-}
-function renderPricingMatrix() {
-  const th = qs("#pricingMatrixHead"),
-    tb = qs("#pricingMatrixBody");
-  if (!th || !tb) return;
-  const sv = STATE.pricingServices,
-    vh = STATE.pricingVehicles;
-  let ec = 0;
-  Object.values(STATE.pricingMatrix).forEach((v) => {
-    if (v > 0) ec++;
-  });
-  setText("#pricingServiceCount", sv.length);
-  setText("#pricingVehicleCount", vh.length);
-  setText("#pricingEntryCount", ec);
-  if (!sv.length || !vh.length) {
-    th.innerHTML = "<tr><th>Service / Vehicle</th></tr>";
-    tb.innerHTML = "<tr><td>Add services and types</td></tr>";
+  if (STATE.pricingVehicles.length === 0) {
+    c.innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:1rem;">No vehicle types added yet</p>';
     return;
   }
-  th.innerHTML = `<tr><th>Service / Vehicle</th>${vh.map((v) => `<th>${sanitize(v.name)}</th>`).join("")}</tr>`;
-  tb.innerHTML = sv
-    .map(
-      (s) =>
-        `<tr><td>${sanitize(s.name)}</td>${vh
-          .map((v) => {
-            const k = `${s.name}__${v.name}`;
-            const p = STATE.pricingMatrix[k] || 0;
-            return `<td style="cursor:pointer" data-pkey="${k}"><span style="font-weight:700;">${p > 0 ? fmtPrice(p) : "—"}</span></td>`;
-          })
-          .join("")}</tr>`,
-    )
-    .join("");
-  tb.querySelectorAll("[data-pkey]").forEach((cell) =>
-    cell.addEventListener("click", function () {
-      const k = this.dataset.pkey;
-      const cp = STATE.pricingMatrix[k] || 0;
-      const np = prompt("Set price:", cp);
-      if (np === null) return;
-      const pr = parseInt(np);
-      if (isNaN(pr) || pr < 0) return;
-      if (pr === 0) delete STATE.pricingMatrix[k];
-      else STATE.pricingMatrix[k] = pr;
+  var h = "";
+  for (var i = 0; i < STATE.pricingVehicles.length; i++) {
+    var v = STATE.pricingVehicles[i];
+    h +=
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;">' +
+      '<span style="font-weight:500;">' +
+      sanitize(v.name) +
+      "</span>" +
+      '<button class="btn-icon btn btn-danger-ghost" data-vtype-delete="' +
+      v.id +
+      '">' +
+      '<span class="material-icons">close</span></button></div>';
+  }
+  c.innerHTML = h;
+}
+
+function renderPricingServiceList() {
+  var c = document.getElementById("pricingServiceList");
+  if (!c) return;
+  if (STATE.pricingServices.length === 0) {
+    c.innerHTML =
+      '<p style="text-align:center;color:#94a3b8;padding:1rem;">No services added yet</p>';
+    return;
+  }
+  var h = "";
+  for (var i = 0; i < STATE.pricingServices.length; i++) {
+    var s = STATE.pricingServices[i];
+    h +=
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;">' +
+      '<span style="font-weight:500;">' +
+      sanitize(s.name) +
+      "</span>" +
+      '<button class="btn-icon btn btn-danger-ghost" data-psvc-delete="' +
+      s.id +
+      '">' +
+      '<span class="material-icons">close</span></button></div>';
+  }
+  c.innerHTML = h;
+}
+
+function renderPricingMatrix() {
+  var thead = document.getElementById("pricingMatrixHead");
+  var tbody = document.getElementById("pricingMatrixBody");
+  if (!thead || !tbody) return;
+  var services = STATE.pricingServices;
+  var vehicles = STATE.pricingVehicles;
+  setText("#pricingServiceCount", services.length);
+  setText("#pricingVehicleCount", vehicles.length);
+  var count = 0;
+  var keys = Object.keys(STATE.pricingMatrix);
+  for (var i = 0; i < keys.length; i++) {
+    if (STATE.pricingMatrix[keys[i]] > 0) count++;
+  }
+  setText("#pricingEntryCount", count);
+  if (services.length === 0 || vehicles.length === 0) {
+    thead.innerHTML = "<tr><th>Service / Vehicle</th></tr>";
+    tbody.innerHTML =
+      '<tr><td colspan="5" style="text-align:center;padding:3rem;">Add services and vehicle types to get started</td></tr>';
+    return;
+  }
+  var hh = "<tr><th>Service / Vehicle</th>";
+  for (var v = 0; v < vehicles.length; v++) {
+    hh +=
+      '<th style="text-align:center;">' + sanitize(vehicles[v].name) + "</th>";
+  }
+  hh += "</tr>";
+  thead.innerHTML = hh;
+  var bh = "";
+  for (var s = 0; s < services.length; s++) {
+    bh +=
+      '<tr><td style="font-weight:600;">' +
+      sanitize(services[s].name) +
+      "</td>";
+    for (var v = 0; v < vehicles.length; v++) {
+      var key = services[s].name + "__" + vehicles[v].name;
+      var price = STATE.pricingMatrix[key] || 0;
+      bh +=
+        '<td style="text-align:center;cursor:pointer;padding:10px;" data-mkey="' +
+        key +
+        '">' +
+        '<span style="font-weight:700;color:' +
+        (price > 0 ? "#2563eb" : "#94a3b8") +
+        ';">' +
+        (price > 0 ? fmtPrice(price) : "—") +
+        "</span></td>";
+    }
+    bh += "</tr>";
+  }
+  tbody.innerHTML = bh;
+  var cells = tbody.querySelectorAll("td[data-mkey]");
+  for (var i = 0; i < cells.length; i++) {
+    cells[i].onclick = function () {
+      var key = this.getAttribute("data-mkey");
+      var currentPrice = STATE.pricingMatrix[key] || 0;
+      var newPrice = prompt("Enter price (Rs.):", currentPrice || "");
+      if (newPrice === null) return;
+      var price = parseInt(newPrice.replace(/[^0-9]/g, ""));
+      if (isNaN(price) || price < 0) {
+        toast("Invalid price", "warning");
+        return;
+      }
+      if (price === 0) {
+        delete STATE.pricingMatrix[key];
+      } else {
+        STATE.pricingMatrix[key] = price;
+      }
       savePricingMatrix();
       renderPricingMatrix();
-    }),
-  );
+      toast("Price updated", "success");
+    };
+  }
 }
 
 // ==================== IMPORT/EXPORT ====================
 function initImportExport() {
-  qs("#exportJSONBtn")?.addEventListener("click", () => exportJSON());
-  qs("#exportCSVBtn")?.addEventListener("click", () => exportCSV());
-  qs("#exportPDFBtn")?.addEventListener("click", () => exportPDF());
-  qs("#importDataBtn2")?.addEventListener("click", () => importFile());
-  qs("#quickBackupBtn")?.addEventListener("click", () => quickBackup());
-  qs("#quickRestoreBtn")?.addEventListener("click", () => quickRestore());
-  qs("#confirmImportBtn")?.addEventListener("click", () => confirmImport());
+  qs("#exportJSONBtn")?.addEventListener("click", function () {
+    exportJSON();
+  });
+  qs("#exportCSVBtn")?.addEventListener("click", function () {
+    exportCSV();
+  });
+  qs("#exportPDFBtn")?.addEventListener("click", function () {
+    exportPDF();
+  });
+  qs("#importDataBtn2")?.addEventListener("click", function () {
+    importFile();
+  });
+  qs("#quickBackupBtn")?.addEventListener("click", function () {
+    quickBackup();
+  });
+  qs("#quickRestoreBtn")?.addEventListener("click", function () {
+    quickRestore();
+  });
+  qs("#confirmImportBtn")?.addEventListener("click", function () {
+    confirmImport();
+  });
 }
 function getModuleData(mod) {
-  switch (mod) {
-    case "all":
-      return {
-        inventory: STATE.inventory,
-        tokens: STATE.tokens,
-        vehicles: STATE.vehicles,
-        invoices: STATE.invoices,
-        expenses: STATE.expenses,
-        reminders: STATE.reminders,
-        productSales: STATE.productSales,
-        pricingMatrix: STATE.pricingMatrix,
-        categories: STATE.categories,
-        brands: STATE.brands,
-        settings: STATE.settings,
-        version: "6.0",
-      };
-    case "inventory":
-      return STATE.inventory;
-    case "tokens":
-      return STATE.tokens;
-    case "vehicles":
-      return STATE.vehicles;
-    case "invoices":
-      return STATE.invoices;
-    case "expenses":
-      return STATE.expenses;
-    case "reminders":
-      return STATE.reminders;
-    case "productSales":
-      return STATE.productSales;
-    default:
-      return {};
-  }
+  if (mod === "all")
+    return {
+      inventory: STATE.inventory,
+      tokens: STATE.tokens,
+      vehicles: STATE.vehicles,
+      invoices: STATE.invoices,
+      expenses: STATE.expenses,
+      reminders: STATE.reminders,
+      productSales: STATE.productSales,
+      pricingMatrix: STATE.pricingMatrix,
+      categories: STATE.categories,
+      brands: STATE.brands,
+      settings: STATE.settings,
+      version: "6.0",
+    };
+  if (mod === "inventory") return STATE.inventory;
+  if (mod === "tokens") return STATE.tokens;
+  if (mod === "vehicles") return STATE.vehicles;
+  if (mod === "invoices") return STATE.invoices;
+  if (mod === "expenses") return STATE.expenses;
+  if (mod === "reminders") return STATE.reminders;
+  if (mod === "productSales") return STATE.productSales;
+  return {};
 }
 function exportJSON() {
-  const m = qs("#exportModule")?.value || "all";
-  const d = getModuleData(m);
-  const b = new Blob([JSON.stringify(d, null, 2)], {
-    type: "application/json",
-  });
-  const a = document.createElement("a");
+  var m = qs("#exportModule")?.value || "all";
+  var d = getModuleData(m);
+  var b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+  var a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `${m}_${fmtDate()}.json`;
+  a.download = m + "_" + fmtDate() + ".json";
   a.click();
   URL.revokeObjectURL(a.href);
   toast("Exported JSON", "success");
 }
 function exportCSV(mo) {
-  const m = mo || qs("#exportModule")?.value || "all";
-  let csv = "";
-  const esc = (v) => `"${String(v || "").replace(/"/g, '""')}"`;
+  var m = mo || qs("#exportModule")?.value || "all";
+  var csv = "";
+  var esc = function (v) {
+    return '"' + String(v || "").replace(/"/g, '""') + '"';
+  };
   if (m === "all" || m === "inventory") {
     csv +=
       "Product Type,Brand,Model,Grade,Size,SKU,Purchase Price,Selling Price,Stock,Min Stock\n";
-    getAllVariantsFlat().forEach((v) => {
-      csv += `${esc(v.productType)},${esc(v.brand)},${esc(v.model)},${esc(v.grade)},${esc(v.size)},${esc(v.sku)},${v.purchasePrice},${v.sellingPrice},${v.stock},${v.minStock}\n`;
+    getAllVariantsFlat().forEach(function (v) {
+      csv +=
+        esc(v.productType) +
+        "," +
+        esc(v.brand) +
+        "," +
+        esc(v.model) +
+        "," +
+        esc(v.grade) +
+        "," +
+        esc(v.size) +
+        "," +
+        esc(v.sku) +
+        "," +
+        v.purchasePrice +
+        "," +
+        v.sellingPrice +
+        "," +
+        v.stock +
+        "," +
+        v.minStock +
+        "\n";
     });
   }
   if (m === "all" || m === "tokens") {
     if (csv) csv += "\n";
     csv += "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time\n";
-    STATE.tokens.forEach((t) => {
-      csv += `${esc(t.number)},${esc(t.vehicleNo)},${esc(t.vehicleType)},${esc(t.ownerName)},${esc(t.contactNumber)},${esc(t.service)},${t.status},${t.time}\n`;
+    STATE.tokens.forEach(function (t) {
+      csv +=
+        esc(t.number) +
+        "," +
+        esc(t.vehicleNo) +
+        "," +
+        esc(t.vehicleType) +
+        "," +
+        esc(t.ownerName) +
+        "," +
+        esc(t.contactNumber) +
+        "," +
+        esc(t.service) +
+        "," +
+        t.status +
+        "," +
+        t.time +
+        "\n";
     });
   }
-  const b = new Blob([csv], { type: "text/csv" });
-  const a = document.createElement("a");
+  var b = new Blob([csv], { type: "text/csv" });
+  var a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `${m}_${fmtDate()}.csv`;
+  a.download = m + "_" + fmtDate() + ".csv";
   a.click();
   URL.revokeObjectURL(a.href);
   toast("Exported CSV", "success");
 }
 function exportPDF() {
-  const m = qs("#exportModule")?.value || "all";
-  let h = `<html><head><meta charset="UTF-8"><style>body{font-family:Arial;padding:20px;font-size:11px}h1{font-size:16px;text-align:center}h2{font-size:13px}table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px}th{background:#2563eb;color:#fff;padding:5px}td{padding:4px;border-bottom:1px solid #ddd}</style></head><body><h1>${sanitize(STATE.settings.businessName)}</h1><h2>${m.toUpperCase()} Report - ${fmtDate()}</h2>`;
+  var m = qs("#exportModule")?.value || "all";
+  var h =
+    '<html><head><meta charset="UTF-8"><style>body{font-family:Arial;padding:20px;font-size:11px}h1{font-size:16px;text-align:center}h2{font-size:13px}table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px}th{background:#2563eb;color:#fff;padding:5px}td{padding:4px;border-bottom:1px solid #ddd}</style></head><body><h1>' +
+    sanitize(STATE.settings.businessName) +
+    "</h1><h2>" +
+    m.toUpperCase() +
+    " Report - " +
+    fmtDate() +
+    "</h2>";
   if (m === "all" || m === "inventory") {
     h +=
       "<h2>Inventory</h2><table><tr><th>Product</th><th>Brand</th><th>Model</th><th>SKU</th><th>Stock</th><th>Price</th></tr>";
-    getAllVariantsFlat().forEach((v) => {
-      h += `<tr><td>${sanitize(v.productType)}</td><td>${sanitize(v.brand)}</td><td>${sanitize(v.model)}</td><td>${sanitize(v.sku)}</td><td>${v.stock}</td><td>${fmtPrice(v.sellingPrice)}</td></tr>`;
+    getAllVariantsFlat().forEach(function (v) {
+      h +=
+        "<tr><td>" +
+        sanitize(v.productType) +
+        "</td><td>" +
+        sanitize(v.brand) +
+        "</td><td>" +
+        sanitize(v.model) +
+        "</td><td>" +
+        sanitize(v.sku) +
+        "</td><td>" +
+        v.stock +
+        "</td><td>" +
+        fmtPrice(v.sellingPrice) +
+        "</td></tr>";
     });
     h += "</table>";
   }
   if (m === "all" || m === "tokens") {
     h +=
       "<h2>Tokens</h2><table><tr><th>Token</th><th>Vehicle</th><th>Customer</th><th>Contact</th><th>Service</th><th>Status</th></tr>";
-    STATE.tokens.forEach((t) => {
-      h += `<tr><td>${sanitize(t.number)}</td><td>${sanitize(t.vehicleNo)}</td><td>${sanitize(t.ownerName || "")}</td><td>${sanitize(formatContactDisplay(t.contactNumber || ""))}</td><td>${sanitize(t.service)}</td><td>${t.status}</td></tr>`;
+    STATE.tokens.forEach(function (t) {
+      h +=
+        "<tr><td>" +
+        sanitize(t.number) +
+        "</td><td>" +
+        sanitize(t.vehicleNo) +
+        "</td><td>" +
+        sanitize(t.ownerName || "") +
+        "</td><td>" +
+        sanitize(formatContactDisplay(t.contactNumber || "")) +
+        "</td><td>" +
+        sanitize(t.service) +
+        "</td><td>" +
+        t.status +
+        "</td></tr>";
     });
     h += "</table>";
   }
   h += "</body></html>";
-  const pw = window.open("", "_blank");
+  var pw = window.open("", "_blank");
   if (pw) {
     pw.document.write(h);
     pw.document.close();
-    setTimeout(() => pw.print(), 500);
+    setTimeout(function () {
+      pw.print();
+    }, 500);
   }
 }
 function quickBackup() {
-  const d = getModuleData("all");
-  const b = new Blob([JSON.stringify(d, null, 2)], {
-    type: "application/json",
-  });
-  const a = document.createElement("a");
+  var d = getModuleData("all");
+  var b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+  var a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `full_backup_${fmtDate()}.json`;
+  a.download = "full_backup_" + fmtDate() + ".json";
   a.click();
   URL.revokeObjectURL(a.href);
   toast("Backup downloaded!", "success");
 }
 function quickRestore() {
-  const inp = document.createElement("input");
+  var inp = document.createElement("input");
   inp.type = "file";
   inp.accept = ".json";
-  inp.addEventListener("change", (e) => {
-    const f = e.target.files[0];
+  inp.addEventListener("change", function (e) {
+    var f = e.target.files[0];
     if (!f) return;
-    const r = new FileReader();
-    r.onload = (ev) => {
+    var r = new FileReader();
+    r.onload = function (ev) {
       try {
-        const d = JSON.parse(ev.target.result);
+        var d = JSON.parse(ev.target.result);
         confirm(
           "Restore all data?",
-          () => {
+          function () {
             if (d.inventory) {
               STATE.inventory = d.inventory;
               saveInventory();
@@ -2987,11 +3644,13 @@ function quickRestore() {
               updateAllBrandNames();
             }
             toast("Restored!", "success");
-            setTimeout(() => location.reload(), 1000);
+            setTimeout(function () {
+              location.reload();
+            }, 1000);
           },
           "Restore",
         );
-      } catch {
+      } catch (e) {
         toast("Invalid file", "error");
       }
     };
@@ -3000,41 +3659,43 @@ function quickRestore() {
   inp.click();
 }
 function importFile() {
-  const m = qs("#importModule")?.value || "inventory";
-  const fmt = qs("#importFormat")?.value || "json";
-  const inp = document.createElement("input");
+  var m = qs("#importModule")?.value || "inventory";
+  var fmt = qs("#importFormat")?.value || "json";
+  var inp = document.createElement("input");
   inp.type = "file";
   inp.accept = fmt === "json" ? ".json" : ".csv";
-  inp.addEventListener("change", (e) => {
-    const f = e.target.files[0];
+  inp.addEventListener("change", function (e) {
+    var f = e.target.files[0];
     if (!f) return;
-    const r = new FileReader();
-    r.onload = (ev) => {
+    var r = new FileReader();
+    r.onload = function (ev) {
       try {
-        let d;
+        var d;
         if (fmt === "json") {
           d = JSON.parse(ev.target.result);
           if (!Array.isArray(d)) d = d.inventory || [];
         } else {
-          const lines = ev.target.result.split("\n").filter((l) => l.trim());
+          var lines = ev.target.result.split("\n").filter(function (l) {
+            return l.trim();
+          });
           if (lines.length < 2) return;
-          const headers = lines[0]
-            .split(",")
-            .map((h) => h.trim().replace(/"/g, ""));
+          var headers = lines[0].split(",").map(function (h) {
+            return h.trim().replace(/"/g, "");
+          });
           d = [];
-          for (let i = 1; i < lines.length; i++) {
-            const vals = lines[i]
-              .split(",")
-              .map((v) => v.trim().replace(/"/g, ""));
-            const obj = {};
-            headers.forEach((h, idx) => {
+          for (var i = 1; i < lines.length; i++) {
+            var vals = lines[i].split(",").map(function (v) {
+              return v.trim().replace(/"/g, "");
+            });
+            var obj = {};
+            headers.forEach(function (h, idx) {
               obj[h] = vals[idx] || "";
             });
             d.push(obj);
           }
         }
         previewImport(m, d);
-      } catch {
+      } catch (e) {
         toast("Invalid file", "error");
       }
     };
@@ -3047,18 +3708,18 @@ function previewImport(m, d) {
   setText("#importAddCount", d.length);
   setText("#importUpdateCount", 0);
   setText("#importSkipCount", 0);
-  const el = qs("#importPreviewContent");
+  var el = qs("#importPreviewContent");
   if (el && d.length > 0) {
-    const keys = Object.keys(d[0]).slice(0, 8);
-    let h = '<table class="import-preview-table"><thead><tr>';
-    keys.forEach((k) => {
-      h += `<th>${sanitize(k)}</th>`;
+    var keys = Object.keys(d[0]).slice(0, 8);
+    var h = '<table class="import-preview-table"><thead><tr>';
+    keys.forEach(function (k) {
+      h += "<th>" + sanitize(k) + "</th>";
     });
     h += "</tr></thead><tbody>";
-    d.slice(0, 10).forEach((row) => {
+    d.slice(0, 10).forEach(function (row) {
       h += "<tr>";
-      keys.forEach((k) => {
-        h += `<td>${sanitize(String(row[k] || ""))}</td>`;
+      keys.forEach(function (k) {
+        h += "<td>" + sanitize(String(row[k] || "")) + "</td>";
       });
       h += "</tr>";
     });
@@ -3071,23 +3732,26 @@ function previewImport(m, d) {
 }
 function confirmImport() {
   if (!STATE.pendingImport) return;
-  const { module: m, data: d } = STATE.pendingImport;
+  var m = STATE.pendingImport.module,
+    d = STATE.pendingImport.data;
   if (m === "inventory") {
-    d.forEach((item) => {
-      const pn = item["Product Type"] || item.productType || "Product";
-      const b = item["Brand"] || item.brand || "General";
-      const md = item["Model"] || item.model || "Standard";
-      const g = item["Grade"] || item.grade || "";
-      const s = item["Size"] || item.size || "";
-      const sku =
+    d.forEach(function (item) {
+      var pn = item["Product Type"] || item.productType || "Product";
+      var b = item["Brand"] || item.brand || "General";
+      var md = item["Model"] || item.model || "Standard";
+      var g = item["Grade"] || item.grade || "";
+      var s = item["Size"] || item.size || "";
+      var sku =
         item["SKU"] ||
         item.sku ||
         generateVariantSKU(b, md, g, s, STATE.inventory.length);
-      const sp = parseFloat(item["Selling Price"] || item.sellingPrice || 0);
-      const pp = parseFloat(item["Purchase Price"] || item.purchasePrice || 0);
-      const st = parseInt(item["Stock"] || item.stock || 0);
-      const ms = parseInt(item["Min Stock"] || item.minStock || 5);
-      const ep = STATE.inventory.find((p) => p.productType === pn);
+      var sp = parseFloat(item["Selling Price"] || item.sellingPrice || 0);
+      var pp = parseFloat(item["Purchase Price"] || item.purchasePrice || 0);
+      var st = parseInt(item["Stock"] || item.stock || 0);
+      var ms = parseInt(item["Min Stock"] || item.minStock || 5);
+      var ep = STATE.inventory.find(function (p) {
+        return p.productType === pn;
+      });
       if (ep)
         ep.variants.push({
           id: uid(),
@@ -3095,7 +3759,7 @@ function confirmImport() {
           model: md,
           grade: g,
           size: s,
-          sku,
+          sku: sku,
           purchasePrice: pp,
           sellingPrice: sp,
           stock: st,
@@ -3113,7 +3777,7 @@ function confirmImport() {
               model: md,
               grade: g,
               size: s,
-              sku,
+              sku: sku,
               purchasePrice: pp,
               sellingPrice: sp,
               stock: st,
@@ -3125,7 +3789,7 @@ function confirmImport() {
     saveInventory();
   }
   if (m === "tokens") {
-    d.forEach((item) => {
+    d.forEach(function (item) {
       STATE.tokens.push({
         id: uid(),
         number: item["Token"] || generateTokenNumber(),
@@ -3144,7 +3808,7 @@ function confirmImport() {
   }
   STATE.pendingImport = null;
   closeModal("importPreviewModal");
-  toast(`${d.length} records imported!`, "success");
+  toast(d.length + " records imported!", "success");
   renderInventoryTable();
   renderTokenTable();
   refreshDashboard();
@@ -3152,7 +3816,7 @@ function confirmImport() {
 
 // ==================== SETTINGS ====================
 function initSettings() {
-  qs("#saveBusinessSettings")?.addEventListener("click", () => {
+  qs("#saveBusinessSettings")?.addEventListener("click", function () {
     STATE.settings.businessName =
       qs("#settingBusinessName")?.value?.trim() || STATE.settings.businessName;
     STATE.settings.address =
@@ -3163,14 +3827,14 @@ function initSettings() {
     updateAllBrandNames();
     setLoginBrandName();
   });
-  qs("#saveInvoiceSettings")?.addEventListener("click", () => {
+  qs("#saveInvoiceSettings")?.addEventListener("click", function () {
     STATE.settings.invoicePrefix =
       qs("#settingInvPrefix")?.value?.trim() || "INV-";
     STATE.settings.taxRate = parseFloat(qs("#settingTaxRate")?.value) || 0;
     saveSettings();
   });
-  qs("#changePasswordBtn")?.addEventListener("click", () => {
-    const cp = qs("#currentPassword")?.value || "",
+  qs("#changePasswordBtn")?.addEventListener("click", function () {
+    var cp = qs("#currentPassword")?.value || "",
       np = qs("#newPassword")?.value || "",
       cf = qs("#confirmPassword")?.value || "";
     if (!cp || !np || np.length < 6 || np !== cf) return;
@@ -3181,29 +3845,33 @@ function initSettings() {
     localStorage.setItem(KEYS.password, np);
     toast("Updated!", "success");
   });
-  qs("#resetCountersBtn")?.addEventListener("click", () => {
+  qs("#resetCountersBtn")?.addEventListener("click", function () {
     confirm(
       "Reset?",
-      () => {
+      function () {
         STATE.counters = { invoiceCounter: 1 };
         saveCounters();
       },
       "Reset",
     );
   });
-  qs("#clearDataBtn")?.addEventListener("click", () => {
+  qs("#clearDataBtn")?.addEventListener("click", function () {
     confirm(
       "DELETE ALL?",
-      () => {
-        Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
-        setTimeout(() => location.reload(), 1500);
+      function () {
+        Object.values(KEYS).forEach(function (k) {
+          localStorage.removeItem(k);
+        });
+        setTimeout(function () {
+          location.reload();
+        }, 1500);
       },
       "Clear All",
     );
   });
 }
 function loadSettingsForm() {
-  const s = STATE.settings;
+  var s = STATE.settings;
   setValue("#settingBusinessName", s.businessName);
   setValue("#settingAddress", s.address);
   setValue("#settingPhone", s.phone);
