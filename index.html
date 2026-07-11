@@ -15,7 +15,6 @@
     />
   </head>
   <body>
-    <!-- ==================== LOGIN SCREEN ==================== -->
     <div id="loginScreen" class="login-screen">
       <div class="login-brand-panel">
         <div class="login-brand-inner">
@@ -97,7 +96,6 @@
       </div>
     </div>
 
-    <!-- ==================== MAIN APP ==================== -->
     <div id="app" class="app hidden">
       <div class="sidebar-backdrop hidden" id="sidebarBackdrop"></div>
       <aside class="sidebar" id="sidebar">
@@ -256,7 +254,6 @@
         </header>
 
         <main class="main-content">
-          <!-- ====== DASHBOARD ====== -->
           <section class="module" id="module-dashboard">
             <div class="kpi-grid">
               <div class="kpi-card">
@@ -330,7 +327,17 @@
                   <span class="kpi-label">Overdue</span
                   ><span class="kpi-value" id="kpiOverdue">0</span>
                 </div>
+
               </div>
+              <div class="kpi-card kpi-card--success">
+  <div class="kpi-icon kpi-icon--green">
+    <span class="material-icons">account_balance_wallet</span>
+  </div>
+  <div class="kpi-body">
+    <span class="kpi-label">Net Profit</span>
+    <span class="kpi-value" id="kpiNetProfit">Rs. 0</span>
+  </div>
+</div>
               <div class="kpi-card">
                 <div class="kpi-icon kpi-icon--blue">
                   <span class="material-icons">date_range</span>
@@ -404,118 +411,152 @@
             </div>
           </section>
 
-         <!-- ====== TOKEN MANAGEMENT ====== -->
-<section class="module hidden" id="module-tokens">
-  <div class="module-toolbar">
-    <div class="toolbar-left">
-      <div class="search-box">
-        <span class="material-icons">search</span>
-        <input type="text" placeholder="Search by token, vehicle, customer, contact..." id="tokenSearch" class="search-input" />
-      </div>
-      <select class="filter-select" id="tokenStatusFilter">
-        <option value="">All Statuses</option>
-        <option value="waiting">Waiting</option>
-        <option value="in-progress">In Progress</option>
-        <option value="completed">Completed</option>
-      </select>
-    </div>
-    <div class="toolbar-right">
-      <button class="btn btn-primary" id="newTokenBtn">
-        <span class="material-icons">add</span> Generate Token
-      </button>
-    </div>
-  </div>
+          <section class="module hidden" id="module-tokens">
+            <div class="module-toolbar">
+              <div class="toolbar-left">
+                <div class="search-box">
+                  <span class="material-icons">search</span
+                  ><input
+                    type="text"
+                    placeholder="Search by token, vehicle, customer, contact..."
+                    id="tokenSearch"
+                    class="search-input"
+                  />
+                </div>
+                <select class="filter-select" id="tokenStatusFilter">
+                  <option value="">All Statuses</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-primary" id="newTokenBtn">
+                  <span class="material-icons">add</span> Generate Token
+                </button>
+              </div>
+            </div>
+            <div class="kpi-grid kpi-grid--4" style="margin-bottom: 16px">
+              <div class="kpi-card kpi-card--sm">
+                <div class="kpi-icon kpi-icon--blue">
+                  <span class="material-icons">confirmation_number</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Total Tokens</span
+                  ><span
+                    class="kpi-value"
+                    style="font-size: 1.4rem"
+                    id="tokenStatsTotal"
+                    >0</span
+                  >
+                </div>
+              </div>
+              <div
+                class="kpi-card kpi-card--sm"
+                style="border-left: 3px solid var(--warning)"
+              >
+                <div class="kpi-icon kpi-icon--orange">
+                  <span class="material-icons">hourglass_empty</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Waiting</span
+                  ><span
+                    class="kpi-value"
+                    style="font-size: 1.4rem; color: var(--warning)"
+                    id="tokenStatsWaiting"
+                    >0</span
+                  >
+                </div>
+              </div>
+              <div
+                class="kpi-card kpi-card--sm"
+                style="border-left: 3px solid var(--info)"
+              >
+                <div
+                  class="kpi-icon"
+                  style="background: #ecfeff; color: #0891b2"
+                >
+                  <span class="material-icons">autorenew</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">In Progress</span
+                  ><span
+                    class="kpi-value"
+                    style="font-size: 1.4rem; color: #0891b2"
+                    id="tokenStatsProgress"
+                    >0</span
+                  >
+                </div>
+              </div>
+              <div
+                class="kpi-card kpi-card--sm"
+                style="border-left: 3px solid var(--success)"
+              >
+                <div class="kpi-icon kpi-icon--green">
+                  <span class="material-icons">check_circle</span>
+                </div>
+                <div class="kpi-body">
+                  <span class="kpi-label">Completed</span
+                  ><span
+                    class="kpi-value"
+                    style="font-size: 1.4rem; color: var(--success)"
+                    id="tokenStatsCompleted"
+                    >0</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">token</span> Service Tokens
+                </h2>
+                <div class="card-header-meta">
+                  <span class="badge badge--blue" id="tokenCountBadge"
+                    >0 tokens</span
+                  >
+                </div>
+              </div>
+              <div class="card-body p-0" id="tokenTableContainer">
+                <table class="data-table" id="tokenTable">
+                  <thead>
+                    <tr>
+                      <th>Token #</th>
+                      <th>Vehicle No.</th>
+                      <th>Vehicle Type</th>
+                      <th>Customer</th>
+                      <th>Contact</th>
+                      <th>Service</th>
+                      <th>Generated</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tokenTableBody"></tbody>
+                </table>
+              </div>
+              <div
+                class="card-body"
+                id="tokenEmptyStateContainer"
+                style="display: none"
+              >
+                <div class="empty-state-premium">
+                  <div class="empty-state-icon">
+                    <span class="material-icons">token</span>
+                  </div>
+                  <h3 class="empty-state-title">No Tokens Yet</h3>
+                  <p class="empty-state-desc">
+                    Generate your first service token to start tracking customer
+                    services, products, and billing.
+                  </p>
+                  <button class="btn btn-primary btn-lg" id="newTokenBtn2">
+                    <span class="material-icons">add</span> Generate Token
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
 
-  <!-- Token Stats Cards -->
-  <div class="kpi-grid kpi-grid--4" style="margin-bottom:16px;">
-    <div class="kpi-card kpi-card--sm">
-      <div class="kpi-icon kpi-icon--blue">
-        <span class="material-icons">confirmation_number</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-label">Total Tokens</span>
-        <span class="kpi-value" style="font-size:1.4rem;" id="tokenStatsTotal">0</span>
-      </div>
-    </div>
-    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--warning);">
-      <div class="kpi-icon kpi-icon--orange">
-        <span class="material-icons">hourglass_empty</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-label">Waiting</span>
-        <span class="kpi-value" style="font-size:1.4rem;color:var(--warning);" id="tokenStatsWaiting">0</span>
-      </div>
-    </div>
-    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--info);">
-      <div class="kpi-icon" style="background:#ecfeff;color:#0891b2;">
-        <span class="material-icons">autorenew</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-label">In Progress</span>
-        <span class="kpi-value" style="font-size:1.4rem;color:#0891b2;" id="tokenStatsProgress">0</span>
-      </div>
-    </div>
-    <div class="kpi-card kpi-card--sm" style="border-left:3px solid var(--success);">
-      <div class="kpi-icon kpi-icon--green">
-        <span class="material-icons">check_circle</span>
-      </div>
-      <div class="kpi-body">
-        <span class="kpi-label">Completed</span>
-        <span class="kpi-value" style="font-size:1.4rem;color:var(--success);" id="tokenStatsCompleted">0</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Token Table Card -->
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        <span class="material-icons">token</span> Service Tokens
-      </h2>
-      <div class="card-header-meta">
-        <span class="badge badge--blue" id="tokenCountBadge">0 tokens</span>
-      </div>
-    </div>
-    
-    <!-- Table Container - Shown when tokens exist -->
-    <div class="card-body p-0" id="tokenTableContainer">
-      <table class="data-table" id="tokenTable">
-        <thead>
-          <tr>
-            <th>Token #</th>
-            <th>Vehicle No.</th>
-            <th>Vehicle Type</th>
-            <th>Customer</th>
-            <th>Contact</th>
-            <th>Service</th>
-            <th>Generated</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="tokenTableBody"></tbody>
-      </table>
-    </div>
-
-    <!-- Empty State - Shown when no tokens exist -->
-    <div class="card-body" id="tokenEmptyStateContainer" style="display:none;">
-      <div class="empty-state-premium">
-        <div class="empty-state-icon">
-          <span class="material-icons">token</span>
-        </div>
-        <h3 class="empty-state-title">No Tokens Yet</h3>
-        <p class="empty-state-desc">
-          Generate your first service token to start tracking customer services, products, and billing.
-        </p>
-        <button class="btn btn-primary btn-lg" id="newTokenBtn2">
-          <span class="material-icons">add</span> Generate Token
-        </button>
-      </div>
-    </div>
-  </div>
-</section>
-
-          <!-- ====== VEHICLE RECORDS ====== -->
           <section class="module hidden" id="module-vehicles">
             <div class="module-toolbar">
               <div class="toolbar-left">
@@ -569,7 +610,6 @@
             </div>
           </section>
 
-          <!-- ====== SERVICES ====== -->
           <section class="module hidden" id="module-services">
             <div class="kpi-grid kpi-grid--3">
               <div class="kpi-card">
@@ -634,7 +674,6 @@
             </div>
           </section>
 
-          <!-- ====== INVENTORY ====== -->
           <section class="module hidden" id="module-inventory">
             <div class="kpi-grid kpi-grid--3">
               <div class="kpi-card">
@@ -732,7 +771,6 @@
             </div>
           </section>
 
-          <!-- ====== REMINDERS ====== -->
           <section class="module hidden" id="module-reminders">
             <div class="kpi-grid">
               <div class="kpi-card kpi-card--warning">
@@ -831,7 +869,6 @@
             </div>
           </section>
 
-          <!-- ====== PRODUCT SALE ====== -->
           <section class="module hidden" id="module-productsale">
             <div class="card">
               <div class="card-header">
@@ -924,7 +961,7 @@
             </div>
           </section>
 
-          <!-- ====== BILLING ====== -->
+          <!-- ====== BILLING WITH BUSINESS DROPDOWN ====== -->
           <section class="module hidden" id="module-billing">
             <div class="billing-layout">
               <div class="card billing-builder">
@@ -935,6 +972,17 @@
                   </h2>
                 </div>
                 <div class="card-body">
+                  <div class="form-group" style="margin-bottom: 10px">
+                    <label class="form-label"
+                      >Business <span class="required">*</span></label
+                    ><select
+                      class="form-input"
+                      id="invoiceBusinessSelect"
+                      style="font-weight: 600"
+                    >
+                      <option value="">Select Business</option>
+                    </select>
+                  </div>
                   <div class="form-row">
                     <div class="form-group">
                       <label class="form-label">Token Number</label>
@@ -945,7 +993,7 @@
                           type="text"
                           class="form-input"
                           id="invoiceToken"
-                          placeholder="20260707-001"
+                          placeholder="WW-20260711-001"
                         />
                       </div>
                     </div>
@@ -1141,7 +1189,6 @@
             </div>
           </section>
 
-          <!-- ====== REPORTS ====== -->
           <section class="module hidden" id="module-reports">
             <div class="kpi-grid">
               <div class="kpi-card">
@@ -1276,7 +1323,6 @@
             </div>
           </section>
 
-          <!-- ====== EXPENSES ====== -->
           <section class="module hidden" id="module-expenses">
             <div class="kpi-grid">
               <div class="kpi-card">
@@ -1423,10 +1469,8 @@
             </div>
           </section>
 
-          <!-- ====== IMPORT/EXPORT ====== -->
           <section class="module hidden" id="module-importexport">
             <div class="settings-grid">
-              <!-- Export Section -->
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">
@@ -1455,21 +1499,17 @@
                   <div class="backup-actions">
                     <button class="btn btn-export-json" id="exportJSONBtn">
                       <span class="material-icons">data_object</span> Export
-                      JSON
-                    </button>
-                    <button class="btn btn-export-excel" id="exportCSVBtn">
+                      JSON</button
+                    ><button class="btn btn-export-excel" id="exportCSVBtn">
                       <span class="material-icons">table_chart</span> Export
-                      Excel/CSV
-                    </button>
-                    <button class="btn btn-export-pdf" id="exportPDFBtn">
+                      Excel/CSV</button
+                    ><button class="btn btn-export-pdf" id="exportPDFBtn">
                       <span class="material-icons">picture_as_pdf</span> Export
                       PDF
                     </button>
                   </div>
                 </div>
               </div>
-
-              <!-- Import Section -->
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">
@@ -1508,8 +1548,6 @@
                   ></div>
                 </div>
               </div>
-
-              <!-- Quick Backup -->
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">
@@ -1524,8 +1562,6 @@
                   </button>
                 </div>
               </div>
-
-              <!-- Quick Restore -->
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">
@@ -1554,7 +1590,6 @@
             </div>
           </section>
 
-          <!-- ====== SETTINGS ====== -->
           <section class="module hidden" id="module-settings">
             <div class="settings-grid">
               <div class="card">
@@ -1683,7 +1718,7 @@
       </div>
     </div>
 
-    <!-- ==================== MODALS ==================== -->
+    <!-- MODALS -->
     <div class="modal-overlay hidden" id="brandsModal">
       <div class="modal modal--sm">
         <div class="modal-header">
@@ -1816,7 +1851,7 @@
       </div>
     </div>
 
-    <!-- Token Modal -->
+    <!-- Token Modal with Business Dropdown -->
     <div class="modal-overlay hidden" id="tokenModal">
       <div class="modal">
         <div class="modal-header">
@@ -1831,8 +1866,19 @@
           <div class="token-number-display">
             <span class="token-number-label">Token Number</span
             ><span class="token-number-value" id="autoTokenNumber"
-              >20260707-001</span
+              >WW-20260711-001</span
             >
+          </div>
+          <div class="form-group" style="margin-bottom: 10px">
+            <label class="form-label"
+              >Business <span class="required">*</span></label
+            ><select
+              class="form-input"
+              id="tokenBusinessSelect"
+              style="font-weight: 600"
+            >
+              <option value="">Select Business</option>
+            </select>
           </div>
           <div
             style="
@@ -1949,7 +1995,6 @@
       </div>
     </div>
 
-    <!-- Vehicle Modal -->
     <div class="modal-overlay hidden" id="vehicleModal">
       <div class="modal">
         <div class="modal-header">
@@ -2009,8 +2054,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Product Modal with Variants -->
     <div class="modal-overlay hidden" id="productModal">
       <div class="modal modal--lg">
         <div class="modal-header">
@@ -2055,8 +2098,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Stock Modal -->
     <div class="modal-overlay hidden" id="stockModal">
       <div class="modal modal--sm">
         <div class="modal-header">
@@ -2107,8 +2148,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Confirm Modal -->
     <div class="modal-overlay hidden" id="confirmModal">
       <div class="modal modal--sm">
         <div class="modal-header">
@@ -2126,8 +2165,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Import Preview Modal -->
     <div class="modal-overlay hidden" id="importPreviewModal">
       <div class="modal modal--lg">
         <div class="modal-header">
@@ -2167,9 +2204,7 @@
         </div>
       </div>
     </div>
-
     <div class="toast-container" id="toastContainer"></div>
-
     <script src="app.js"></script>
   </body>
 </html>

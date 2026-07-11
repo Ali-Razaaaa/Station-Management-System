@@ -1,6 +1,6 @@
 /**
- * Wheel Works Service Station — Enterprise Management System V6.0
- * ALL MODULES WORKING - FINAL FIX
+ * Wheel Works Service Station — Enterprise Management System V6.2
+ * DUAL BUSINESS SUPPORT: Wheel Works & Meta Built
  */
 "use strict";
 
@@ -22,7 +22,89 @@ const KEYS = {
   brands: "servicepro_brands",
   reminders: "servicepro_reminders",
   inventoryMigratedFinal: "servicepro_inventory_migrated_final",
+  businesses: "servicepro_businesses",
+  currentBusiness: "servicepro_current_business",
 };
+
+function getBusinesses() {
+  try {
+    return (
+      JSON.parse(localStorage.getItem(KEYS.businesses)) ||
+      getDefaultBusinesses()
+    );
+  } catch (e) {
+    return getDefaultBusinesses();
+  }
+}
+function getDefaultBusinesses() {
+  return [
+    {
+      id: "wheelworks",
+      name: "Wheel Works Service Station",
+      address: "Main Road, City",
+      phone: "0300-0000000",
+      email: "info@wheelworks.pk",
+      prefix: "WW",
+      active: true,
+    },
+    {
+      id: "metabuilt",
+      name: "Meta Built",
+      address: "Second Branch, City",
+      phone: "0300-0000001",
+      email: "info@metabuilt.pk",
+      prefix: "MB",
+      active: true,
+    },
+  ];
+}
+function saveBusinesses(data) {
+  try {
+    localStorage.setItem(KEYS.businesses, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function getCurrentBusiness() {
+  try {
+    var id = localStorage.getItem(KEYS.currentBusiness);
+    if (id) {
+      var businesses = getBusinesses();
+      var biz = businesses.find(function (b) {
+        return b.id === id;
+      });
+      if (biz) return biz;
+    }
+    var businesses = getBusinesses();
+    var def = businesses.find(function (b) {
+      return b.active;
+    });
+    if (def) {
+      setCurrentBusiness(def.id);
+      return def;
+    }
+    return businesses[0];
+  } catch (e) {
+    return getBusinesses()[0];
+  }
+}
+function setCurrentBusiness(id) {
+  try {
+    localStorage.setItem(KEYS.currentBusiness, id);
+  } catch (e) {}
+}
+function getCurrentBusinessPrefix() {
+  var biz = getCurrentBusiness();
+  return biz ? biz.prefix : "WW";
+}
+
+if (!localStorage.getItem(KEYS.businesses)) {
+  saveBusinesses(getDefaultBusinesses());
+}
+if (!localStorage.getItem(KEYS.currentBusiness)) {
+  setCurrentBusiness("wheelworks");
+}
 
 const SERVICE_REMINDER_DAYS = {
   "Full Body Wash": 30,
@@ -39,25 +121,40 @@ function getReminderDays(sn) {
 }
 
 function generateTokenNumber() {
-  const today = new Date();
-  const ds = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-  const todayTokens = STATE.tokens.filter(
-    (t) => t.number && t.number.startsWith(ds),
+  var today = new Date();
+  var ds =
+    today.getFullYear() +
+    "" +
+    String(today.getMonth() + 1).padStart(2, "0") +
+    String(today.getDate()).padStart(2, "0");
+  var prefix = getCurrentBusinessPrefix();
+  var bizTokens = STATE.tokens.filter(function (t) {
+    return (
+      t.businessPrefix === prefix &&
+      t.number &&
+      t.number.startsWith(prefix + "-" + ds)
+    );
+  });
+  return (
+    prefix + "-" + ds + "-" + String(bizTokens.length + 1).padStart(3, "0")
   );
-  return `${ds}-${String(todayTokens.length + 1).padStart(3, "0")}`;
 }
 
 function migrateAllInventory() {
   if (localStorage.getItem(KEYS.inventoryMigratedFinal)) return;
-  let all = [];
-  const v3 = JSON.parse(localStorage.getItem("servicepro_inventory_v3")) || [];
-  const v2 = JSON.parse(localStorage.getItem("servicepro_inventory_v2")) || [];
-  const v1 = JSON.parse(localStorage.getItem("servicepro_inventory")) || [];
-  const brands = JSON.parse(localStorage.getItem(KEYS.brands)) || [];
-  const src = v3.length > 0 ? v3 : v2.length > 0 ? v2 : v1;
-  src.forEach((p, i) => {
-    const bn = p.brand || "General";
-    if (!brands.find((b) => b.name === bn))
+  var all = [];
+  var v3 = JSON.parse(localStorage.getItem("servicepro_inventory_v3")) || [];
+  var v2 = JSON.parse(localStorage.getItem("servicepro_inventory_v2")) || [];
+  var v1 = JSON.parse(localStorage.getItem("servicepro_inventory")) || [];
+  var brands = JSON.parse(localStorage.getItem(KEYS.brands)) || [];
+  var src = v3.length > 0 ? v3 : v2.length > 0 ? v2 : v1;
+  src.forEach(function (p, i) {
+    var bn = p.brand || "General";
+    if (
+      !brands.find(function (b) {
+        return b.name === bn;
+      })
+    )
       brands.push({ id: uid(), name: bn });
     all.push({
       id: p.id || uid(),
@@ -92,15 +189,23 @@ function migrateAllInventory() {
   localStorage.setItem(KEYS.inventoryMigratedFinal, "true");
 }
 function generateVariantSKU(brand, model, grade, size, index) {
-  const b = brand.replace(/\s+/g, "").substring(0, 3).toUpperCase();
-  const m = (model || "STD").replace(/\s+/g, "").substring(0, 4).toUpperCase();
-  const g = (grade || "").replace(/\s+/g, "").substring(0, 5).toUpperCase();
-  const s = (size || "").replace(/\s+/g, "").substring(0, 4).toUpperCase();
-  return `${b}-${m}${g ? "-" + g : ""}${s ? "-" + s : ""}-${String(index + 1).padStart(3, "0")}`;
+  var b = brand.replace(/\s+/g, "").substring(0, 3).toUpperCase();
+  var m = (model || "STD").replace(/\s+/g, "").substring(0, 4).toUpperCase();
+  var g = (grade || "").replace(/\s+/g, "").substring(0, 5).toUpperCase();
+  var s = (size || "").replace(/\s+/g, "").substring(0, 4).toUpperCase();
+  return (
+    b +
+    "-" +
+    m +
+    (g ? "-" + g : "") +
+    (s ? "-" + s : "") +
+    "-" +
+    String(index + 1).padStart(3, "0")
+  );
 }
 migrateAllInventory();
 
-const STATE = {
+var STATE = {
   tokens: JSON.parse(localStorage.getItem(KEYS.tokens)) || [],
   vehicles: JSON.parse(localStorage.getItem(KEYS.vehicles)) || [],
   services: JSON.parse(localStorage.getItem(KEYS.services)) || [],
@@ -122,7 +227,8 @@ const STATE = {
     taxRate: 0,
   },
   counters: JSON.parse(localStorage.getItem(KEYS.counters)) || {
-    invoiceCounter: 1,
+    invoiceCounterWW: 1,
+    invoiceCounterMB: 1,
   },
   pricingVehicles: JSON.parse(localStorage.getItem(KEYS.pricingVehicles)) || [
     { id: "bike", name: "Bike" },
@@ -213,19 +319,21 @@ function uid() {
     "_" + Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
   );
 }
-function fmtTime(d = new Date()) {
+function fmtTime(d) {
+  d = d || new Date();
   try {
     return d.toLocaleTimeString("en-PK", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
     });
-  } catch {
+  } catch (e) {
     return d.toLocaleTimeString();
   }
 }
-function fmtDate(d = new Date()) {
-  const m = [
+function fmtDate(d) {
+  d = d || new Date();
+  var m = [
     "Jan",
     "Feb",
     "Mar",
@@ -239,11 +347,17 @@ function fmtDate(d = new Date()) {
     "Nov",
     "Dec",
   ];
-  return `${String(d.getDate()).padStart(2, "0")}-${m[d.getMonth()]}-${d.getFullYear()}`;
+  return (
+    String(d.getDate()).padStart(2, "0") +
+    "-" +
+    m[d.getMonth()] +
+    "-" +
+    d.getFullYear()
+  );
 }
 function parseDate(s) {
   if (!s) return null;
-  const months = {
+  var months = {
     Jan: 0,
     Feb: 1,
     Mar: 2,
@@ -257,12 +371,19 @@ function parseDate(s) {
     Nov: 10,
     Dec: 11,
   };
-  const p = s.split("-");
+  var p = s.split("-");
   if (p.length !== 3) return null;
   return new Date(parseInt(p[2]), months[p[1]], parseInt(p[0]));
 }
-function toDateInputValue(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function toDateInputValue(d) {
+  d = d || new Date();
+  return (
+    d.getFullYear() +
+    "-" +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(d.getDate()).padStart(2, "0")
+  );
 }
 function fmtPrice(n) {
   return "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
@@ -275,33 +396,33 @@ function qsa(s, c) {
 }
 function sanitize(s) {
   if (s == null) return "";
-  const d = document.createElement("div");
+  var d = document.createElement("div");
   d.textContent = String(s);
   return d.innerHTML;
 }
 function setValue(s, v) {
-  const e = qs(s);
+  var e = qs(s);
   if (e) e.value = v;
 }
 function setText(s, v) {
-  const e = qs(s);
+  var e = qs(s);
   if (e) e.textContent = v;
 }
 function setHTML(s, v) {
-  const e = qs(s);
+  var e = qs(s);
   if (e) e.innerHTML = v;
 }
 function toast(m, t) {
   t = t || "info";
-  const c = qs("#toastContainer");
+  var c = qs("#toastContainer");
   if (!c) return;
-  const icons = {
+  var icons = {
     success: "check_circle",
     error: "error",
     warning: "warning",
     info: "info",
   };
-  const e = document.createElement("div");
+  var e = document.createElement("div");
   e.className = "toast toast--" + t;
   e.innerHTML =
     '<span class="material-icons">' +
@@ -319,14 +440,14 @@ function toast(m, t) {
 }
 
 function openModal(id) {
-  const m = qs("#" + id);
+  var m = qs("#" + id);
   if (m) {
     m.classList.remove("hidden");
     document.body.style.overflow = "hidden";
   }
 }
 function closeModal(id) {
-  const m = qs("#" + id);
+  var m = qs("#" + id);
   if (m) {
     m.classList.add("hidden");
     document.body.style.overflow = "";
@@ -334,7 +455,7 @@ function closeModal(id) {
 }
 function setupModalClosers() {
   document.addEventListener("click", function (e) {
-    const cb = e.target.closest("[data-close]");
+    var cb = e.target.closest("[data-close]");
     if (cb) {
       closeModal(cb.getAttribute("data-close"));
       return;
@@ -346,7 +467,7 @@ function setupModalClosers() {
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-      const om = qsa(".modal-overlay:not(.hidden)");
+      var om = qsa(".modal-overlay:not(.hidden)");
       if (om.length > 0) closeModal(om[om.length - 1].id);
     }
   });
@@ -362,9 +483,11 @@ function confirm(m, fn, l) {
   openModal("confirmModal");
 }
 function setLoginBrandName() {
-  const s = JSON.parse(localStorage.getItem(KEYS.settings));
-  const lb = document.getElementById("loginBrandName");
-  if (lb) lb.textContent = s?.businessName || "Wheel Works Service Station";
+  var s = JSON.parse(localStorage.getItem(KEYS.settings));
+  var lb = document.getElementById("loginBrandName");
+  if (lb)
+    lb.textContent =
+      s && s.businessName ? s.businessName : "Wheel Works Service Station";
 }
 
 function getVariantDisplayName(v) {
@@ -485,7 +608,8 @@ function formatContactDisplay(phone) {
 //     toast("Invalid phone", "error");
 //     return;
 //   }
-//   var bn = STATE.settings.businessName || "Wheel Works Service Station";
+//   var biz = getCurrentBusiness();
+//   var bn = biz.name || "Service Station";
 //   var msg =
 //     "Assalamualaikum " +
 //     cn +
@@ -737,6 +861,7 @@ function initApp() {
   setInterval(updateSessionTime, 60000);
   updateAllBrandNames();
   setupModalClosers();
+  initBusinessSwitcher();
   var mb = qs("#mobileMenuBtn"),
     sb = qs("#sidebarCloseBtn"),
     s = qs("#sidebar"),
@@ -785,7 +910,6 @@ function initApp() {
     }
     closeModal("confirmModal");
   });
-
   document.addEventListener("click", function (e) {
     var ab = e.target.closest("[data-action]");
     if (ab) {
@@ -1033,8 +1157,12 @@ function initApp() {
       renderPricingMatrix();
       return;
     }
+    var bed = e.target.closest("[data-biz-edit]");
+    if (bed) {
+      openBusinessEditModal(bed.dataset.bizEdit);
+      return;
+    }
   });
-
   initDashboard();
   initTokens();
   initVehicles();
@@ -1050,6 +1178,165 @@ function initApp() {
   navigateTo("dashboard");
 }
 
+// ==================== BUSINESS SWITCHER ====================
+function initBusinessSwitcher() {
+  var topbarRight = qs(".topbar-right");
+  if (!topbarRight) return;
+  var currentBiz = getCurrentBusiness();
+  var container = document.createElement("div");
+  container.style.cssText = "position:relative;display:inline-block;";
+  container.innerHTML =
+    '<div class="topbar-date" style="margin-right:8px;cursor:pointer;" id="businessSwitcher"><span class="material-icons" style="font-size:15px;color:var(--primary);">business</span><span id="currentBusinessName" style="font-weight:600;">' +
+    sanitize(currentBiz.name) +
+    '</span><span class="material-icons" style="font-size:14px;">arrow_drop_down</span></div><div class="business-dropdown hidden" id="businessDropdown" style="position:absolute;top:100%;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);z-index:200;min-width:200px;margin-top:4px;"></div>';
+  var dateEl = topbarRight.querySelector(".topbar-date");
+  if (dateEl) {
+    dateEl.parentNode.insertBefore(container, dateEl);
+  } else {
+    topbarRight.insertBefore(container, topbarRight.firstChild);
+  }
+  qs("#businessSwitcher")?.addEventListener("click", function (e) {
+    e.stopPropagation();
+    renderBusinessDropdown();
+    var dd = qs("#businessDropdown");
+    if (dd) dd.classList.toggle("hidden");
+  });
+  document.addEventListener("click", function (e) {
+    var dd = qs("#businessDropdown");
+    if (dd && !e.target.closest("#businessSwitcher")) {
+      dd.classList.add("hidden");
+    }
+  });
+}
+
+function renderBusinessDropdown() {
+  var dd = qs("#businessDropdown");
+  if (!dd) return;
+  var businesses = getBusinesses();
+  var currentBiz = getCurrentBusiness();
+  var h = "";
+  for (var i = 0; i < businesses.length; i++) {
+    var biz = businesses[i];
+    h +=
+      '<div style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;' +
+      (biz.id === currentBiz.id
+        ? "background:var(--primary-light);font-weight:600;"
+        : "") +
+      'border-bottom:1px solid var(--border);" data-switch-biz="' +
+      biz.id +
+      '"><span class="material-icons" style="font-size:16px;color:' +
+      (biz.id === currentBiz.id ? "var(--primary)" : "var(--text-muted)") +
+      ';">' +
+      (biz.id === currentBiz.id
+        ? "radio_button_checked"
+        : "radio_button_unchecked") +
+      "</span><span>" +
+      sanitize(biz.name) +
+      '</span><span style="font-size:0.65rem;color:var(--text-muted);margin-left:auto;">' +
+      sanitize(biz.prefix) +
+      "</span></div>";
+  }
+  h +=
+    '<div style="padding:8px 14px;text-align:center;border-top:1px solid var(--border);"><button class="btn btn-sm btn-outline" id="manageBusinessesBtn" style="width:100%;"><span class="material-icons" style="font-size:14px;">settings</span> Manage Businesses</button></div>';
+  dd.innerHTML = h;
+  qsa("[data-switch-biz]", dd).forEach(function (el) {
+    el.addEventListener("click", function () {
+      setCurrentBusiness(this.dataset.switchBiz);
+      updateAllBrandNames();
+      setText("#currentBusinessName", getCurrentBusiness().name);
+      dd.classList.add("hidden");
+      refreshDashboard();
+      renderTokenTable();
+      renderSavedInvoices();
+      toast("Switched to " + getCurrentBusiness().name, "success");
+    });
+  });
+  qs("#manageBusinessesBtn")?.addEventListener("click", function () {
+    dd.classList.add("hidden");
+    openBusinessManageModal();
+  });
+}
+
+function openBusinessManageModal() {
+  var existing = qs("#businessManageModal");
+  if (existing) existing.remove();
+  var businesses = getBusinesses();
+  var h = "";
+  for (var i = 0; i < businesses.length; i++) {
+    var biz = businesses[i];
+    h +=
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);"><div><strong>' +
+      sanitize(biz.name) +
+      '</strong><br><small style="color:var(--text-muted);">' +
+      sanitize(biz.prefix) +
+      " | " +
+      sanitize(biz.phone) +
+      '</small></div><button class="btn btn-sm btn-ghost" data-biz-edit="' +
+      biz.id +
+      '"><span class="material-icons">edit</span></button></div>';
+  }
+  var modalHTML =
+    '<div class="modal-overlay" id="businessManageModal"><div class="modal modal--sm"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> Manage Businesses</h2><button class="modal-close" data-close="businessManageModal"><span class="material-icons">close</span></button></div><div class="modal-body">' +
+    h +
+    '</div><div class="modal-footer"><button class="btn btn-ghost" data-close="businessManageModal">Close</button></div></div></div>';
+  document.body.insertAdjacentHTML("beforeend", modalHTML);
+  openModal("businessManageModal");
+}
+
+function openBusinessEditModal(bizId) {
+  var businesses = getBusinesses();
+  var biz = businesses.find(function (b) {
+    return b.id === bizId;
+  });
+  if (!biz) return;
+  closeModal("businessManageModal");
+  var existing = qs("#businessEditModal");
+  if (existing) existing.remove();
+  var modalHTML =
+    '<div class="modal-overlay" id="businessEditModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">edit</span> Edit Business</h2><button class="modal-close" data-close="businessEditModal"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Business Name</label><input type="text" class="form-input" id="editBizName" value="' +
+    sanitize(biz.name) +
+    '" /></div><div class="form-group"><label class="form-label">Address</label><input type="text" class="form-input" id="editBizAddress" value="' +
+    sanitize(biz.address) +
+    '" /></div><div class="form-row"><div class="form-group"><label class="form-label">Phone</label><input type="text" class="form-input" id="editBizPhone" value="' +
+    sanitize(biz.phone) +
+    '" /></div><div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="editBizEmail" value="' +
+    sanitize(biz.email) +
+    '" /></div></div><div class="form-group"><label class="form-label">Prefix (WW/MB)</label><input type="text" class="form-input" id="editBizPrefix" value="' +
+    sanitize(biz.prefix) +
+    '" maxlength="4" /></div><input type="hidden" id="editBizId" value="' +
+    biz.id +
+    '" /></div><div class="modal-footer"><button class="btn btn-ghost" data-close="businessEditModal">Cancel</button><button class="btn btn-primary" id="saveBizEditBtn">Save</button></div></div></div>';
+  document.body.insertAdjacentHTML("beforeend", modalHTML);
+  openModal("businessEditModal");
+  qs("#saveBizEditBtn")?.addEventListener("click", function () {
+    var name = qs("#editBizName")?.value?.trim();
+    var prefix = qs("#editBizPrefix")?.value?.trim().toUpperCase();
+    if (!name || !prefix) {
+      toast("Name and Prefix required", "warning");
+      return;
+    }
+    var bs = getBusinesses();
+    for (var i = 0; i < bs.length; i++) {
+      if (bs[i].id === bizId) {
+        bs[i].name = name;
+        bs[i].address = qs("#editBizAddress")?.value?.trim() || "";
+        bs[i].phone = qs("#editBizPhone")?.value?.trim() || "";
+        bs[i].email = qs("#editBizEmail")?.value?.trim() || "";
+        bs[i].prefix = prefix;
+        break;
+      }
+    }
+    saveBusinesses(bs);
+    closeModal("businessEditModal");
+    updateAllBrandNames();
+    setText("#currentBusinessName", name);
+    if (getCurrentBusiness().id === bizId) {
+      setCurrentBusiness(bizId);
+    }
+    toast(name + " updated", "success");
+  });
+}
+
 function updateSessionTime() {
   var e = qs("#sessionTime");
   if (!e) return;
@@ -1059,13 +1346,15 @@ function updateSessionTime() {
     " min";
 }
 function updateAllBrandNames() {
-  var s = STATE.settings;
+  var biz = getCurrentBusiness();
   var lb = qs("#loginBrandName");
-  if (lb) lb.textContent = s.businessName;
+  if (lb) lb.textContent = biz.name;
   var sb = qs(".sidebar-brand");
-  if (sb) sb.textContent = s.businessName;
+  if (sb) sb.textContent = biz.name;
   var ib = qs("#invBusinessName");
-  if (ib) ib.textContent = s.businessName;
+  if (ib) ib.textContent = biz.name;
+  var cn = qs("#currentBusinessName");
+  if (cn) cn.textContent = biz.name;
 }
 
 var MODULE_TITLES = {
@@ -1082,7 +1371,6 @@ var MODULE_TITLES = {
   importexport: ["Import/Export", "Data management"],
   settings: ["Settings", "Configuration"],
 };
-
 function navigateTo(mod) {
   qsa(".nav-link").forEach(function (l) {
     l.classList.toggle("active", l.dataset.module === mod);
@@ -1106,7 +1394,6 @@ function navigateTo(mod) {
   else if (mod === "reminders") renderReminderTable();
   else if (mod === "settings") loadSettingsForm();
 }
-
 function handleQuickAction(a) {
   var m = {
     newToken: function () {
@@ -1197,6 +1484,7 @@ function refreshDashboard() {
   setText("#kpiRevenue", fmtPrice(dr));
   setText("#kpiAlerts", ls);
   setText("#kpiLowStock", ls);
+  setText("#kpiNetProfit", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
   var ab = qs("#activeTokenBadge");
   if (ab) {
     ab.textContent = at;
@@ -1381,6 +1669,55 @@ function updateTokenTotal() {
   setText("#tokenGrandTotal", fmtPrice(t));
 }
 function openNewTokenModal() {
+  var bizSelect = qs("#tokenBusinessSelect");
+  if (bizSelect) {
+    var businesses = getBusinesses();
+    var currentBiz = getCurrentBusiness();
+    bizSelect.innerHTML = '<option value="">Select Business</option>';
+    for (var i = 0; i < businesses.length; i++) {
+      var sel = businesses[i].id === currentBiz.id ? " selected" : "";
+      bizSelect.innerHTML +=
+        '<option value="' +
+        businesses[i].id +
+        '" data-prefix="' +
+        businesses[i].prefix +
+        '" data-name="' +
+        sanitize(businesses[i].name) +
+        '"' +
+        sel +
+        ">" +
+        businesses[i].name +
+        " (" +
+        businesses[i].prefix +
+        ")</option>";
+    }
+    bizSelect.onchange = function () {
+      var opt = this.options[this.selectedIndex];
+      if (opt && opt.value) {
+        var prefix = opt.getAttribute("data-prefix");
+        var today = new Date();
+        var ds =
+          today.getFullYear() +
+          "" +
+          String(today.getMonth() + 1).padStart(2, "0") +
+          String(today.getDate()).padStart(2, "0");
+        var bizTokens = STATE.tokens.filter(function (t) {
+          return (
+            t.businessPrefix === prefix &&
+            t.number &&
+            t.number.startsWith(prefix + "-" + ds)
+          );
+        });
+        var newNum =
+          prefix +
+          "-" +
+          ds +
+          "-" +
+          String(bizTokens.length + 1).padStart(3, "0");
+        setText("#autoTokenNumber", newNum);
+      }
+    };
+  }
   setText("#autoTokenNumber", generateTokenNumber());
   setValue("#tokenVehicleNo", "");
   setValue("#tokenVehicleType", "");
@@ -1409,6 +1746,18 @@ function saveToken() {
   var cn = (qs("#tokenContactNumber")?.value || "").trim();
   var st = qs("#tokenServiceType")?.value || "";
   var cs = (qs("#tokenCustomService")?.value || "").trim();
+  var bizSelect = qs("#tokenBusinessSelect");
+  var businesses = getBusinesses();
+  var biz;
+  if (bizSelect && bizSelect.value) {
+    biz = businesses.find(function (b) {
+      return b.id === bizSelect.value;
+    });
+  }
+  if (!biz) {
+    biz = getCurrentBusiness();
+  }
+  var prefix = biz.prefix;
   if (!vn || !vt || !st) {
     toast("Please fill all required fields", "error");
     return;
@@ -1475,6 +1824,9 @@ function saveToken() {
     t.servicePrice = sp;
     t.products = newProducts;
     t.editedAt = fmtDate() + " " + fmtTime();
+    t.businessPrefix = prefix;
+    t.businessId = biz.id;
+    t.businessName = biz.name;
     saveTokens();
     saveInventory();
     renderTokenTable();
@@ -1519,6 +1871,9 @@ function saveToken() {
       products: newProducts,
       time: fmtTime(),
       status: "waiting",
+      businessPrefix: prefix,
+      businessId: biz.id,
+      businessName: biz.name,
     };
     STATE.tokens.push(newToken);
     saveTokens();
@@ -1543,6 +1898,8 @@ function renderTokenTable() {
       t.service.toLowerCase().includes(sr);
     return ms && (!sf || t.status === sf);
   });
+    var badge = qs("#tokenCountBadge");
+  if (badge) badge.textContent = fl.length + " token" + (fl.length !== 1 ? "s" : "");
   setText("#tokenStatsTotal", STATE.tokens.length);
   setText(
     "#tokenStatsWaiting",
@@ -1582,6 +1939,11 @@ function renderTokenTable() {
           return (
             '<tr><td><span class="table-token-no">' +
             sanitize(t.number) +
+            (t.businessName
+              ? ' <small style="color:var(--text-muted);">(' +
+                sanitize(t.businessPrefix || t.businessName) +
+                ")</small>"
+              : "") +
             '</span></td><td><span class="table-vehicle-no">' +
             sanitize(t.vehicleNo) +
             "</span></td><td>" +
@@ -1739,6 +2101,10 @@ function openEditTokenModal(tid) {
     updateTokenTotal();
   }, 100);
   qs("#tokenModal").dataset.editId = tid;
+  var bizDisplay = qs("#tokenBusinessDisplay");
+  if (bizDisplay)
+    bizDisplay.textContent =
+      (t.businessName || "N/A") + " (" + (t.businessPrefix || "N/A") + ")";
   qs("#tokenModalTitle").innerHTML =
     '<span class="material-icons">edit</span> Edit Token';
   openModal("tokenModal");
@@ -1747,6 +2113,32 @@ function openEditTokenModal(tid) {
 // ==================== BILLING ====================
 var ivc = 0;
 function initBilling() {
+  var invBizSelect = qs("#invoiceBusinessSelect");
+  if (invBizSelect) {
+    var businesses = getBusinesses();
+    var currentBiz = getCurrentBusiness();
+    invBizSelect.innerHTML = '<option value="">Select Business</option>';
+    for (var i = 0; i < businesses.length; i++) {
+      var sel = businesses[i].id === currentBiz.id ? " selected" : "";
+      invBizSelect.innerHTML +=
+        '<option value="' +
+        businesses[i].id +
+        '" data-prefix="' +
+        businesses[i].prefix +
+        '" data-name="' +
+        sanitize(businesses[i].name) +
+        '"' +
+        sel +
+        ">" +
+        businesses[i].name +
+        " (" +
+        businesses[i].prefix +
+        ")</option>";
+    }
+    invBizSelect.onchange = function () {
+      updateInvoicePreview();
+    };
+  }
   qs("#addInvoiceService")?.addEventListener("click", function () {
     addInvoiceServiceRow("", 0);
   });
@@ -1923,11 +2315,25 @@ function saveInvoice() {
   var tx = st * (STATE.settings.taxRate / 100),
     cr = parseFloat(qs("#cashReceived")?.value) || 0,
     gt = st + tx;
+  var invBizSelect = qs("#invoiceBusinessSelect");
+  var businesses = getBusinesses();
+  var biz;
+  if (invBizSelect && invBizSelect.value) {
+    biz = businesses.find(function (b) {
+      return b.id === invBizSelect.value;
+    });
+  }
+  if (!biz) {
+    biz = getCurrentBusiness();
+  }
+  var prefix = biz.prefix;
+  var counterKey = "invoiceCounter" + prefix;
+  if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
+  var invNumber =
+    prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
   var inv = {
     id: uid(),
-    number:
-      STATE.settings.invoicePrefix +
-      String(STATE.counters.invoiceCounter).padStart(3, "0"),
+    number: invNumber,
     date: fmtDate(),
     time: fmtTime(),
     token: (qs("#invoiceToken")?.value || "").trim(),
@@ -1941,9 +2347,12 @@ function saveInvoice() {
     cashReceived: cr,
     changeReturned: cr > 0 ? cr - gt : 0,
     status: cr >= gt && cr > 0 ? "PAID" : "UNPAID",
+    businessPrefix: prefix,
+    businessId: biz.id,
+    businessName: biz.name,
   };
   STATE.invoices.push(inv);
-  STATE.counters.invoiceCounter++;
+  STATE.counters[counterKey]++;
   saveInvoices();
   saveCounters();
   var tn = inv.token;
@@ -1979,12 +2388,25 @@ function updateInvoicePreview() {
   var ce = qs("#invCustomerContact");
   if (ce) ce.textContent = ct ? "📱 " + formatContactDisplay(ct) : "";
   setText("#invDate", fmtDate());
+  var invBizSelect = qs("#invoiceBusinessSelect");
+  var businesses = getBusinesses();
+  var biz;
+  if (invBizSelect && invBizSelect.value) {
+    biz = businesses.find(function (b) {
+      return b.id === invBizSelect.value;
+    });
+  }
+  if (!biz) {
+    biz = getCurrentBusiness();
+  }
+  var prefix = biz.prefix;
+  var counterKey = "invoiceCounter" + prefix;
+  if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
   setText(
     "#invNumber",
-    STATE.settings.invoicePrefix +
-      String(STATE.counters.invoiceCounter).padStart(3, "0"),
+    prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0"),
   );
-  setText("#invBusinessName", STATE.settings.businessName);
+  setText("#invBusinessName", biz.name);
   var it = [];
   qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
     function (r) {
@@ -2042,44 +2464,19 @@ function updateInvoicePreview() {
 function renderSavedInvoices() {
   var tb = qs("#savedInvoiceTableBody");
   if (!tb) return;
+  
+  // Update saved invoice count badge
+  var countBadge = qs("#savedInvoiceCount");
+  if (countBadge) countBadge.textContent = STATE.invoices.length;
+  
   if (!STATE.invoices.length) {
     tb.innerHTML = '<tr><td colspan="8">No invoices</td></tr>';
+    if (countBadge) countBadge.textContent = "0";
     return;
   }
-  tb.innerHTML = STATE.invoices
-    .map(function (inv) {
-      return (
-        '<tr><td style="font-weight:700;color:var(--primary);">' +
-        sanitize(inv.number) +
-        "</td><td>" +
-        sanitize(inv.date) +
-        "</td><td>" +
-        sanitize(inv.customer) +
-        (inv.contactNumber
-          ? "<br><small>" +
-            sanitize(formatContactDisplay(inv.contactNumber)) +
-            "</small>"
-          : "") +
-        "</td><td>" +
-        sanitize(inv.vehicle || "—") +
-        "</td><td>" +
-        sanitize(inv.token || "—") +
-        '</td><td style="font-weight:600;">' +
-        fmtPrice(inv.total) +
-        '</td><td><span class="badge ' +
-        (inv.status === "PAID" ? "badge--green" : "badge--red") +
-        '">' +
-        inv.status +
-        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' +
-        inv.id +
-        '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="' +
-        inv.id +
-        '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' +
-        inv.id +
-        '"><span class="material-icons">delete</span></button></div></td></tr>'
-      );
-    })
-    .join("");
+  tb.innerHTML = STATE.invoices.map(function(inv) {
+    return '<tr><td style="font-weight:700;color:var(--primary);">' + sanitize(inv.number) + (inv.businessName ? ' <small style="color:var(--text-muted);">(' + sanitize(inv.businessPrefix || inv.businessName) + ')</small>' : '') + '</td><td>' + sanitize(inv.date) + '</td><td>' + sanitize(inv.customer) + (inv.contactNumber?'<br><small>' + sanitize(formatContactDisplay(inv.contactNumber)) + '</small>':'') + '</td><td>' + sanitize(inv.vehicle||"—") + '</td><td>' + sanitize(inv.token||"—") + '</td><td style="font-weight:600;">' + fmtPrice(inv.total) + '</td><td><span class="badge ' + (inv.status==="PAID"?"badge--green":"badge--red") + '">' + inv.status + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' + inv.id + '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="' + inv.id + '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' + inv.id + '"><span class="material-icons">delete</span></button></div></td></tr>';
+  }).join("");
 }
 function viewInvoice(id) {
   var inv = STATE.invoices.find(function (i) {
@@ -2101,6 +2498,7 @@ function viewInvoice(id) {
   updateInvoicePreview();
   setText("#invNumber", inv.number);
   setText("#invDate", inv.date);
+  setText("#invBusinessName", inv.businessName || STATE.settings.businessName);
 }
 function printSavedReceipt(id) {
   viewInvoice(id);
@@ -2108,8 +2506,6 @@ function printSavedReceipt(id) {
     printThermalReceipt();
   }, 400);
 }
-
-// ==================== THERMAL RECEIPT ====================
 function printThermalReceipt() {
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
@@ -2117,10 +2513,11 @@ function printThermalReceipt() {
     invVehicle = (qs("#invVehicle")?.textContent || "").trim(),
     invCustomer = (qs("#invCustomer")?.textContent || "").trim(),
     invContact = qs("#invCustomer")?.dataset?.contact || "";
+  var biz = getCurrentBusiness();
   var businessName =
-      STATE.settings.businessName || "Wheel Works Service Station",
-    address = STATE.settings.address || "Main Road, City",
-    phone = STATE.settings.phone || "0300-0000000";
+      qs("#invBusinessName")?.textContent || biz.name || "Service Station",
+    address = biz.address || STATE.settings.address || "Main Road, City",
+    phone = biz.phone || STATE.settings.phone || "0300-0000000";
   var items = [];
   qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
     function (r) {
@@ -2258,7 +2655,7 @@ function printThermalReceipt() {
     paymentHTML +
     '<div class="status-line">*** ' +
     paymentStatus +
-    ' ***</div><div class="divider-dash"></div><div class="rcpt-footer"><div class="rcpt-thanks">Thank You For Visiting</div><div>We Appreciate Your Business</div><div>Please Visit Again</div><div class="rcpt-dev">Developed By<br>DESIGN ORBITS</div></div><div class="rcpt-time">Printed: ' +
+    ' ***</div><div class="divider-dash"></div><div class="rcpt-footer"><div class="rcpt-thanks">Thank You For Visiting</div><div>We Appreciate Your Business</div><div>Please Visit Again</div><div class="rcpt-dev">Developed By<br>DESIGN ORBITS<br>03225267908</div></div><div class="rcpt-time">Printed: ' +
     sanitize(printDate) +
     " " +
     sanitize(printTime) +
@@ -2403,14 +2800,18 @@ function saveProductSale() {
     time: fmtTime(),
   });
   saveProductSales();
+  var biz = getCurrentBusiness();
+  var prefix = biz.prefix;
+  var counterKey = "invoiceCounter" + prefix;
+  if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
+  var invNumber =
+    prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
   var invItems = items.map(function (i) {
     return { name: i.fullName, price: i.price, qty: i.qty, type: "product" };
   });
   var inv = {
     id: uid(),
-    number:
-      STATE.settings.invoicePrefix +
-      String(STATE.counters.invoiceCounter).padStart(3, "0"),
+    number: invNumber,
     date: fmtDate(),
     time: fmtTime(),
     token: "",
@@ -2424,10 +2825,13 @@ function saveProductSale() {
     cashReceived: t,
     changeReturned: 0,
     status: "PAID",
+    businessPrefix: prefix,
+    businessId: biz.id,
+    businessName: biz.name,
   };
   STATE.invoices.push(inv);
   STATE.lastProductSaleInvoiceId = inv.id;
-  STATE.counters.invoiceCounter++;
+  STATE.counters[counterKey]++;
   saveInvoices();
   saveCounters();
   refreshDashboard();
@@ -3011,87 +3415,17 @@ function renderReports() {
           .join("")
       : '<tr><td colspan="5">No transactions</td></tr>';
 }
-function renderServicesSold() {
-  var tb = qs("#servicesSoldTableBody");
-  if (!tb) return;
-  var ss = {};
-  STATE.tokens.forEach(function (t) {
-    if (t.status === "completed" && t.service) {
-      if (!ss[t.service]) ss[t.service] = { count: 0, revenue: 0 };
-      ss[t.service].count++;
-      ss[t.service].revenue += t.servicePrice || 0;
-    }
-  });
-  var data = Object.entries(ss).map(function (e) {
-    return { name: e[0], count: e[1].count, revenue: e[1].revenue };
-  });
-  tb.innerHTML = data.length
-    ? data
-        .sort(function (a, b) {
-          return b.count - a.count;
-        })
-        .map(function (d) {
-          return (
-            "<tr><td>" +
-            sanitize(d.name) +
-            "</td><td>" +
-            d.count +
-            "x</td><td>" +
-            fmtPrice(d.revenue) +
-            "</td></tr>"
-          );
-        })
-        .join("")
-    : '<tr><td colspan="3">No services</td></tr>';
-}
-function renderProductsSold() {
-  var tb = qs("#productsSoldTableBody");
-  if (!tb) return;
-  var ps = {};
-  STATE.invoices.forEach(function (inv) {
-    inv.items
-      .filter(function (i) {
-        return i.type === "product";
-      })
-      .forEach(function (item) {
-        if (!ps[item.name]) ps[item.name] = { qty: 0, revenue: 0 };
-        ps[item.name].qty += item.qty;
-        ps[item.name].revenue += item.price * item.qty;
-      });
-  });
-  var data = Object.entries(ps).map(function (e) {
-    return { name: e[0], qty: e[1].qty, revenue: e[1].revenue };
-  });
-  tb.innerHTML = data.length
-    ? data
-        .sort(function (a, b) {
-          return b.qty - a.qty;
-        })
-        .map(function (d) {
-          return (
-            "<tr><td>" +
-            sanitize(d.name) +
-            "</td><td>" +
-            d.qty +
-            "x</td><td>" +
-            fmtPrice(d.revenue) +
-            "</td></tr>"
-          );
-        })
-        .join("")
-    : '<tr><td colspan="3">No products</td></tr>';
-}
 
 // ==================== EXPENSES ====================
-function initExpenses() { 
-  qs("#addExpenseBtn")?.addEventListener("click", showExpenseForm); 
-  qs("#saveExpenseBtn")?.addEventListener("click", saveExpense); 
-  qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm); 
-  qs("#expenseSearch")?.addEventListener("input", renderExpenses); 
-  var di = qs("#expenseDate"); 
-  if (di) di.value = toDateInputValue(new Date()); 
-  hideExpenseForm(); 
-  renderExpenses(); 
+function initExpenses() {
+  qs("#addExpenseBtn")?.addEventListener("click", showExpenseForm);
+  qs("#saveExpenseBtn")?.addEventListener("click", saveExpense);
+  qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm);
+  qs("#expenseSearch")?.addEventListener("input", renderExpenses);
+  var di = qs("#expenseDate");
+  if (di) di.value = toDateInputValue(new Date());
+  hideExpenseForm();
+  renderExpenses();
 }
 function showExpenseForm() {
   qs("#expenseFormCard").style.display = "";
@@ -3127,9 +3461,14 @@ function renderExpenses() {
   setText("#totalExpenseAmt", fmtPrice(getTotalExpenses()));
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  var fl = STATE.expenses.sort(function (a, b) {
+  var fl = STATE.expenses.sort(function(a, b) {
     return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
   });
+  
+  // Update expense count badge
+  var countBadge = qs("#expenseCountBadge");
+  if (countBadge) countBadge.textContent = fl.length;
+  
   var tb = qs("#expenseTableBody");
   if (tb)
     tb.innerHTML = fl.length
@@ -3153,88 +3492,54 @@ function renderExpenses() {
       : '<tr><td colspan="5">No expenses</td></tr>';
 }
 
-// ==================== SERVICES (PRICING MATRIX) - COMPLETE FIX ====================
+// ==================== SERVICES (PRICING MATRIX) ====================
 function initServices() {
-  console.log("initServices() called - binding buttons");
-
-  // Bind the "Vehicle Types" toolbar button
   var vBtn = document.getElementById("manageVehicleTypesBtn");
-  if (vBtn) {
-    console.log("Found manageVehicleTypesBtn, binding click handler");
+  var sBtn = document.getElementById("managePricingServicesBtn");
+  if (vBtn)
     vBtn.addEventListener("click", function (e) {
-      console.log("manageVehicleTypesBtn clicked!");
       e.preventDefault();
       renderVehicleTypeList();
       openModal("vehicleTypesModal");
     });
-  } else {
-    console.log("ERROR: manageVehicleTypesBtn NOT FOUND in DOM");
-  }
-
-  // Bind the "Services" toolbar button
-  var sBtn = document.getElementById("managePricingServicesBtn");
-  if (sBtn) {
-    console.log("Found managePricingServicesBtn, binding click handler");
+  if (sBtn)
     sBtn.addEventListener("click", function (e) {
-      console.log("managePricingServicesBtn clicked!");
       e.preventDefault();
       renderPricingServiceList();
       openModal("pricingServicesModal");
     });
-  } else {
-    console.log("ERROR: managePricingServicesBtn NOT FOUND in DOM");
-  }
-
-  // Bind the "Add Vehicle Type" button inside modal
   var avBtn = document.getElementById("addVehicleTypeBtn");
-  if (avBtn) {
-    console.log("Found addVehicleTypeBtn, binding click handler");
+  var asBtn = document.getElementById("addPricingServiceBtn");
+  if (avBtn)
     avBtn.addEventListener("click", function (e) {
       e.preventDefault();
       addVehicleType();
     });
-  } else {
-    console.log("ERROR: addVehicleTypeBtn NOT FOUND in DOM");
-  }
-
-  // Bind the "Add Service" button inside modal
-  var asBtn = document.getElementById("addPricingServiceBtn");
-  if (asBtn) {
-    console.log("Found addPricingServiceBtn, binding click handler");
+  if (asBtn)
     asBtn.addEventListener("click", function (e) {
       e.preventDefault();
       addPricingService();
     });
-  } else {
-    console.log("ERROR: addPricingServiceBtn NOT FOUND in DOM");
-  }
-
-  // Bind Enter key for modal inputs
   var vtInput = document.getElementById("newVehicleTypeName");
-  if (vtInput) {
+  if (vtInput)
     vtInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
         addVehicleType();
       }
     });
-  }
-
   var psInput = document.getElementById("newPricingServiceName");
-  if (psInput) {
+  if (psInput)
     psInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
         addPricingService();
       }
     });
-  }
-
   renderVehicleTypeList();
   renderPricingServiceList();
   renderPricingMatrix();
 }
-
 function addVehicleType() {
   var input = document.getElementById("newVehicleTypeName");
   var name = input && input.value ? input.value.trim() : "";
@@ -3258,7 +3563,6 @@ function addVehicleType() {
   }
   toast(name + " added", "success");
 }
-
 function addPricingService() {
   var input = document.getElementById("newPricingServiceName");
   var name = input && input.value ? input.value.trim() : "";
@@ -3282,7 +3586,6 @@ function addPricingService() {
   }
   toast(name + " added", "success");
 }
-
 function renderVehicleTypeList() {
   var c = document.getElementById("vehicleTypeList");
   if (!c) return;
@@ -3295,18 +3598,14 @@ function renderVehicleTypeList() {
   for (var i = 0; i < STATE.pricingVehicles.length; i++) {
     var v = STATE.pricingVehicles[i];
     h +=
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;">' +
-      '<span style="font-weight:500;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;"><span style="font-weight:500;">' +
       sanitize(v.name) +
-      "</span>" +
-      '<button class="btn-icon btn btn-danger-ghost" data-vtype-delete="' +
+      '</span><button class="btn-icon btn btn-danger-ghost" data-vtype-delete="' +
       v.id +
-      '">' +
-      '<span class="material-icons">close</span></button></div>';
+      '"><span class="material-icons">close</span></button></div>';
   }
   c.innerHTML = h;
 }
-
 function renderPricingServiceList() {
   var c = document.getElementById("pricingServiceList");
   if (!c) return;
@@ -3319,18 +3618,14 @@ function renderPricingServiceList() {
   for (var i = 0; i < STATE.pricingServices.length; i++) {
     var s = STATE.pricingServices[i];
     h +=
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;">' +
-      '<span style="font-weight:500;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e2e8f0;"><span style="font-weight:500;">' +
       sanitize(s.name) +
-      "</span>" +
-      '<button class="btn-icon btn btn-danger-ghost" data-psvc-delete="' +
+      '</span><button class="btn-icon btn btn-danger-ghost" data-psvc-delete="' +
       s.id +
-      '">' +
-      '<span class="material-icons">close</span></button></div>';
+      '"><span class="material-icons">close</span></button></div>';
   }
   c.innerHTML = h;
 }
-
 function renderPricingMatrix() {
   var thead = document.getElementById("pricingMatrixHead");
   var tbody = document.getElementById("pricingMatrixBody");
@@ -3370,8 +3665,7 @@ function renderPricingMatrix() {
       bh +=
         '<td style="text-align:center;cursor:pointer;padding:10px;" data-mkey="' +
         key +
-        '">' +
-        '<span style="font-weight:700;color:' +
+        '"><span style="font-weight:700;color:' +
         (price > 0 ? "#2563eb" : "#94a3b8") +
         ';">' +
         (price > 0 ? fmtPrice(price) : "—") +
@@ -3442,7 +3736,7 @@ function getModuleData(mod) {
       categories: STATE.categories,
       brands: STATE.brands,
       settings: STATE.settings,
-      version: "6.0",
+      version: "6.2",
     };
   if (mod === "inventory") return STATE.inventory;
   if (mod === "tokens") return STATE.tokens;
@@ -3499,7 +3793,8 @@ function exportCSV(mo) {
   }
   if (m === "all" || m === "tokens") {
     if (csv) csv += "\n";
-    csv += "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time\n";
+    csv +=
+      "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time,Business\n";
     STATE.tokens.forEach(function (t) {
       csv +=
         esc(t.number) +
@@ -3517,6 +3812,8 @@ function exportCSV(mo) {
         t.status +
         "," +
         t.time +
+        "," +
+        esc(t.businessName || "") +
         "\n";
     });
   }
@@ -3802,6 +4099,9 @@ function confirmImport() {
         products: [],
         time: fmtTime(),
         status: "waiting",
+        businessPrefix: item["Business Prefix"] || getCurrentBusinessPrefix(),
+        businessId: "",
+        businessName: item["Business Name"] || "",
       });
     });
     saveTokens();
@@ -3849,7 +4149,7 @@ function initSettings() {
     confirm(
       "Reset?",
       function () {
-        STATE.counters = { invoiceCounter: 1 };
+        STATE.counters = { invoiceCounterWW: 1, invoiceCounterMB: 1 };
         saveCounters();
       },
       "Reset",
