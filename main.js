@@ -54,7 +54,7 @@ ipcMain.handle("print-receipt", async (event, htmlContent) => {
         printWin.webContents.on("did-finish-load", () => {
             printWin.webContents.print(
                 {
-                    silent: true,      
+                    silent: false,      
                     printBackground: true,
                     margins: { marginType: "none" }
                 },
