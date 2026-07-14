@@ -1,0 +1,59 @@
+{
+  "name": "service-station",
+  "version": "1.0.1",
+  "description": "Vehicle Service Station Management System with Token Management, Inventory Tracking, Service Records, Expense Management and Analytics Dashboard.",
+  "main": "main.js",
+ "scripts": {
+  "start": "electron .",
+  "build": "electron-builder",
+  "release": "electron-builder --publish always"
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ali-Razaaaa/Station-Management-System.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Ali-Razaaaa/Station-Management-System/issues"
+  },
+  "homepage": "https://github.com/Ali-Razaaaa/Station-Management-System#readme",
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.metabuilt.servicestation",
+    "productName": "Service Station",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/.cache/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Service Station"
+    },
+    "publish": [
+  {
+    "provider": "github",
+    "owner": "Ali-Razaaaa",
+    "repo": "Station-Management-System"
+  }
+]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}

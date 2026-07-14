@@ -40,7 +40,7 @@ function getDefaultBusinesses() {
   return [
     {
       id: "wheelworks",
-      name: "Wheel Works Service Station",
+      name: "Wheel Works Service station",
       address: "Main Road, City",
       phone: "0300-0000000",
       email: "info@wheelworks.pk",
@@ -49,7 +49,7 @@ function getDefaultBusinesses() {
     },
     {
       id: "metabuilt",
-      name: "Meta Built",
+      name: "Metabuilt Solutions",
       address: "Second Branch, City",
       phone: "0300-0000001",
       email: "info@metabuilt.pk",
@@ -595,36 +595,48 @@ function formatContactDisplay(phone) {
     return c.substring(0, 4) + "-" + c.substring(4);
   return phone;
 }
-// function getWhatsAppNumber(phone) {
-//   if (!phone || phone === "N/A") return null;
-//   var c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
-//   if (c.startsWith("92") && c.length === 12) return c;
-//   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
-//   return c;
-// }
-// function openWhatsApp(phone, cn, vn, svc, sd) {
-//   var wa = getWhatsAppNumber(phone);
-//   if (!wa) {
-//     toast("Invalid phone", "error");
-//     return;
-//   }
-//   var biz = getCurrentBusiness();
-//   var bn = biz.name || "Service Station";
-//   var msg =
-//     "Assalamualaikum " +
-//     cn +
-//     "%0A%0AThis is a friendly reminder from " +
-//     bn +
-//     ".%0A%0AYour vehicle service is due.%0A%0AVehicle: " +
-//     vn +
-//     "%0ALast Service: " +
-//     svc +
-//     "%0ALast Service Date: " +
-//     sd +
-//     "%0A%0APlease visit us for your next service.%0A%0AThank you.%0A" +
-//     bn;
-//   window.open("https://wa.me/" + wa + "?text=" + msg, "_blank");
-// }
+function getWhatsAppNumber(phone) {
+  if (!phone || phone === "N/A") return null;
+  var c = phone.replace(/[\s\-\(\)\+]/g, "").trim();
+  if (c.startsWith("92") && c.length === 12) return c;
+  if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
+  return c;
+}
+function openWhatsApp(phone, cn, vn, svc, sd) {
+  var wa = getWhatsAppNumber(phone);
+  if (!wa) {
+    toast("Invalid phone", "error");
+    return;
+  }
+  var biz = getCurrentBusiness();
+  var allBizNames = "Wheel Works. Service station & Metabuilt Solutions";
+
+  var msg =
+    "Assalamualaikum " +
+    cn +
+    "\n\n" +
+    "Friendly reminder from " +
+    allBizNames +
+    "\n\n" +
+    "Vehicle: " +
+    vn +
+    "\n" +
+    "Service: " +
+    svc +
+    "\n" +
+    "Date: " +
+    sd +
+    "\n\n" +
+    "Visit us:\n" +
+    biz.address +
+    "\n" +
+    biz.phone +
+    "\n\n" +
+    allBizNames;
+
+  var url = "https://wa.me/" + wa + "?text=" + encodeURIComponent(msg);
+  window.open(url, "_blank");
+}
 function createReminderFromToken(token) {
   if (!token.contactNumber || token.contactNumber === "N/A") return;
   var rd = getReminderDays(token.service);
@@ -818,7 +830,82 @@ function renderReminderTable() {
     })
     .join("");
 }
+// ==================== SESSION MANAGEMENT ====================
+// NOTE: Session flags use sessionStorage (NOT localStorage) so that a fresh
+// browser/tab session ALWAYS requires login again. sessionStorage is
+// automatically cleared when the tab/browser is closed, which fixes the
+// "dashboard opens without logging in" issue. Auto-logout after inactivity
+// still works the same way while the tab stays open.
+var SESSION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+var sessionTimer = null;
 
+function checkLoginSession() {
+  var lastActivity = sessionStorage.getItem("servicepro_last_activity");
+  var loggedIn = sessionStorage.getItem("servicepro_logged_in");
+
+  if (loggedIn === "true" && lastActivity) {
+    var now = new Date().getTime();
+    var diff = now - parseInt(lastActivity);
+
+    if (diff < SESSION_TIMEOUT) {
+      // Session valid - auto login
+      qs("#loginScreen").classList.add("hidden");
+      qs("#app").classList.remove("hidden");
+      updateLastActivity();
+      initApp();
+      return true;
+    } else {
+      // Session expired - clear and show login
+      logoutSession();
+    }
+  }
+  return false;
+}
+
+function updateLastActivity() {
+  // Only track/refresh activity once the user is actually logged in.
+  if (sessionStorage.getItem("servicepro_logged_in") !== "true") return;
+  sessionStorage.setItem("servicepro_last_activity", new Date().getTime());
+  resetSessionTimer();
+}
+
+function resetSessionTimer() {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(function () {
+    logoutSession();
+    toast("Session expired due to inactivity", "warning");
+  }, SESSION_TIMEOUT);
+}
+
+function logoutSession() {
+  sessionStorage.removeItem("servicepro_logged_in");
+  sessionStorage.removeItem("servicepro_last_activity");
+  if (sessionTimer) clearTimeout(sessionTimer);
+  qs("#app").classList.add("hidden");
+  qs("#loginScreen").classList.remove("hidden");
+  setValue("#loginUsername", "");
+  setValue("#loginPassword", "");
+}
+
+// Track user activity
+document.addEventListener("click", function () {
+  updateLastActivity();
+});
+document.addEventListener("keydown", function () {
+  updateLastActivity();
+});
+document.addEventListener("scroll", function () {
+  updateLastActivity();
+});
+document.addEventListener("mousemove", function () {
+  // Only update every 30 seconds on mouse move (performance)
+  if (sessionStorage.getItem("servicepro_logged_in") !== "true") return;
+  var now = new Date().getTime();
+  var last = parseInt(
+    sessionStorage.getItem("servicepro_last_activity") || "0",
+  );
+  if (now - last > 30000) updateLastActivity();
+});
 // ==================== LOGIN ====================
 function initLogin() {
   var f = qs("#loginForm"),
@@ -826,23 +913,45 @@ function initLogin() {
     tg = qs("#togglePassword"),
     pi = qs("#loginPassword");
   if (!f || !er) return;
-  if (tg && pi)
-    tg.addEventListener("click", function () {
+
+  if (tg && pi) {
+    // Force this to be a plain button so it can never accidentally submit
+    // the login form (which was causing the "first attempt always fails"
+    // issue: clicking the eye icon submitted the form with an empty
+    // password before the user had even typed one).
+    tg.setAttribute("type", "button");
+    tg.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
       var p = pi.type === "password";
       pi.type = p ? "text" : "password";
-      tg.querySelector(".material-icons").textContent = p
-        ? "visibility"
-        : "visibility_off";
+      var ic = tg.querySelector(".material-icons");
+      if (ic) ic.textContent = p ? "visibility" : "visibility_off";
     });
+  }
+
+  var submitting = false;
   f.addEventListener("submit", function (e) {
     e.preventDefault();
-    var u = qs("#loginUsername").value.trim(),
-      p = qs("#loginPassword").value;
+    e.stopPropagation();
+    if (submitting) return; // guard against double-submit
+    submitting = true;
+    setTimeout(function () {
+      submitting = false;
+    }, 500);
+
+    var u = (qs("#loginUsername")?.value || "").trim(),
+      p = qs("#loginPassword")?.value || "";
     er.classList.remove("visible");
+
     if (
       u === "admin" &&
       p === (localStorage.getItem(KEYS.password) || "admin123")
     ) {
+      // Set logged in state (session-only, cleared when tab/browser closes)
+      sessionStorage.setItem("servicepro_logged_in", "true");
+      updateLastActivity();
+
       qs("#loginScreen").classList.add("hidden");
       qs("#app").classList.remove("hidden");
       initApp();
@@ -856,6 +965,8 @@ function initLogin() {
 
 // ==================== INIT APP ====================
 function initApp() {
+  updateLastActivity();
+
   setText("#currentDate", fmtDate());
   updateSessionTime();
   setInterval(updateSessionTime, 60000);
@@ -895,14 +1006,20 @@ function initApp() {
       if (window.innerWidth <= 768) closeSidebar();
     });
   });
+
+  // UPDATED LOGOUT - uses custom confirm() modal (NOT window.confirm, which
+  // was being shadowed by this app's own global confirm() function and
+  // therefore always returned undefined/falsy, silently blocking logout).
   qs("#logoutBtn")?.addEventListener("click", function () {
-    if (window.confirm("Sign out?")) {
-      qs("#app").classList.add("hidden");
-      qs("#loginScreen").classList.remove("hidden");
-      setValue("#loginUsername", "");
-      setValue("#loginPassword", "");
-    }
+    confirm(
+      "Are you sure you want to sign out?",
+      function () {
+        logoutSession();
+      },
+      "Sign Out",
+    );
   });
+
   qs("#confirmActionBtn")?.addEventListener("click", function () {
     if (STATE.confirmCallback) {
       STATE.confirmCallback();
@@ -1245,6 +1362,17 @@ function renderBusinessDropdown() {
       updateAllBrandNames();
       setText("#currentBusinessName", getCurrentBusiness().name);
       dd.classList.add("hidden");
+
+      // Update invoice business dropdown
+      var biz = getCurrentBusiness();
+      var invBizSelect = qs("#invoiceBusinessSelect");
+      if (invBizSelect) {
+        invBizSelect.value = biz.id;
+      }
+
+      // Update invoice preview
+      updateInvoicePreview();
+
       refreshDashboard();
       renderTokenTable();
       renderSavedInvoices();
@@ -1330,9 +1458,64 @@ function openBusinessEditModal(bizId) {
     closeModal("businessEditModal");
     updateAllBrandNames();
     setText("#currentBusinessName", name);
+
     if (getCurrentBusiness().id === bizId) {
       setCurrentBusiness(bizId);
     }
+
+    // Update invoice business dropdown with new data
+    var invBizSelect = qs("#invoiceBusinessSelect");
+    if (invBizSelect) {
+      var updatedBusinesses = getBusinesses();
+      var currentBiz = getCurrentBusiness();
+      invBizSelect.innerHTML = '<option value="">Select Business</option>';
+      for (var j = 0; j < updatedBusinesses.length; j++) {
+        var sel = updatedBusinesses[j].id === currentBiz.id ? " selected" : "";
+        invBizSelect.innerHTML +=
+          '<option value="' +
+          updatedBusinesses[j].id +
+          '" data-prefix="' +
+          updatedBusinesses[j].prefix +
+          '" data-name="' +
+          sanitize(updatedBusinesses[j].name) +
+          '"' +
+          sel +
+          ">" +
+          updatedBusinesses[j].name +
+          " (" +
+          updatedBusinesses[j].prefix +
+          ")</option>";
+      }
+    }
+
+    // Update invoice preview with new business info
+    updateInvoicePreview();
+
+    // Update token business dropdown
+    var tokenBizSelect = qs("#tokenBusinessSelect");
+    if (tokenBizSelect) {
+      var updatedBusinesses = getBusinesses();
+      var currentBiz = getCurrentBusiness();
+      tokenBizSelect.innerHTML = '<option value="">Select Business</option>';
+      for (var k = 0; k < updatedBusinesses.length; k++) {
+        var sel2 = updatedBusinesses[k].id === currentBiz.id ? " selected" : "";
+        tokenBizSelect.innerHTML +=
+          '<option value="' +
+          updatedBusinesses[k].id +
+          '" data-prefix="' +
+          updatedBusinesses[k].prefix +
+          '" data-name="' +
+          sanitize(updatedBusinesses[k].name) +
+          '"' +
+          sel2 +
+          ">" +
+          updatedBusinesses[k].name +
+          " (" +
+          updatedBusinesses[k].prefix +
+          ")</option>";
+      }
+    }
+
     toast(name + " updated", "success");
   });
 }
@@ -1355,6 +1538,19 @@ function updateAllBrandNames() {
   if (ib) ib.textContent = biz.name;
   var cn = qs("#currentBusinessName");
   if (cn) cn.textContent = biz.name;
+
+  // Force update invoice preview and billing business dropdown
+  var invBizSelect = qs("#invoiceBusinessSelect");
+  if (invBizSelect) {
+    invBizSelect.value = biz.id;
+    updateInvoicePreview();
+  }
+
+  // Update invoice business address and phone in preview
+  var addr = qs("#invBusinessAddress");
+  if (addr) addr.textContent = biz.address || "";
+  var phone = qs("#invBusinessPhone");
+  if (phone) phone.textContent = biz.phone || "";
 }
 
 var MODULE_TITLES = {
@@ -1898,8 +2094,9 @@ function renderTokenTable() {
       t.service.toLowerCase().includes(sr);
     return ms && (!sf || t.status === sf);
   });
-    var badge = qs("#tokenCountBadge");
-  if (badge) badge.textContent = fl.length + " token" + (fl.length !== 1 ? "s" : "");
+  var badge = qs("#tokenCountBadge");
+  if (badge)
+    badge.textContent = fl.length + " token" + (fl.length !== 1 ? "s" : "");
   setText("#tokenStatsTotal", STATE.tokens.length);
   setText(
     "#tokenStatsWaiting",
@@ -2464,19 +2661,55 @@ function updateInvoicePreview() {
 function renderSavedInvoices() {
   var tb = qs("#savedInvoiceTableBody");
   if (!tb) return;
-  
+
   // Update saved invoice count badge
   var countBadge = qs("#savedInvoiceCount");
   if (countBadge) countBadge.textContent = STATE.invoices.length;
-  
+
   if (!STATE.invoices.length) {
     tb.innerHTML = '<tr><td colspan="8">No invoices</td></tr>';
     if (countBadge) countBadge.textContent = "0";
     return;
   }
-  tb.innerHTML = STATE.invoices.map(function(inv) {
-    return '<tr><td style="font-weight:700;color:var(--primary);">' + sanitize(inv.number) + (inv.businessName ? ' <small style="color:var(--text-muted);">(' + sanitize(inv.businessPrefix || inv.businessName) + ')</small>' : '') + '</td><td>' + sanitize(inv.date) + '</td><td>' + sanitize(inv.customer) + (inv.contactNumber?'<br><small>' + sanitize(formatContactDisplay(inv.contactNumber)) + '</small>':'') + '</td><td>' + sanitize(inv.vehicle||"—") + '</td><td>' + sanitize(inv.token||"—") + '</td><td style="font-weight:600;">' + fmtPrice(inv.total) + '</td><td><span class="badge ' + (inv.status==="PAID"?"badge--green":"badge--red") + '">' + inv.status + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' + inv.id + '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="' + inv.id + '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' + inv.id + '"><span class="material-icons">delete</span></button></div></td></tr>';
-  }).join("");
+  tb.innerHTML = STATE.invoices
+    .map(function (inv) {
+      return (
+        '<tr><td style="font-weight:700;color:var(--primary);">' +
+        sanitize(inv.number) +
+        (inv.businessName
+          ? ' <small style="color:var(--text-muted);">(' +
+            sanitize(inv.businessPrefix || inv.businessName) +
+            ")</small>"
+          : "") +
+        "</td><td>" +
+        sanitize(inv.date) +
+        "</td><td>" +
+        sanitize(inv.customer) +
+        (inv.contactNumber
+          ? "<br><small>" +
+            sanitize(formatContactDisplay(inv.contactNumber)) +
+            "</small>"
+          : "") +
+        "</td><td>" +
+        sanitize(inv.vehicle || "—") +
+        "</td><td>" +
+        sanitize(inv.token || "—") +
+        '</td><td style="font-weight:600;">' +
+        fmtPrice(inv.total) +
+        '</td><td><span class="badge ' +
+        (inv.status === "PAID" ? "badge--green" : "badge--red") +
+        '">' +
+        inv.status +
+        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' +
+        inv.id +
+        '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-receipt="' +
+        inv.id +
+        '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' +
+        inv.id +
+        '"><span class="material-icons">delete</span></button></div></td></tr>'
+      );
+    })
+    .join("");
 }
 function viewInvoice(id) {
   var inv = STATE.invoices.find(function (i) {
@@ -2619,7 +2852,7 @@ function printThermalReceipt() {
       "</span></div>"
     : "";
   var h =
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:80mm auto;margin:0}*{margin:0;padding:0;box-sizing:border-box}html{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto}body{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;background:#fff;font-family:"Courier New","Consolas","Monaco",monospace;font-size:8.5pt;color:#000;line-height:1.3;word-wrap:break-word}.receipt-inner{padding:2mm 2.5mm 3mm 2.5mm}.rcpt-header{text-align:center;padding:1.5mm 0;border-bottom:1px solid #000;margin-bottom:2mm}.rcpt-name{font-size:10pt;font-weight:900;text-transform:uppercase}.rcpt-addr,.rcpt-phone{font-size:7.5pt;color:#333}.divider{border:none;border-top:1px solid #000;margin:1.5mm 0;height:0}.divider-dash{border:none;border-top:1px dashed #000;margin:1.5mm 0;height:0}.info-line{display:flex;justify-content:space-between;padding:0.4mm 0;font-size:8pt}.info-line span:first-child{color:#444;min-width:30mm}.info-line span:last-child{font-weight:600;text-align:right}.sec-title{text-align:center;font-size:8.5pt;font-weight:900;text-transform:uppercase;padding:1.2mm 0;margin:2mm 0 1mm 0;background:#000;color:#fff}.item-line{display:flex;justify-content:space-between;padding:0.5mm 0;font-size:8pt}.item-name{flex:1}.item-qty{min-width:8mm;text-align:center;color:#555;font-size:7.5pt}.item-amt{min-width:20mm;text-align:right;font-weight:600}.total-line{display:flex;justify-content:space-between;padding:1.2mm 0;margin-top:0.5mm;border-top:1px solid #000;font-size:8.5pt;font-weight:700}.grand-box{margin:2mm 0;padding:1.5mm 0;text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000}.grand-label{font-size:7.5pt;font-weight:700;text-transform:uppercase}.grand-value{font-size:12pt;font-weight:900}.status-line{text-align:center;margin:2mm 0;font-size:9pt;font-weight:900;text-transform:uppercase}.rcpt-footer{text-align:center;margin-top:2mm;padding-top:1.5mm;border-top:1px dashed #000;font-size:7pt;color:#444;line-height:1.5}.rcpt-thanks{font-size:7.5pt;font-weight:700;text-transform:uppercase}.rcpt-dev{margin-top:1.5mm;font-size:7.5pt;font-weight:900}.rcpt-time{text-align:center;font-size:6.5pt;color:#999;margin-top:1.5mm;padding-top:1mm;border-top:1px dotted #ccc}@media print{html,body{width:80mm!important;max-width:80mm!important;min-width:80mm!important}.sec-title{background:#000!important;color:#fff!important}}@media screen{html{background:#e0e0e0;margin:10px auto}body{box-shadow:0 2px 12px rgba(0,0,0,0.2);margin:10px auto}}</style></head><body><div class="receipt-inner"><div class="rcpt-header"><div class="rcpt-name">' +
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:80mm auto;margin:0}*{margin:0;padding:0;box-sizing:border-box}html{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto}body{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;background:#fff;font-family:"Courier New","Consolas","Monaco",monospace;font-size:8.5pt;color:#000;line-height:1.3;word-wrap:break-word}.receipt-inner{padding:2mm 2.5mm 3mm 2.5mm}.rcpt-header{text-align:center;padding:1.5mm 0;border-bottom:1px solid #000;margin-bottom:2mm}.rcpt-name{font-size:10pt;font-weight:900;text-transform:uppercase}.rcpt-addr,.rcpt-phone{font-size:9.5pt;color:#333}.divider{border:none;border-top:1px solid #000;margin:1.5mm 0;height:0}.divider-dash{border:none;border-top:1px dashed #000;margin:1.5mm 0;height:0}.info-line{display:flex;justify-content:space-between;padding:0.4mm 0;font-size:8pt}.info-line span:first-child{color:#444;min-width:30mm}.info-line span:last-child{font-weight:600;text-align:right}.sec-title{text-align:center;font-size:8.5pt;font-weight:900;text-transform:uppercase;padding:1.2mm 0;margin:2mm 0 1mm 0;background:#000;color:#fff}.item-line{display:flex;justify-content:space-between;padding:0.5mm 0;font-size:8pt}.item-name{flex:1}.item-qty{min-width:8mm;text-align:center;color:#555;font-size:7.5pt}.item-amt{min-width:20mm;text-align:right;font-weight:600}.total-line{display:flex;justify-content:space-between;padding:1.2mm 0;margin-top:0.5mm;border-top:1px solid #000;font-size:8.5pt;font-weight:700}.grand-box{margin:2mm 0;padding:1.5mm 0;text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000}.grand-label{font-size:7.5pt;font-weight:700;text-transform:uppercase}.grand-value{font-size:12pt;font-weight:900}.status-line{text-align:center;margin:2mm 0;font-size:9pt;font-weight:900;text-transform:uppercase}.rcpt-footer{text-align:center;margin-top:2mm;padding-top:1.5mm;border-top:1px dashed #000;font-size:7pt;color:#444;line-height:1.5}.rcpt-thanks{font-size:7.5pt;font-weight:700;text-transform:uppercase}.rcpt-dev{margin-top:1.5mm;font-size:7.5pt;font-weight:900}.rcpt-time{text-align:center;font-size:6.5pt;color:#999;margin-top:1.5mm;padding-top:1mm;border-top:1px dotted #ccc}@media print{html,body{width:80mm!important;max-width:80mm!important;min-width:80mm!important}.sec-title{background:#000!important;color:#fff!important}}@media screen{html{background:#e0e0e0;margin:10px auto}body{box-shadow:0 2px 12px rgba(0,0,0,0.2);margin:10px auto}}</style></head><body><div class="receipt-inner"><div class="rcpt-header"><div class="rcpt-name">' +
     sanitize(businessName).toUpperCase() +
     '</div><div class="rcpt-addr">' +
     sanitize(address) +
@@ -3461,14 +3694,14 @@ function renderExpenses() {
   setText("#totalExpenseAmt", fmtPrice(getTotalExpenses()));
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  var fl = STATE.expenses.sort(function(a, b) {
+  var fl = STATE.expenses.sort(function (a, b) {
     return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
   });
-  
+
   // Update expense count badge
   var countBadge = qs("#expenseCountBadge");
   if (countBadge) countBadge.textContent = fl.length;
-  
+
   var tb = qs("#expenseTableBody");
   if (tb)
     tb.innerHTML = fl.length
@@ -3970,7 +4203,13 @@ function importFile() {
         var d;
         if (fmt === "json") {
           d = JSON.parse(ev.target.result);
-          if (!Array.isArray(d)) d = d.inventory || [];
+          // For "all" import, keep the full object
+          if (m === "all") {
+            previewImport(m, d);
+            return;
+          }
+          // For specific modules, extract the array
+          if (!Array.isArray(d)) d = d[m] || d.inventory || [];
         } else {
           var lines = ev.target.result.split("\n").filter(function (l) {
             return l.trim();
@@ -4031,6 +4270,85 @@ function confirmImport() {
   if (!STATE.pendingImport) return;
   var m = STATE.pendingImport.module,
     d = STATE.pendingImport.data;
+
+  // ALL DATA IMPORT
+  if (m === "all") {
+    confirm(
+      "This will replace ALL data. Continue?",
+      function () {
+        if (d.inventory) {
+          STATE.inventory = d.inventory;
+          saveInventory();
+        }
+        if (d.tokens) {
+          STATE.tokens = d.tokens;
+          saveTokens();
+        }
+        if (d.vehicles) {
+          STATE.vehicles = d.vehicles;
+          saveVehicles();
+        }
+        if (d.invoices) {
+          STATE.invoices = d.invoices;
+          saveInvoices();
+        }
+        if (d.expenses) {
+          STATE.expenses = d.expenses;
+          saveExpenses();
+        }
+        if (d.reminders) {
+          STATE.reminders = d.reminders;
+          saveReminders();
+        }
+        if (d.productSales) {
+          STATE.productSales = d.productSales;
+          saveProductSales();
+        }
+        if (d.pricingMatrix) {
+          STATE.pricingMatrix = d.pricingMatrix;
+          savePricingMatrix();
+        }
+        if (d.brands) {
+          STATE.brands = d.brands;
+          saveBrands();
+        }
+        if (d.categories) {
+          STATE.categories = d.categories;
+          saveCategories();
+        }
+        if (d.pricingVehicles) {
+          STATE.pricingVehicles = d.pricingVehicles;
+          savePricingVehicles();
+        }
+        if (d.pricingServices) {
+          STATE.pricingServices = d.pricingServices;
+          savePricingServices();
+        }
+        if (d.settings) {
+          STATE.settings = d.settings;
+          saveSettings();
+          updateAllBrandNames();
+        }
+        if (d.counters) {
+          STATE.counters = d.counters;
+          saveCounters();
+        }
+        if (d.businesses) {
+          saveBusinesses(d.businesses);
+        }
+        STATE.pendingImport = null;
+        closeModal("importPreviewModal");
+        toast("All data imported!", "success");
+        setTimeout(function () {
+          location.reload();
+        }, 1000);
+      },
+      "Import All",
+    );
+    return;
+  }
+
+  // INVENTORY
   if (m === "inventory") {
     d.forEach(function (item) {
       var pn = item["Product Type"] || item.productType || "Product";
@@ -4085,6 +4403,8 @@ function confirmImport() {
     });
     saveInventory();
   }
+
+  // TOKENS
   if (m === "tokens") {
     d.forEach(function (item) {
       STATE.tokens.push({
@@ -4106,11 +4426,176 @@ function confirmImport() {
     });
     saveTokens();
   }
+
+  // VEHICLES
+  if (m === "vehicles") {
+    d.forEach(function (item) {
+      STATE.vehicles.push({
+        id: uid(),
+        vehicleNo: item["Vehicle No"] || item.vehicleNo || "",
+        owner: item["Owner"] || item.owner || "",
+        contact: item["Contact"] || item.contact || "",
+        type: item["Type"] || item.type || "Car",
+        notes: "",
+        visits: parseInt(item["Visits"] || item.visits || 0),
+        lastService: item["Last Service"] || item.lastService || "—",
+      });
+    });
+    saveVehicles();
+  }
+
+  // INVOICES
+  if (m === "invoices") {
+    d.forEach(function (item) {
+      STATE.invoices.push({
+        id: uid(),
+        number: item["Invoice #"] || item.number || "INV-001",
+        date: item["Date"] || item.date || fmtDate(),
+        time: item["Time"] || item.time || fmtTime(),
+        token: item["Token"] || item.token || "",
+        vehicle: item["Vehicle"] || item.vehicle || "",
+        customer: item["Customer"] || item.customer || "",
+        contactNumber: item["Contact"] || item.contactNumber || "",
+        items: item.items || [],
+        subtotal: parseFloat(item["Subtotal"] || item.subtotal || 0),
+        tax: parseFloat(item["Tax"] || item.tax || 0),
+        total: parseFloat(item["Total"] || item.total || 0),
+        cashReceived: parseFloat(
+          item["Cash Received"] || item.cashReceived || 0,
+        ),
+        changeReturned: parseFloat(item["Change"] || item.changeReturned || 0),
+        status: item["Status"] || item.status || "UNPAID",
+        businessPrefix: item["Business Prefix"] || item.businessPrefix || "",
+        businessId: item["Business Id"] || item.businessId || "",
+        businessName: item["Business Name"] || item.businessName || "",
+      });
+    });
+    saveInvoices();
+  }
+
+  // EXPENSES
+  if (m === "expenses") {
+    d.forEach(function (item) {
+      STATE.expenses.push({
+        id: uid(),
+        title: item["Title"] || item.title || "",
+        category: item["Category"] || item.category || "other",
+        amount: parseFloat(item["Amount"] || item.amount || 0),
+        date: item["Date"] || item.date || fmtDate(),
+        time: item["Time"] || item.time || fmtTime(),
+      });
+    });
+    saveExpenses();
+  }
+
+  // REMINDERS
+  if (m === "reminders") {
+    d.forEach(function (item) {
+      STATE.reminders.push({
+        id: uid(),
+        tokenId: item["Token ID"] || item.tokenId || "",
+        customerName: item["Customer"] || item.customerName || "",
+        phone: item["Phone"] || item.phone || "",
+        vehicleNo: item["Vehicle"] || item.vehicleNo || "",
+        vehicleType: item["Vehicle Type"] || item.vehicleType || "",
+        service: item["Service"] || item.service || "",
+        serviceDate: item["Service Date"] || item.serviceDate || "",
+        dueDate: item["Due Date"] || item.dueDate || "",
+        reminderDays: parseInt(item["Days"] || item.reminderDays || 30),
+        status: item["Status"] || item.status || "upcoming",
+      });
+    });
+    saveReminders();
+  }
+
+  // PRODUCT SALES
+  if (m === "productSales") {
+    d.forEach(function (item) {
+      STATE.productSales.push({
+        id: uid(),
+        customer: item["Customer"] || item.customer || "",
+        vehicleNo: item["Vehicle"] || item.vehicleNo || "",
+        items: item.items || [],
+        total: parseFloat(item["Total"] || item.total || 0),
+        date: item["Date"] || item.date || fmtDate(),
+        time: item["Time"] || item.time || fmtTime(),
+      });
+    });
+    saveProductSales();
+  }
+
+  // PRICING MATRIX
+  if (m === "pricingMatrix") {
+    if (Array.isArray(d)) {
+      d.forEach(function (item) {
+        if (item.key && item.price) STATE.pricingMatrix[item.key] = item.price;
+      });
+    } else {
+      Object.assign(STATE.pricingMatrix, d);
+    }
+    savePricingMatrix();
+  }
+
+  // BRANDS
+  if (m === "brands") {
+    d.forEach(function (item) {
+      STATE.brands.push({
+        id: uid(),
+        name: item["Name"] || item.name || "Brand",
+      });
+    });
+    saveBrands();
+  }
+
+  // CATEGORIES
+  if (m === "categories") {
+    d.forEach(function (item) {
+      STATE.categories.push({
+        id: item.id || uid(),
+        name: item["Name"] || item.name || "Category",
+      });
+    });
+    saveCategories();
+  }
+
+  // SERVICES (Vehicle Types & Services)
+  if (m === "services") {
+    if (d.pricingVehicles) {
+      STATE.pricingVehicles = d.pricingVehicles;
+      savePricingVehicles();
+    }
+    if (d.pricingServices) {
+      STATE.pricingServices = d.pricingServices;
+      savePricingServices();
+    }
+    if (d.pricingMatrix) {
+      Object.assign(STATE.pricingMatrix, d.pricingMatrix);
+      savePricingMatrix();
+    }
+  }
+
+  // SETTINGS
+  if (m === "settings") {
+    if (d.businessName) STATE.settings.businessName = d.businessName;
+    if (d.address) STATE.settings.address = d.address;
+    if (d.phone) STATE.settings.phone = d.phone;
+    if (d.email) STATE.settings.email = d.email;
+    if (d.invoicePrefix) STATE.settings.invoicePrefix = d.invoicePrefix;
+    if (d.taxRate !== undefined) STATE.settings.taxRate = d.taxRate;
+    saveSettings();
+    updateAllBrandNames();
+  }
+
   STATE.pendingImport = null;
   closeModal("importPreviewModal");
   toast(d.length + " records imported!", "success");
   renderInventoryTable();
   renderTokenTable();
+  renderSavedInvoices();
+  renderVehicleTable();
+  renderExpenses();
+  renderReminderTable();
+  renderPricingMatrix();
   refreshDashboard();
 }
 
@@ -4162,6 +4647,8 @@ function initSettings() {
         Object.values(KEYS).forEach(function (k) {
           localStorage.removeItem(k);
         });
+        sessionStorage.removeItem("servicepro_logged_in");
+        sessionStorage.removeItem("servicepro_last_activity");
         setTimeout(function () {
           location.reload();
         }, 1500);
@@ -4180,8 +4667,38 @@ function loadSettingsForm() {
   setValue("#settingTaxRate", s.taxRate);
 }
 
+// ==================== FORCE UPDATE BUSINESS NAMES ====================
+(function () {
+  var biz = JSON.parse(localStorage.getItem("servicepro_businesses"));
+  if (biz) {
+    var updated = false;
+    for (var i = 0; i < biz.length; i++) {
+      if (
+        biz[i].id === "wheelworks" &&
+        biz[i].name.indexOf("Metabuilt") === -1
+      ) {
+        biz[i].name = "Wheel Works. Service station";
+        updated = true;
+      }
+      if (
+        biz[i].id === "metabuilt" &&
+        biz[i].name.indexOf("Solutions") === -1
+      ) {
+        biz[i].name = "Metabuilt Solutions: workshop";
+        updated = true;
+      }
+    }
+    if (updated) {
+      localStorage.setItem("servicepro_businesses", JSON.stringify(biz));
+    }
+  }
+})();
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {
   setLoginBrandName();
-  initLogin();
+
+  // Check if already logged in (skip login on refresh)
+  if (!checkLoginSession()) {
+    initLogin();
+  }
 });

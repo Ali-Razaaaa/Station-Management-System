@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Wheel Works Service Station</title>
+    <title>Wheel Works Service Station & Metabuit Solutions</title>
     <link rel="stylesheet" href="styles.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
@@ -19,7 +19,7 @@
       <div class="login-brand-panel">
         <div class="login-brand-inner">
           <div class="login-logo">
-            <span class="material-icons">local_gas_station</span>
+            <img src="icoon/image.png" alt="Logo" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
           </div>
           <h1 class="login-brand-name" id="loginBrandName"></h1>
           <p class="login-brand-tagline">Station Management System</p>
@@ -101,9 +101,9 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
           <div class="sidebar-logo">
-            <span class="material-icons">local_gas_station</span
-            ><span class="sidebar-brand"></span>
-          </div>
+  <img src="icoon/image.png" alt="Logo" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
+  <span class="sidebar-brand"></span>
+</div>
           <button
             class="sidebar-collapse-btn"
             id="sidebarToggle"
@@ -1521,14 +1521,23 @@
                     Import data from JSON, CSV, or Excel files.
                   </p>
                   <div class="form-group">
-                    <label class="form-label">Import Module</label
-                    ><select class="form-input" id="importModule">
-                      <option value="inventory">Inventory</option>
-                      <option value="tokens">Tokens</option>
-                      <option value="vehicles">Vehicles</option>
-                      <option value="pricingMatrix">Pricing Matrix</option>
-                    </select>
-                  </div>
+  <label class="form-label">Import Module</label>
+  <select class="form-input" id="importModule">
+    <option value="all">All Data (Full Restore)</option>
+    <option value="inventory">Inventory</option>
+    <option value="tokens">Tokens</option>
+    <option value="vehicles">Vehicles</option>
+    <option value="invoices">Invoices</option>
+    <option value="expenses">Expenses</option>
+    <option value="reminders">Reminders</option>
+    <option value="productSales">Product Sales</option>
+    <option value="pricingMatrix">Pricing Matrix</option>
+    <option value="brands">Brands</option>
+    <option value="categories">Categories</option>
+    <option value="services">Services (Vehicle Types & Services)</option>
+    <option value="settings">Settings</option>
+  </select>
+</div>
                   <div class="form-group">
                     <label class="form-label">File Format</label
                     ><select class="form-input" id="importFormat">
