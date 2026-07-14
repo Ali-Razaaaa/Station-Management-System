@@ -2740,63 +2740,44 @@ function printSavedReceipt(id) {
   }, 400);
 }
 function printThermalReceipt() {
-  console.log("=== printThermalReceipt CALLED ===");
-  console.log("electronAPI:", window.electronAPI);
-  
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
-    invToken = (qs("#invToken")?.textContent || "").trim(),
-    invVehicle = (qs("#invVehicle")?.textContent || "").trim(),
-    invCustomer = (qs("#invCustomer")?.textContent || "").trim(),
-    invContact = qs("#invCustomer")?.dataset?.contact || "";
+    invCustomer = (qs("#invCustomer")?.textContent || "").trim();
   var biz = getCurrentBusiness();
   var businessName = qs("#invBusinessName")?.textContent || biz.name || "Service Station",
     address = biz.address || STATE.settings.address || "Main Road, City",
     phone = biz.phone || STATE.settings.phone || "0300-0000000";
   var items = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function(r) {
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function (r) {
     var s = r.querySelector(".invoice-svc-select"),
       nm = s?.options[s.selectedIndex]?.text || "",
       pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
       qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt, type: "service" });
+    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt });
   });
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function(r) {
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function (r) {
     var s = r.querySelector(".invoice-prd-select"),
       nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
       pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
       qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-    if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
+    if (nm) items.push({ name: nm, price: pr, qty: qt });
   });
-  var svcTotal = 0, prdTotal = 0;
-  items.forEach(function(i) { var am = i.price * i.qty; if (i.type === "service") svcTotal += am; else prdTotal += am; });
-  var grandTotal = svcTotal + prdTotal,
-    cashReceived = parseFloat(qs("#cashReceived")?.value) || 0,
+  var grandTotal = items.reduce(function (t, i) { return t + i.price * i.qty; }, 0);
+  var cashReceived = parseFloat(qs("#cashReceived")?.value) || 0,
     paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
-  var now = new Date(),
-    printTime = now.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true }),
-    printDate = fmtDate(now);
-  var fmtRs = function(n) { return "Rs. " + (Number(n) || 0).toLocaleString("en-PK"); };
-  
-  var itemsHTML = "";
-  items.forEach(function(i) {
-    itemsHTML += '<tr><td>'+sanitize(i.name)+'</td><td>x'+i.qty+'</td><td align="right">'+fmtRs(i.price*i.qty)+'</td></tr>';
-  });
-  
-  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}@media print{body{width:80mm}}.hed{text-align:center;border-bottom:1px solid #000;padding-bottom:1mm}.ttl{font-size:10pt;font-weight:bold}.row{display:flex;justify-content:space-between}.tot{border-top:1px solid #000;border-bottom:1px solid #000;text-align:center;padding:1mm;font-weight:bold;font-size:10pt}.ftr{text-align:center;font-size:7pt;margin-top:2mm}</style></head><body><div class="hed"><div class="ttl">'+sanitize(businessName)+'</div><div>'+sanitize(address)+'</div><div>Tel: '+sanitize(phone)+'</div></div><div class="row"><span>Receipt:</span><b>'+sanitize(invNumber)+'</b></div><div class="row"><span>Date:</span><span>'+sanitize(invDate)+' '+sanitize(printTime)+'</span></div><div class="row"><span>Customer:</span><b>'+sanitize(invCustomer)+'</b></div><table width="100%">'+itemsHTML+'</table><div class="tot">Grand Total: '+fmtRs(grandTotal)+'</div><div style="text-align:center;font-weight:bold">*** '+paymentStatus+' ***</div><div class="ftr">Thank You!<br>DESIGN ORBITS<br>03225267908</div></body></html>';
+  var printTime = new Date().toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true });
+  var fmtRs = function (n) { return "Rs. " + (Number(n) || 0).toLocaleString("en-PK"); };
 
-  console.log("HTML length:", h.length);
-  
-  // ✅ IPC CALL - NO window.open()
+  var itemsHTML = items.map(function (i) {
+    return '<tr><td>' + sanitize(i.name) + '</td><td>x' + i.qty + '</td><td align="right">' + fmtRs(i.price * i.qty) + '</td></tr>';
+  }).join("");
+
+  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}.hed{text-align:center;border-bottom:1px solid #000;padding-bottom:1mm}.ttl{font-size:10pt;font-weight:bold}.row{display:flex;justify-content:space-between}.tot{border-top:1px solid #000;border-bottom:1px solid #000;text-align:center;padding:1mm;font-weight:bold;font-size:10pt}.ftr{text-align:center;font-size:7pt;margin-top:2mm}</style></head><body><div class="hed"><div class="ttl">' + sanitize(businessName) + '</div><div>' + sanitize(address) + '</div><div>Tel: ' + sanitize(phone) + '</div></div><div class="row"><span>Receipt:</span><b>' + sanitize(invNumber) + '</b></div><div class="row"><span>Date:</span><span>' + sanitize(invDate) + ' ' + sanitize(printTime) + '</span></div><div class="row"><span>Customer:</span><b>' + sanitize(invCustomer) + '</b></div><table width="100%">' + itemsHTML + '</table><div class="tot">Grand Total: ' + fmtRs(grandTotal) + '</div><div style="text-align:center;font-weight:bold">*** ' + paymentStatus + ' ***</div><div class="ftr">Thank You!<br>DESIGN ORBITS<br>03225267908</div></body></html>';
+
   if (window.electronAPI && window.electronAPI.printReceipt) {
-    console.log("IPC print...");
     window.electronAPI.printReceipt(h);
   } else {
-    console.log("Fallback print...");
-    var w = window.open("", "_blank");
-    w.document.write(h);
-    w.document.close();
-    setTimeout(function() { w.print(); }, 500);
+    toast("Printing unavailable — restart the app", "error");
   }
 }
 // ==================== PRODUCT SALE ====================
