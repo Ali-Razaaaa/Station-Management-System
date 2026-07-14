@@ -1,6 +1,6 @@
 {
   "name": "service-station",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Vehicle Service Station Management System with Token Management, Inventory Tracking, Service Records, Expense Management and Analytics Dashboard.",
   "main": "main.js",
   "scripts": {
