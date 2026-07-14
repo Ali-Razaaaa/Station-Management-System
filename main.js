@@ -2,8 +2,9 @@ const { app, BrowserWindow, dialog } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 
-// Enable print preview support in Electron
+// ========== ENABLE PRINT PREVIEW SUPPORT ==========
 app.commandLine.appendSwitch('enable-print-preview');
+app.commandLine.appendSwitch('enable-features', 'PrintPreview');
 
 let win;
 
@@ -19,23 +20,41 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            plugins: true  // Required for print functionality
+            plugins: true,
+            webSecurity: false  // Allow cross-origin printing
         }
     });
 
     win.loadFile("index.html");
 
-    // Handle external navigation attempts
+    // Handle navigation
     win.webContents.on('will-navigate', (event, url) => {
+        event.preventDefault();
+    });
+    
+    // ✅ ENABLE PRINT FOR THIS WINDOW
+    win.webContents.on('will-frame-navigate', (event, url) => {
         event.preventDefault();
     });
 }
 
-// Enable print background for all windows
+// ========== ENABLE PRINT FOR ALL WINDOWS ==========
 app.on('browser-window-created', (event, win) => {
     win.webContents.on('will-preferences', (event, preferences) => {
         preferences.printBackground = true;
     });
+    
+    // Allow window.print() to work
+    win.webContents.session.setPermissionRequestHandler(
+        (webContents, permission, callback) => {
+            const allowedPermissions = ['media', 'notifications', 'midiSysex'];
+            if (allowedPermissions.includes(permission)) {
+                callback(true);
+            } else {
+                callback(false);
+            }
+        }
+    );
 });
 
 app.whenReady().then(() => {
@@ -44,8 +63,7 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdates();
 });
 
-// ---------- AUTO UPDATE EVENTS ----------
-
+// ========== AUTO UPDATE EVENTS ==========
 autoUpdater.on("checking-for-update", () => {
     console.log("Checking for update...");
 });
@@ -82,8 +100,7 @@ autoUpdater.on("error", (err) => {
     console.error("Auto-updater error:", err);
 });
 
-// ---------- APP EVENTS ----------
-
+// ========== APP EVENTS ==========
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();

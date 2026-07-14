@@ -2894,109 +2894,38 @@ function printThermalReceipt() {
     sanitize(printTime) +
     "</div></div></body></html>";
 
-  // ==================== PRINT EXECUTION ====================
+  // ==================== SIMPLE DIRECT PRINT ====================
+  // Ye method Browser aur Electron DONO mein kaam karta hai
   
-  var of = document.getElementById("thermalPrintFrame");
-  if (of) of.remove();
-
-  // Check if running in Electron
-  var isElectron = !!(window.process && window.process.type === 'renderer');
-
-  if (isElectron) {
-    // ELECTRON METHOD: Open in popup window for printing
-    var printWindow = window.open(
-      "",
-      "_blank",
-      "width=320,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
-    );
-    if (printWindow) {
-      printWindow.document.write(h);
-      printWindow.document.close();
-      printWindow.focus();
-      
-      // Wait for content to fully render then print
-      printWindow.onload = function() {
-        setTimeout(function () {
-          printWindow.print();
-          // Close window after print dialog closes
-          printWindow.onafterprint = function() {
-            setTimeout(function () {
-              printWindow.close();
-            }, 300);
-          };
-        }, 500);
-      };
-      
-      // Fallback if onload doesn't fire
-      setTimeout(function () {
-        try {
-          if (!printWindow.closed && printWindow.document.readyState === 'complete') {
-            printWindow.print();
-          }
-        } catch(e) {}
-      }, 800);
-    } else {
-      // If popup blocked, try iframe fallback
-      toast("Popup blocked! Using fallback method...", "warning");
-      fallbackIframePrint(h);
-    }
-  } else {
-    // BROWSER METHOD: Use iframe
-    fallbackIframePrint(h);
-  }
-
-  function fallbackIframePrint(htmlContent) {
-    var ifr = document.createElement("iframe");
-    ifr.id = "thermalPrintFrame";
-    ifr.style.cssText =
-      "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
-    document.body.appendChild(ifr);
+  var printWindow = window.open("", "_blank", "width=320,height=700");
+  
+  if (printWindow) {
+    printWindow.document.write(h);
+    printWindow.document.close();
     
-    try {
-      ifr.contentDocument.open();
-      ifr.contentDocument.write(htmlContent);
-      ifr.contentDocument.close();
-    } catch(e) {
-      toast("Print error: " + e.message, "error");
-      ifr.remove();
-      return;
-    }
-    
-    ifr.onload = function () {
-      setTimeout(function () {
-        try {
-          ifr.contentWindow.focus();
-          ifr.contentWindow.print();
-        } catch (e) {
-          // Last resort: window.open
-          var pw = window.open("", "_blank");
-          if (pw) {
-            pw.document.write(htmlContent);
-            pw.document.close();
-            setTimeout(function () {
-              pw.print();
-              setTimeout(function() {
-                pw.close();
-              }, 500);
-            }, 300);
-          } else {
-            toast("Unable to print. Please allow popups.", "error");
-          }
-        }
-      }, 250);
+    // Print after content loads
+    printWindow.onload = function() {
+      setTimeout(function() {
+        printWindow.print();
+      }, 300);
     };
     
-    window.addEventListener(
-      "afterprint",
-      function cleanup() {
-        setTimeout(function () {
-          var f = document.getElementById("thermalPrintFrame");
-          if (f) f.remove();
-          window.removeEventListener("afterprint", cleanup);
-        }, 500);
-      },
-      { once: true }
-    );
+    // Auto-close after print
+    printWindow.onafterprint = function() {
+      printWindow.close();
+    };
+    
+    // Fallback: if onload doesn't fire
+    setTimeout(function() {
+      try {
+        if (printWindow && !printWindow.closed) {
+          printWindow.print();
+        }
+      } catch(e) {}
+    }, 1000);
+    
+  } else {
+    toast("Popup blocked! Please allow popups for printing.", "error");
   }
 }
 
