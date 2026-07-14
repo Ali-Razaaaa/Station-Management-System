@@ -2738,7 +2738,8 @@ function printSavedReceipt(id) {
   setTimeout(function () {
     printThermalReceipt();
   }, 400);
-}function printThermalReceipt() {
+}
+function printThermalReceipt() {
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
     invCustomer = (qs("#invCustomer")?.textContent || "").trim();

@@ -68,7 +68,6 @@ ipcMain.handle("print-receipt", async (event, htmlContent) => {
       resolve(result);
     };
 
-    // Safety timeout in case print dialog / callback never fires
     const safetyTimer = setTimeout(() => {
       finish({ success: false, reason: "timeout" });
     }, 30000);
@@ -78,7 +77,6 @@ ipcMain.handle("print-receipt", async (event, htmlContent) => {
         {
           silent: false,
           printBackground: true,
-          margins: { marginType: "none" },
         },
         (success, failureReason) => {
           clearTimeout(safetyTimer);
