@@ -2760,7 +2760,7 @@ function printThermalReceipt() {
         qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
       if (nm && nm !== "Select...")
         items.push({ name: nm, price: pr, qty: qt, type: "service" });
-    }
+    },
   );
   qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
     function (r) {
@@ -2769,7 +2769,7 @@ function printThermalReceipt() {
         pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
         qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
       if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
-    }
+    },
   );
   var svcTotal = 0,
     prdTotal = 0;
@@ -2894,33 +2894,32 @@ function printThermalReceipt() {
     sanitize(printTime) +
     "</div></div></body></html>";
 
-  // ==================== DIRECT BLOB PRINT (NO POPUP) ====================
-  // Best method - Electron + Browser dono mein perfect kaam karta hai
-  
-  var blob = new Blob([h], { type: 'text/html' });
-  var blobUrl = URL.createObjectURL(blob);
-  
-  var printWindow = window.open(blobUrl, "_blank", "width=320,height=700");
-  
-  if (printWindow) {
-    printWindow.onload = function() {
-      // Wait extra time for Electron to fully load
-      setTimeout(function() {
-        printWindow.print();
-        // DON'T auto-close - user khud close karega
-      }, 800);
-    };
+  // ==================== ELECTRON NATIVE PRINT ====================
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    // Desktop app: use Electron's native print, no popup window
+    window.electronAPI.printReceipt(h).then(function (success) {
+      if (success) toast("Receipt sent to printer", "success");
+    });
   } else {
-    // Agar popup block ho - direct iframe
+    // Fallback for plain browser (non-Electron) use
+    var of = document.getElementById("thermalPrintFrame");
+    if (of) of.remove();
     var ifr = document.createElement("iframe");
-    ifr.style.cssText = "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;";
-    ifr.src = blobUrl;
-    ifr.onload = function() {
-      setTimeout(function() {
-        ifr.contentWindow.print();
-      }, 500);
-    };
+    ifr.id = "thermalPrintFrame";
+    ifr.style.cssText =
+      "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
     document.body.appendChild(ifr);
+    ifr.contentDocument.open();
+    ifr.contentDocument.write(h);
+    ifr.contentDocument.close();
+    ifr.onload = function () {
+      setTimeout(function () {
+        try {
+          ifr.contentWindow.focus();
+          ifr.contentWindow.print();
+        } catch (e) {}
+      }, 250);
+    };
   }
 }
 

@@ -1,15 +1,18 @@
-const { app, BrowserWindow, dialog } = require("electron");
-const { autoUpdater } = require("electron-updater");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const path = require("path");
 
-// ========== ENABLE PRINT PREVIEW SUPPORT ==========
+let autoUpdater = null;
+try {
+    const { autoUpdater: updater } = require("electron-updater");
+    autoUpdater = updater;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+} catch(e) {
+    console.log("Auto-updater not available:", e.message);
+}
+
 app.commandLine.appendSwitch('enable-print-preview');
-app.commandLine.appendSwitch('enable-features', 'PrintPreview');
-
 let win;
-
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
 
 function createWindow() {
     win = new BrowserWindow({
@@ -21,94 +24,59 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             plugins: true,
-            webSecurity: false  // Allow cross-origin printing
+            webSecurity: false,
+            preload: path.join(__dirname, "preload.js")   // 👈 add this
         }
     });
-
     win.loadFile("index.html");
-
-    // Handle navigation
     win.webContents.on('will-navigate', (event, url) => {
-        event.preventDefault();
-    });
-    
-    // ✅ ENABLE PRINT FOR THIS WINDOW
-    win.webContents.on('will-frame-navigate', (event, url) => {
         event.preventDefault();
     });
 }
 
-// ========== ENABLE PRINT FOR ALL WINDOWS ==========
+// ==================== PRINT HANDLER (NEW) ====================
+ipcMain.handle("print-receipt", async (event, htmlContent) => {
+    return new Promise((resolve) => {
+        const printWin = new BrowserWindow({
+            width: 320,
+            height: 700,
+            show: false,               // stays hidden, no second window visible
+            webPreferences: {
+                contextIsolation: true,
+                nodeIntegration: false
+            }
+        });
+
+        printWin.loadURL(
+            "data:text/html;charset=UTF-8," + encodeURIComponent(htmlContent)
+        );
+
+        printWin.webContents.on("did-finish-load", () => {
+            printWin.webContents.print(
+                {
+                    silent: true,      
+                    printBackground: true,
+                    margins: { marginType: "none" }
+                },
+                (success, errorType) => {
+                    if (!success) console.log("Print failed:", errorType);
+                    printWin.close();
+                    resolve(success);
+                }
+            );
+        });
+    });
+});
+
 app.on('browser-window-created', (event, win) => {
     win.webContents.on('will-preferences', (event, preferences) => {
         preferences.printBackground = true;
     });
-    
-    // Allow window.print() to work
-    win.webContents.session.setPermissionRequestHandler(
-        (webContents, permission, callback) => {
-            const allowedPermissions = ['media', 'notifications', 'midiSysex'];
-            if (allowedPermissions.includes(permission)) {
-                callback(true);
-            } else {
-                callback(false);
-            }
-        }
-    );
 });
 
 app.whenReady().then(() => {
     createWindow();
-    console.log("Checking for updates...");
-    autoUpdater.checkForUpdates();
-});
-
-// ========== AUTO UPDATE EVENTS ==========
-autoUpdater.on("checking-for-update", () => {
-    console.log("Checking for update...");
-});
-
-autoUpdater.on("update-available", (info) => {
-    console.log("Update Available:", info.version);
-    dialog.showMessageBox(win, {
-        type: "info",
-        title: "Update Available",
-        message: `Version ${info.version} is available.\nDownloading...`
-    });
-});
-
-autoUpdater.on("update-not-available", () => {
-    console.log("No updates found.");
-});
-
-autoUpdater.on("download-progress", (progress) => {
-    console.log(`Downloading ${progress.percent.toFixed(1)}%`);
-});
-
-autoUpdater.on("update-downloaded", () => {
-    dialog.showMessageBox(win, {
-        type: "info",
-        title: "Update Ready",
-        message: "Update downloaded.\nRestart now?",
-        buttons: ["Restart"]
-    }).then(() => {
-        autoUpdater.quitAndInstall();
-    });
-});
-
-autoUpdater.on("error", (err) => {
-    console.error("Auto-updater error:", err);
-});
-
-// ========== APP EVENTS ==========
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+    if (autoUpdater) {
+        try { autoUpdater.checkForUpdates(); } catch(e) {}
     }
 });
