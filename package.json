@@ -1,13 +1,13 @@
 {
   "name": "service-station",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Vehicle Service Station Management System with Token Management, Inventory Tracking, Service Records, Expense Management and Analytics Dashboard.",
   "main": "main.js",
- "scripts": {
-  "start": "electron .",
-  "build": "electron-builder",
-  "release": "electron-builder --publish always"
-},
+  "scripts": {
+    "start": "electron . --enable-features=PrintPreview",
+    "build": "electron-builder",
+    "release": "electron-builder --publish always"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ali-Razaaaa/Station-Management-System.git"
@@ -46,12 +46,12 @@
       "shortcutName": "Service Station"
     },
     "publish": [
-  {
-    "provider": "github",
-    "owner": "Ali-Razaaaa",
-    "repo": "Station-Management-System"
-  }
-]
+      {
+        "provider": "github",
+        "owner": "Ali-Razaaaa",
+        "repo": "Station-Management-System"
+      }
+    ]
   },
   "dependencies": {
     "electron-updater": "^6.8.9"

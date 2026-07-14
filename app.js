@@ -2893,45 +2893,111 @@ function printThermalReceipt() {
     " " +
     sanitize(printTime) +
     "</div></div></body></html>";
+
+  // ==================== PRINT EXECUTION ====================
+  
   var of = document.getElementById("thermalPrintFrame");
   if (of) of.remove();
-  var ifr = document.createElement("iframe");
-  ifr.id = "thermalPrintFrame";
-  ifr.style.cssText =
-    "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
-  document.body.appendChild(ifr);
-  ifr.contentDocument.open();
-  ifr.contentDocument.write(h);
-  ifr.contentDocument.close();
-  ifr.onload = function () {
-    setTimeout(function () {
-      try {
-        ifr.contentWindow.focus();
-        ifr.contentWindow.print();
-      } catch (e) {
-        var pw = window.open("", "_blank");
-        if (pw) {
-          pw.document.write(h);
-          pw.document.close();
-          setTimeout(function () {
-            pw.print();
-            pw.close();
-          }, 300);
-        }
-      }
-    }, 250);
-  };
-  window.addEventListener(
-    "afterprint",
-    function c() {
+
+  // Check if running in Electron
+  var isElectron = !!(window.process && window.process.type === 'renderer');
+
+  if (isElectron) {
+    // ELECTRON METHOD: Open in popup window for printing
+    var printWindow = window.open(
+      "",
+      "_blank",
+      "width=320,height=700,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+    );
+    if (printWindow) {
+      printWindow.document.write(h);
+      printWindow.document.close();
+      printWindow.focus();
+      
+      // Wait for content to fully render then print
+      printWindow.onload = function() {
+        setTimeout(function () {
+          printWindow.print();
+          // Close window after print dialog closes
+          printWindow.onafterprint = function() {
+            setTimeout(function () {
+              printWindow.close();
+            }, 300);
+          };
+        }, 500);
+      };
+      
+      // Fallback if onload doesn't fire
       setTimeout(function () {
-        var f = document.getElementById("thermalPrintFrame");
-        if (f) f.remove();
-        window.removeEventListener("afterprint", c);
-      }, 500);
-    },
-    { once: true },
-  );
+        try {
+          if (!printWindow.closed && printWindow.document.readyState === 'complete') {
+            printWindow.print();
+          }
+        } catch(e) {}
+      }, 800);
+    } else {
+      // If popup blocked, try iframe fallback
+      toast("Popup blocked! Using fallback method...", "warning");
+      fallbackIframePrint(h);
+    }
+  } else {
+    // BROWSER METHOD: Use iframe
+    fallbackIframePrint(h);
+  }
+
+  function fallbackIframePrint(htmlContent) {
+    var ifr = document.createElement("iframe");
+    ifr.id = "thermalPrintFrame";
+    ifr.style.cssText =
+      "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
+    document.body.appendChild(ifr);
+    
+    try {
+      ifr.contentDocument.open();
+      ifr.contentDocument.write(htmlContent);
+      ifr.contentDocument.close();
+    } catch(e) {
+      toast("Print error: " + e.message, "error");
+      ifr.remove();
+      return;
+    }
+    
+    ifr.onload = function () {
+      setTimeout(function () {
+        try {
+          ifr.contentWindow.focus();
+          ifr.contentWindow.print();
+        } catch (e) {
+          // Last resort: window.open
+          var pw = window.open("", "_blank");
+          if (pw) {
+            pw.document.write(htmlContent);
+            pw.document.close();
+            setTimeout(function () {
+              pw.print();
+              setTimeout(function() {
+                pw.close();
+              }, 500);
+            }, 300);
+          } else {
+            toast("Unable to print. Please allow popups.", "error");
+          }
+        }
+      }, 250);
+    };
+    
+    window.addEventListener(
+      "afterprint",
+      function cleanup() {
+        setTimeout(function () {
+          var f = document.getElementById("thermalPrintFrame");
+          if (f) f.remove();
+          window.removeEventListener("afterprint", cleanup);
+        }, 500);
+      },
+      { once: true }
+    );
+  }
 }
 
 // ==================== PRODUCT SALE ====================
@@ -2942,6 +3008,18 @@ function initProductSales() {
     "click",
     printLastProductSaleReceipt,
   );
+  
+  // ✅ INITIAL RENDER
+  var tb = qs("#productSalesHistory");
+  if (tb) {
+    renderProductSalesHistoryNow();
+  }
+  
+  // Show print button if sales exist
+  var printBtn = qs("#printProductSaleReceiptBtn");
+  if (printBtn && STATE.productSales && STATE.productSales.length > 0) {
+    printBtn.style.display = "inline-flex";
+  }
 }
 function addSaleProductRow() {
   var c = qs("#saleProductsContainer");
@@ -3023,16 +3101,22 @@ function saveProductSale() {
     if (f) f.variant.stock = Math.max(0, f.variant.stock - i.qty);
   });
   saveInventory();
-  STATE.productSales.push({
+  
+  var saleRecord = {
     id: uid(),
-    customer: cu,
-    vehicleNo: vn,
+    customer: cu || "Walk-in Customer",
+    vehicleNo: vn || "N/A",
     items: items,
     total: t,
     date: fmtDate(),
     time: fmtTime(),
-  });
+  };
+  
+  STATE.productSales.push(saleRecord);
+  
+  // ✅ IMMEDIATELY SAVE TO LOCALSTORAGE
   saveProductSales();
+  
   var biz = getCurrentBusiness();
   var prefix = biz.prefix;
   var counterKey = "invoiceCounter" + prefix;
@@ -3049,7 +3133,7 @@ function saveProductSale() {
     time: fmtTime(),
     token: "",
     vehicle: vn,
-    customer: cu || "Walk-in",
+    customer: cu || "Walk-in Customer",
     contactNumber: "",
     items: invItems,
     subtotal: t,
@@ -3068,12 +3152,77 @@ function saveProductSale() {
   saveInvoices();
   saveCounters();
   refreshDashboard();
-  toast("Sale completed - " + fmtPrice(t), "success");
+  
   qs("#saleProductsContainer").innerHTML = "";
   setValue("#saleCustomerName", "");
   setValue("#saleVehicleNo", "");
   setText("#saleGrandTotal", "Rs. 0");
   addSaleProductRow();
+  
+  var printBtn = qs("#printProductSaleReceiptBtn");
+  if (printBtn) {
+    printBtn.style.display = "inline-flex";
+  }
+  
+  // ✅ FORCE RENDER IMMEDIATELY AFTER SAVE
+  setTimeout(function() {
+    renderProductSalesHistoryNow();
+  }, 100);
+  
+  toast("Sale completed - " + fmtPrice(t), "success");
+}
+function renderProductSalesHistoryNow() {
+  var tb = qs("#productSalesHistory");
+  if (!tb) return;
+  
+  // ✅ RELOAD FROM LOCALSTORAGE FIRST
+  try {
+    var saved = localStorage.getItem(KEYS.productSales);
+    if (saved) {
+      STATE.productSales = JSON.parse(saved);
+    }
+  } catch(e) {}
+  
+  var sales = STATE.productSales || [];
+  
+  if (!sales.length || sales.length === 0) {
+    tb.innerHTML = 
+      '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">' +
+      '<span class="material-icons" style="font-size:40px;display:block;margin-bottom:8px;color:#94a3b8;">shopping_cart</span>' +
+      'No recent sales</td></tr>';
+    return;
+  }
+  
+  var sortedSales = sales.slice().reverse();
+  
+  var html = "";
+  for (var i = 0; i < sortedSales.length; i++) {
+    var sale = sortedSales[i];
+    
+    var itemsList = "";
+    if (sale.items && sale.items.length > 0) {
+      var itemNames = [];
+      for (var j = 0; j < sale.items.length; j++) {
+        var item = sale.items[j];
+        itemNames.push(sanitize(item.fullName || "Product") + " x" + (item.qty || 1));
+      }
+      itemsList = itemNames.join(", ");
+    } else {
+      itemsList = "N/A";
+    }
+    
+    html += '<tr>' +
+      '<td style="white-space:nowrap;font-size:0.8rem;">' + sanitize(sale.date) + 
+      '<br><small style="color:var(--text-muted);">' + sanitize(sale.time || "") + '</small></td>' +
+      '<td style="font-weight:500;">' + sanitize(sale.customer || "Walk-in Customer") + '</td>' +
+      '<td>' + sanitize(sale.vehicleNo || "N/A") + '</td>' +
+      '<td style="font-size:0.75rem;max-width:180px;">' + itemsList + '</td>' +
+      '<td style="font-weight:600;color:var(--success);">' + fmtPrice(sale.total) + '</td>' +
+      '<td><span class="badge badge--blue" style="font-size:0.65rem;">' + sanitize(sale.invoiceNumber || ("INV-" + sale.date.replace(/-/g, ""))) + '</span></td>' +
+      '</tr>';
+  }
+  
+  tb.innerHTML = html;
 }
 function printLastProductSaleReceipt() {
   if (STATE.lastProductSaleInvoiceId)
@@ -3085,6 +3234,74 @@ function renderProductSalePage() {
   setText("#saleGrandTotal", "Rs. 0");
   qs("#saleProductsContainer").innerHTML = "";
   addSaleProductRow();
+  
+  // ✅ RENDER HISTORY IMMEDIATELY
+  var tb = qs("#productSalesHistory");
+  if (tb) {
+    renderProductSalesHistoryNow();
+  }
+  
+  // Show/hide print button
+  var printBtn = qs("#printProductSaleReceiptBtn");
+  if (printBtn) {
+    if (STATE.productSales && STATE.productSales.length > 0) {
+      printBtn.style.display = "inline-flex";
+    } else {
+      printBtn.style.display = "none";
+    }
+  }
+}
+function renderProductSalesHistory() {
+  var tb = qs("#productSalesHistory");
+  if (!tb) return;
+  
+  var sales = STATE.productSales || [];
+  
+  // Sort by most recent first
+  sales.sort(function(a, b) {
+    var dateA = parseDate(a.date) || new Date(0);
+    var dateB = parseDate(b.date) || new Date(0);
+    return dateB - dateA;
+  });
+  
+  if (!sales.length) {
+    tb.innerHTML = 
+      '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted);">' +
+      '<span class="material-icons" style="font-size:40px;display:block;margin-bottom:8px;">shopping_cart</span>' +
+      'No recent sales</td></tr>';
+    return;
+  }
+  
+  tb.innerHTML = sales.map(function(sale) {
+    var itemsList = (sale.items || []).map(function(item) {
+      return sanitize(item.fullName || item.name) + " x" + (item.qty || 1);
+    }).join(", ");
+    
+    var invoiceNumber = "";
+    // Find matching invoice for this sale
+    var matchingInvoice = STATE.invoices.find(function(inv) {
+      return inv.date === sale.date && 
+             inv.time === sale.time && 
+             inv.customer === (sale.customer || "Walk-in Customer");
+    });
+    
+    if (matchingInvoice) {
+      invoiceNumber = matchingInvoice.number;
+    }
+    
+    return '<tr>' +
+      '<td style="white-space:nowrap;">' + sanitize(sale.date) + '<br><small style="color:var(--text-muted);">' + sanitize(sale.time) + '</small></td>' +
+      '<td style="font-weight:500;">' + sanitize(sale.customer || "Walk-in Customer") + '</td>' +
+      '<td>' + sanitize(sale.vehicleNo || "N/A") + '</td>' +
+      '<td style="font-size:0.75rem;max-width:200px;">' + (itemsList || "N/A") + '</td>' +
+      '<td style="font-weight:600;color:var(--success);">' + fmtPrice(sale.total) + '</td>' +
+      '<td>' +
+        (invoiceNumber 
+          ? '<span class="badge badge--blue" style="font-size:0.65rem;">' + sanitize(invoiceNumber) + '</span>'
+          : '<span class="badge badge--gray" style="font-size:0.65rem;">N/A</span>') +
+      '</td>' +
+      '</tr>';
+  }).join("");
 }
 
 // ==================== VEHICLES ====================
@@ -3863,22 +4080,28 @@ function renderPricingMatrix() {
   var thead = document.getElementById("pricingMatrixHead");
   var tbody = document.getElementById("pricingMatrixBody");
   if (!thead || !tbody) return;
+  
   var services = STATE.pricingServices;
   var vehicles = STATE.pricingVehicles;
+  
   setText("#pricingServiceCount", services.length);
   setText("#pricingVehicleCount", vehicles.length);
+  
   var count = 0;
   var keys = Object.keys(STATE.pricingMatrix);
   for (var i = 0; i < keys.length; i++) {
     if (STATE.pricingMatrix[keys[i]] > 0) count++;
   }
   setText("#pricingEntryCount", count);
+  
   if (services.length === 0 || vehicles.length === 0) {
     thead.innerHTML = "<tr><th>Service / Vehicle</th></tr>";
     tbody.innerHTML =
       '<tr><td colspan="5" style="text-align:center;padding:3rem;">Add services and vehicle types to get started</td></tr>';
     return;
   }
+  
+  // Build table header
   var hh = "<tr><th>Service / Vehicle</th>";
   for (var v = 0; v < vehicles.length; v++) {
     hh +=
@@ -3886,6 +4109,8 @@ function renderPricingMatrix() {
   }
   hh += "</tr>";
   thead.innerHTML = hh;
+  
+  // Build table body
   var bh = "";
   for (var s = 0; s < services.length; s++) {
     bh +=
@@ -3895,10 +4120,17 @@ function renderPricingMatrix() {
     for (var v = 0; v < vehicles.length; v++) {
       var key = services[s].name + "__" + vehicles[v].name;
       var price = STATE.pricingMatrix[key] || 0;
+      
+      // ✅ FIX: Added inline onclick with proper function call
       bh +=
-        '<td style="text-align:center;cursor:pointer;padding:10px;" data-mkey="' +
-        key +
-        '"><span style="font-weight:700;color:' +
+        '<td style="text-align:center;cursor:pointer;padding:10px;background:' +
+        (price > 0 ? '#eff6ff' : 'transparent') +
+        ';border-radius:4px;transition:all 0.2s;" ' +
+        'onclick="editPricingCell(\'' + key.replace(/'/g, "\\'") + '\', ' + price + ')" ' +
+        'onmouseover="this.style.background=\'' + (price > 0 ? '#dbeafe' : '#f1f5f9') + '\'" ' +
+        'onmouseout="this.style.background=\'' + (price > 0 ? '#eff6ff' : 'transparent') + '\'" ' +
+        'title="Click to edit price">' +
+        '<span style="font-weight:700;color:' +
         (price > 0 ? "#2563eb" : "#94a3b8") +
         ';">' +
         (price > 0 ? fmtPrice(price) : "—") +
@@ -3907,30 +4139,105 @@ function renderPricingMatrix() {
     bh += "</tr>";
   }
   tbody.innerHTML = bh;
-  var cells = tbody.querySelectorAll("td[data-mkey]");
-  for (var i = 0; i < cells.length; i++) {
-    cells[i].onclick = function () {
-      var key = this.getAttribute("data-mkey");
-      var currentPrice = STATE.pricingMatrix[key] || 0;
-      var newPrice = prompt("Enter price (Rs.):", currentPrice || "");
-      if (newPrice === null) return;
-      var price = parseInt(newPrice.replace(/[^0-9]/g, ""));
-      if (isNaN(price) || price < 0) {
-        toast("Invalid price", "warning");
-        return;
-      }
-      if (price === 0) {
-        delete STATE.pricingMatrix[key];
-      } else {
-        STATE.pricingMatrix[key] = price;
-      }
-      savePricingMatrix();
-      renderPricingMatrix();
-      toast("Price updated", "success");
-    };
-  }
 }
 
+// ✅ NEW: Separate function for editing pricing cell
+function editPricingCell(key, currentPrice) {
+  // Create a custom input dialog instead of prompt
+  var modal = document.createElement("div");
+  modal.style.cssText = 
+    "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;";
+  
+  // Parse service and vehicle names from key
+  var parts = key.split("__");
+  var serviceName = parts[0] || "";
+  var vehicleName = parts[1] || "";
+  
+  modal.innerHTML = 
+    '<div style="background:white;border-radius:16px;padding:24px;width:380px;max-width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">' +
+    '<h3 style="margin:0 0 8px 0;font-size:18px;color:#0f172a;">Edit Price</h3>' +
+    '<p style="margin:0 0 16px 0;font-size:13px;color:#64748b;">' +
+    '<strong>' + sanitize(serviceName) + '</strong> for <strong>' + sanitize(vehicleName) + '</strong></p>' +
+    '<label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Price (Rs.)</label>' +
+    '<input type="number" id="pricingInput" value="' + currentPrice + '" min="0" ' +
+    'style="width:100%;padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;outline:none;box-sizing:border-box;" ' +
+    'autofocus onkeydown="if(event.key===\'Enter\'){document.getElementById(\'pricingSaveBtn\').click();}">' +
+    '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">' +
+    '<button id="pricingCancelBtn" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:white;cursor:pointer;font-size:14px;color:#475569;">Cancel</button>' +
+    '<button id="pricingDeleteBtn" style="padding:8px 16px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;cursor:pointer;font-size:14px;color:#dc2626;' + (currentPrice === 0 ? 'display:none;' : '') + '">Delete</button>' +
+    '<button id="pricingSaveBtn" style="padding:8px 20px;border:none;border-radius:8px;background:#2563eb;cursor:pointer;font-size:14px;color:white;font-weight:600;">Save</button>' +
+    '</div></div>';
+  
+  document.body.appendChild(modal);
+  
+  var input = document.getElementById("pricingInput");
+  
+  // Focus input
+  setTimeout(function() {
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }, 100);
+  
+  // Close on background click
+  modal.addEventListener("click", function(e) {
+    if (e.target === modal) {
+      closePricingModal();
+    }
+  });
+  
+  // Close on Escape key
+  var escHandler = function(e) {
+    if (e.key === "Escape") {
+      closePricingModal();
+    }
+  };
+  document.addEventListener("keydown", escHandler);
+  
+  function closePricingModal() {
+    document.removeEventListener("keydown", escHandler);
+    if (modal && modal.parentNode) {
+      modal.parentNode.removeChild(modal);
+    }
+  }
+  
+  // Cancel button
+  document.getElementById("pricingCancelBtn").addEventListener("click", function() {
+    closePricingModal();
+  });
+  
+  // Delete button
+  document.getElementById("pricingDeleteBtn").addEventListener("click", function() {
+    delete STATE.pricingMatrix[key];
+    savePricingMatrix();
+    renderPricingMatrix();
+    closePricingModal();
+    toast("Price removed", "success");
+  });
+  
+  // Save button
+  document.getElementById("pricingSaveBtn").addEventListener("click", function() {
+    var newPrice = parseInt(input.value.replace(/[^0-9]/g, ""));
+    
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast("Please enter a valid price", "warning");
+      input.focus();
+      return;
+    }
+    
+    if (newPrice === 0) {
+      delete STATE.pricingMatrix[key];
+    } else {
+      STATE.pricingMatrix[key] = newPrice;
+    }
+    
+    savePricingMatrix();
+    renderPricingMatrix();
+    closePricingModal();
+    toast("Price updated: " + fmtPrice(newPrice || 0), "success");
+  });
+}
 // ==================== IMPORT/EXPORT ====================
 function initImportExport() {
   qs("#exportJSONBtn")?.addEventListener("click", function () {
