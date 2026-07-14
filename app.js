@@ -2740,12 +2740,8 @@ function printSavedReceipt(id) {
   }, 400);
 }
 function printThermalReceipt() {
-  // ===== DEBUG LOGS =====
   console.log("=== printThermalReceipt CALLED ===");
-  console.log("electronAPI exists:", !!window.electronAPI);
-  if (window.electronAPI) {
-    console.log("printReceipt exists:", !!window.electronAPI.printReceipt);
-  }
+  console.log("electronAPI:", window.electronAPI);
   
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
@@ -2754,85 +2750,53 @@ function printThermalReceipt() {
     invCustomer = (qs("#invCustomer")?.textContent || "").trim(),
     invContact = qs("#invCustomer")?.dataset?.contact || "";
   var biz = getCurrentBusiness();
-  var businessName =
-      qs("#invBusinessName")?.textContent || biz.name || "Service Station",
+  var businessName = qs("#invBusinessName")?.textContent || biz.name || "Service Station",
     address = biz.address || STATE.settings.address || "Main Road, City",
     phone = biz.phone || STATE.settings.phone || "0300-0000000";
   var items = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
-    function (r) {
-      var s = r.querySelector(".invoice-svc-select"),
-        nm = s?.options[s.selectedIndex]?.text || "",
-        pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
-        qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-      if (nm && nm !== "Select...")
-        items.push({ name: nm, price: pr, qty: qt, type: "service" });
-    }
-  );
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
-    function (r) {
-      var s = r.querySelector(".invoice-prd-select"),
-        nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
-        pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
-        qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-      if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
-    }
-  );
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function(r) {
+    var s = r.querySelector(".invoice-svc-select"),
+      nm = s?.options[s.selectedIndex]?.text || "",
+      pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
+      qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt, type: "service" });
+  });
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function(r) {
+    var s = r.querySelector(".invoice-prd-select"),
+      nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
+      pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
+      qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+    if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
+  });
   var svcTotal = 0, prdTotal = 0;
-  items.forEach(function (i) { var am = i.price * i.qty; if (i.type === "service") svcTotal += am; else prdTotal += am; });
+  items.forEach(function(i) { var am = i.price * i.qty; if (i.type === "service") svcTotal += am; else prdTotal += am; });
   var grandTotal = svcTotal + prdTotal,
     cashReceived = parseFloat(qs("#cashReceived")?.value) || 0,
-    changeReturned = cashReceived > 0 ? cashReceived - grandTotal : 0,
     paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
   var now = new Date(),
     printTime = now.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true }),
     printDate = fmtDate(now);
-  var fmtRs = function (n) { return "Rs. " + (Number(n) || 0).toLocaleString("en-PK"); };
-  var svcHTML = "", prdHTML = "";
-  if (svcTotal > 0) {
-    svcHTML = '<div class="sec-title">SERVICES</div>';
-    items.filter(function(i){return i.type==="service"}).forEach(function(i){
-      svcHTML += '<div class="item-line"><span class="item-name">'+sanitize(i.name)+'</span><span class="item-qty">x'+i.qty+'</span><span class="item-amt">'+fmtRs(i.price*i.qty)+'</span></div>';
-    });
-    svcHTML += '<div class="total-line"><span>Service Total</span><span>'+fmtRs(svcTotal)+'</span></div>';
-  }
-  if (prdTotal > 0) {
-    prdHTML = '<div class="sec-title">PRODUCTS</div>';
-    items.filter(function(i){return i.type==="product"}).forEach(function(i){
-      prdHTML += '<div class="item-line"><span class="item-name">'+sanitize(i.name)+'</span><span class="item-qty">x'+i.qty+'</span><span class="item-amt">'+fmtRs(i.price*i.qty)+'</span></div>';
-    });
-    prdHTML += '<div class="total-line"><span>Product Total</span><span>'+fmtRs(prdTotal)+'</span></div>';
-  }
-  var paymentHTML = "";
-  if (cashReceived > 0) {
-    paymentHTML = '<div class="divider-dash"></div><div class="info-line"><span>Cash Received</span><span>'+fmtRs(cashReceived)+'</span></div><div class="info-line"><span>Change Returned</span><span>'+fmtRs(changeReturned)+'</span></div>';
-  }
-  var contactLine = invContact ? '<div class="info-line"><span>Phone</span><span>'+sanitize(formatContactDisplay(invContact))+'</span></div>' : "";
+  var fmtRs = function(n) { return "Rs. " + (Number(n) || 0).toLocaleString("en-PK"); };
   
-  // Simple receipt HTML
-  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}@media print{body{width:80mm}}</style></head><body><div style="text-align:center;border-bottom:1px solid #000"><h3>'+sanitize(businessName)+'</h3><p>'+sanitize(address)+'</p><p>Tel: '+sanitize(phone)+'</p></div><p><b>Receipt:</b> '+sanitize(invNumber)+'<br><b>Date:</b> '+sanitize(invDate)+' '+sanitize(printTime)+'<br><b>Customer:</b> '+sanitize(invCustomer)+'</p>'+svcHTML+prdHTML+'<div style="text-align:center;border-top:1px solid #000;border-bottom:1px solid #000;padding:2mm"><b>Grand Total: '+fmtRs(grandTotal)+'</b></div>'+paymentHTML+'<p style="text-align:center"><b>*** '+paymentStatus+' ***</b></p><p style="text-align:center;font-size:7pt">Thank You!<br>DESIGN ORBITS<br>03225267908</p></body></html>';
+  var itemsHTML = "";
+  items.forEach(function(i) {
+    itemsHTML += '<tr><td>'+sanitize(i.name)+'</td><td>x'+i.qty+'</td><td align="right">'+fmtRs(i.price*i.qty)+'</td></tr>';
+  });
+  
+  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}@media print{body{width:80mm}}.hed{text-align:center;border-bottom:1px solid #000;padding-bottom:1mm}.ttl{font-size:10pt;font-weight:bold}.row{display:flex;justify-content:space-between}.tot{border-top:1px solid #000;border-bottom:1px solid #000;text-align:center;padding:1mm;font-weight:bold;font-size:10pt}.ftr{text-align:center;font-size:7pt;margin-top:2mm}</style></head><body><div class="hed"><div class="ttl">'+sanitize(businessName)+'</div><div>'+sanitize(address)+'</div><div>Tel: '+sanitize(phone)+'</div></div><div class="row"><span>Receipt:</span><b>'+sanitize(invNumber)+'</b></div><div class="row"><span>Date:</span><span>'+sanitize(invDate)+' '+sanitize(printTime)+'</span></div><div class="row"><span>Customer:</span><b>'+sanitize(invCustomer)+'</b></div><table width="100%">'+itemsHTML+'</table><div class="tot">Grand Total: '+fmtRs(grandTotal)+'</div><div style="text-align:center;font-weight:bold">*** '+paymentStatus+' ***</div><div class="ftr">Thank You!<br>DESIGN ORBITS<br>03225267908</div></body></html>';
 
-  console.log("HTML generated, length:", h.length);
-  console.log("Calling print...");
-
-  // ===== DIRECT PRINT - NO POPUP, NO IFRAME =====
-  var blob = new Blob([h], { type: 'text/html' });
-  var url = URL.createObjectURL(blob);
+  console.log("HTML length:", h.length);
   
-  var printWin = window.open(url, "_blank", "width=320,height=600");
-  
-  if (printWin) {
-    console.log("Print window opened");
-    printWin.onload = function() {
-      console.log("Print window loaded, calling print()");
-      setTimeout(function() {
-        printWin.print();
-        console.log("print() called");
-      }, 500);
-    };
+  // ✅ IPC CALL - NO window.open()
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    console.log("IPC print...");
+    window.electronAPI.printReceipt(h);
   } else {
-    console.log("ERROR: Could not open print window!");
-    toast("Print failed - popup blocked!", "error");
+    console.log("Fallback print...");
+    var w = window.open("", "_blank");
+    w.document.write(h);
+    w.document.close();
+    setTimeout(function() { w.print(); }, 500);
   }
 }
 // ==================== PRODUCT SALE ====================
