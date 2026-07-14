@@ -2740,6 +2740,13 @@ function printSavedReceipt(id) {
   }, 400);
 }
 function printThermalReceipt() {
+  // ===== DEBUG LOGS =====
+  console.log("=== printThermalReceipt CALLED ===");
+  console.log("electronAPI exists:", !!window.electronAPI);
+  if (window.electronAPI) {
+    console.log("printReceipt exists:", !!window.electronAPI.printReceipt);
+  }
+  
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
     invToken = (qs("#invToken")?.textContent || "").trim(),
@@ -2760,7 +2767,7 @@ function printThermalReceipt() {
         qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
       if (nm && nm !== "Select...")
         items.push({ name: nm, price: pr, qty: qt, type: "service" });
-    },
+    }
   );
   qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
     function (r) {
@@ -2769,160 +2776,65 @@ function printThermalReceipt() {
         pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
         qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
       if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
-    },
+    }
   );
-  var svcTotal = 0,
-    prdTotal = 0;
-  items.forEach(function (i) {
-    var am = i.price * i.qty;
-    if (i.type === "service") svcTotal += am;
-    else prdTotal += am;
-  });
+  var svcTotal = 0, prdTotal = 0;
+  items.forEach(function (i) { var am = i.price * i.qty; if (i.type === "service") svcTotal += am; else prdTotal += am; });
   var grandTotal = svcTotal + prdTotal,
     cashReceived = parseFloat(qs("#cashReceived")?.value) || 0,
     changeReturned = cashReceived > 0 ? cashReceived - grandTotal : 0,
-    paymentStatus =
-      cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
+    paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
   var now = new Date(),
-    printTime = now.toLocaleTimeString("en-PK", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }),
+    printTime = now.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true }),
     printDate = fmtDate(now);
-  var fmtRs = function (n) {
-    return "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
-  };
-  var svcHTML = "",
-    prdHTML = "";
+  var fmtRs = function (n) { return "Rs. " + (Number(n) || 0).toLocaleString("en-PK"); };
+  var svcHTML = "", prdHTML = "";
   if (svcTotal > 0) {
     svcHTML = '<div class="sec-title">SERVICES</div>';
-    items
-      .filter(function (i) {
-        return i.type === "service";
-      })
-      .forEach(function (i) {
-        svcHTML +=
-          '<div class="item-line"><span class="item-name">' +
-          sanitize(i.name) +
-          '</span><span class="item-qty">x' +
-          i.qty +
-          '</span><span class="item-amt">' +
-          fmtRs(i.price * i.qty) +
-          "</span></div>";
-      });
-    svcHTML +=
-      '<div class="total-line"><span>Service Total</span><span>' +
-      fmtRs(svcTotal) +
-      "</span></div>";
+    items.filter(function(i){return i.type==="service"}).forEach(function(i){
+      svcHTML += '<div class="item-line"><span class="item-name">'+sanitize(i.name)+'</span><span class="item-qty">x'+i.qty+'</span><span class="item-amt">'+fmtRs(i.price*i.qty)+'</span></div>';
+    });
+    svcHTML += '<div class="total-line"><span>Service Total</span><span>'+fmtRs(svcTotal)+'</span></div>';
   }
   if (prdTotal > 0) {
     prdHTML = '<div class="sec-title">PRODUCTS</div>';
-    items
-      .filter(function (i) {
-        return i.type === "product";
-      })
-      .forEach(function (i) {
-        prdHTML +=
-          '<div class="item-line"><span class="item-name">' +
-          sanitize(i.name) +
-          '</span><span class="item-qty">x' +
-          i.qty +
-          '</span><span class="item-amt">' +
-          fmtRs(i.price * i.qty) +
-          "</span></div>";
-      });
-    prdHTML +=
-      '<div class="total-line"><span>Product Total</span><span>' +
-      fmtRs(prdTotal) +
-      "</span></div>";
+    items.filter(function(i){return i.type==="product"}).forEach(function(i){
+      prdHTML += '<div class="item-line"><span class="item-name">'+sanitize(i.name)+'</span><span class="item-qty">x'+i.qty+'</span><span class="item-amt">'+fmtRs(i.price*i.qty)+'</span></div>';
+    });
+    prdHTML += '<div class="total-line"><span>Product Total</span><span>'+fmtRs(prdTotal)+'</span></div>';
   }
   var paymentHTML = "";
   if (cashReceived > 0) {
-    paymentHTML =
-      '<div class="divider-dash"></div><div class="info-line"><span>Cash Received</span><span>' +
-      fmtRs(cashReceived) +
-      '</span></div><div class="info-line"><span>Change Returned</span><span>' +
-      fmtRs(changeReturned) +
-      "</span></div>";
+    paymentHTML = '<div class="divider-dash"></div><div class="info-line"><span>Cash Received</span><span>'+fmtRs(cashReceived)+'</span></div><div class="info-line"><span>Change Returned</span><span>'+fmtRs(changeReturned)+'</span></div>';
   }
-  var contactLine = invContact
-    ? '<div class="info-line"><span>Phone</span><span>' +
-      sanitize(formatContactDisplay(invContact)) +
-      "</span></div>"
-    : "";
-  var h =
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:80mm auto;margin:0}*{margin:0;padding:0;box-sizing:border-box}html{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto}body{width:80mm;max-width:80mm;min-width:80mm;margin:0 auto;padding:0;background:#fff;font-family:"Courier New","Consolas","Monaco",monospace;font-size:8.5pt;color:#000;line-height:1.3;word-wrap:break-word}.receipt-inner{padding:2mm 2.5mm 3mm 2.5mm}.rcpt-header{text-align:center;padding:1.5mm 0;border-bottom:1px solid #000;margin-bottom:2mm}.rcpt-name{font-size:10pt;font-weight:900;text-transform:uppercase}.rcpt-addr,.rcpt-phone{font-size:9.5pt;color:#333}.divider{border:none;border-top:1px solid #000;margin:1.5mm 0;height:0}.divider-dash{border:none;border-top:1px dashed #000;margin:1.5mm 0;height:0}.info-line{display:flex;justify-content:space-between;padding:0.4mm 0;font-size:8pt}.info-line span:first-child{color:#444;min-width:30mm}.info-line span:last-child{font-weight:600;text-align:right}.sec-title{text-align:center;font-size:8.5pt;font-weight:900;text-transform:uppercase;padding:1.2mm 0;margin:2mm 0 1mm 0;background:#000;color:#fff}.item-line{display:flex;justify-content:space-between;padding:0.5mm 0;font-size:8pt}.item-name{flex:1}.item-qty{min-width:8mm;text-align:center;color:#555;font-size:7.5pt}.item-amt{min-width:20mm;text-align:right;font-weight:600}.total-line{display:flex;justify-content:space-between;padding:1.2mm 0;margin-top:0.5mm;border-top:1px solid #000;font-size:8.5pt;font-weight:700}.grand-box{margin:2mm 0;padding:1.5mm 0;text-align:center;border-top:1.5px solid #000;border-bottom:1.5px solid #000}.grand-label{font-size:7.5pt;font-weight:700;text-transform:uppercase}.grand-value{font-size:12pt;font-weight:900}.status-line{text-align:center;margin:2mm 0;font-size:9pt;font-weight:900;text-transform:uppercase}.rcpt-footer{text-align:center;margin-top:2mm;padding-top:1.5mm;border-top:1px dashed #000;font-size:7pt;color:#444;line-height:1.5}.rcpt-thanks{font-size:7.5pt;font-weight:700;text-transform:uppercase}.rcpt-dev{margin-top:1.5mm;font-size:7.5pt;font-weight:900}.rcpt-time{text-align:center;font-size:6.5pt;color:#999;margin-top:1.5mm;padding-top:1mm;border-top:1px dotted #ccc}@media print{html,body{width:80mm!important;max-width:80mm!important;min-width:80mm!important}.sec-title{background:#000!important;color:#fff!important}}@media screen{html{background:#e0e0e0;margin:10px auto}body{box-shadow:0 2px 12px rgba(0,0,0,0.2);margin:10px auto}}</style></head><body><div class="receipt-inner"><div class="rcpt-header"><div class="rcpt-name">' +
-    sanitize(businessName).toUpperCase() +
-    '</div><div class="rcpt-addr">' +
-    sanitize(address) +
-    '</div><div class="rcpt-phone">Tel: ' +
-    sanitize(phone) +
-    '</div></div><div class="divider"></div><div class="info-line"><span>Receipt #</span><span>' +
-    sanitize(invNumber) +
-    '</span></div><div class="info-line"><span>Date / Time</span><span>' +
-    sanitize(invDate) +
-    " " +
-    sanitize(printTime) +
-    "</span></div>" +
-    (invToken && invToken !== "—"
-      ? '<div class="info-line"><span>Token #</span><span>' +
-        sanitize(invToken) +
-        "</span></div>"
-      : "") +
-    '<div class="info-line"><span>Customer</span><span>' +
-    sanitize(invCustomer) +
-    "</span></div>" +
-    contactLine +
-    (invVehicle && invVehicle !== "—"
-      ? '<div class="info-line"><span>Vehicle</span><span>' +
-        sanitize(invVehicle) +
-        "</span></div>"
-      : "") +
-    '<div class="divider"></div>' +
-    svcHTML +
-    (prdHTML ? '<div style="height:1mm;"></div>' + prdHTML : "") +
-    '<div class="grand-box"><div class="grand-label">Grand Total</div><div class="grand-value">' +
-    fmtRs(grandTotal) +
-    "</div></div>" +
-    paymentHTML +
-    '<div class="status-line">*** ' +
-    paymentStatus +
-    ' ***</div><div class="divider-dash"></div><div class="rcpt-footer"><div class="rcpt-thanks">Thank You For Visiting</div><div>We Appreciate Your Business</div><div>Please Visit Again</div><div class="rcpt-dev">Developed By<br>DESIGN ORBITS<br>03225267908</div></div><div class="rcpt-time">Printed: ' +
-    sanitize(printDate) +
-    " " +
-    sanitize(printTime) +
-    "</div></div></body></html>";
+  var contactLine = invContact ? '<div class="info-line"><span>Phone</span><span>'+sanitize(formatContactDisplay(invContact))+'</span></div>' : "";
+  
+  // Simple receipt HTML
+  var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}@media print{body{width:80mm}}</style></head><body><div style="text-align:center;border-bottom:1px solid #000"><h3>'+sanitize(businessName)+'</h3><p>'+sanitize(address)+'</p><p>Tel: '+sanitize(phone)+'</p></div><p><b>Receipt:</b> '+sanitize(invNumber)+'<br><b>Date:</b> '+sanitize(invDate)+' '+sanitize(printTime)+'<br><b>Customer:</b> '+sanitize(invCustomer)+'</p>'+svcHTML+prdHTML+'<div style="text-align:center;border-top:1px solid #000;border-bottom:1px solid #000;padding:2mm"><b>Grand Total: '+fmtRs(grandTotal)+'</b></div>'+paymentHTML+'<p style="text-align:center"><b>*** '+paymentStatus+' ***</b></p><p style="text-align:center;font-size:7pt">Thank You!<br>DESIGN ORBITS<br>03225267908</p></body></html>';
 
-  // ==================== ELECTRON NATIVE PRINT ====================
-  if (window.electronAPI && window.electronAPI.printReceipt) {
-    // Desktop app: use Electron's native print, no popup window
-    window.electronAPI.printReceipt(h).then(function (success) {
-      if (success) toast("Receipt sent to printer", "success");
-    });
-  } else {
-    // Fallback for plain browser (non-Electron) use
-    var of = document.getElementById("thermalPrintFrame");
-    if (of) of.remove();
-    var ifr = document.createElement("iframe");
-    ifr.id = "thermalPrintFrame";
-    ifr.style.cssText =
-      "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;visibility:hidden;";
-    document.body.appendChild(ifr);
-    ifr.contentDocument.open();
-    ifr.contentDocument.write(h);
-    ifr.contentDocument.close();
-    ifr.onload = function () {
-      setTimeout(function () {
-        try {
-          ifr.contentWindow.focus();
-          ifr.contentWindow.print();
-        } catch (e) {}
-      }, 250);
+  console.log("HTML generated, length:", h.length);
+  console.log("Calling print...");
+
+  // ===== DIRECT PRINT - NO POPUP, NO IFRAME =====
+  var blob = new Blob([h], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  
+  var printWin = window.open(url, "_blank", "width=320,height=600");
+  
+  if (printWin) {
+    console.log("Print window opened");
+    printWin.onload = function() {
+      console.log("Print window loaded, calling print()");
+      setTimeout(function() {
+        printWin.print();
+        console.log("print() called");
+      }, 500);
     };
+  } else {
+    console.log("ERROR: Could not open print window!");
+    toast("Print failed - popup blocked!", "error");
   }
 }
-
 // ==================== PRODUCT SALE ====================
 function initProductSales() {
   qs("#addSaleProductBtn")?.addEventListener("click", addSaleProductRow);
