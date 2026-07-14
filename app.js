@@ -2738,8 +2738,7 @@ function printSavedReceipt(id) {
   setTimeout(function () {
     printThermalReceipt();
   }, 400);
-}
-function printThermalReceipt() {
+}function printThermalReceipt() {
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
     invCustomer = (qs("#invCustomer")?.textContent || "").trim();
@@ -2775,9 +2774,26 @@ function printThermalReceipt() {
   var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:monospace;font-size:8pt;padding:2mm;width:80mm}.hed{text-align:center;border-bottom:1px solid #000;padding-bottom:1mm}.ttl{font-size:10pt;font-weight:bold}.row{display:flex;justify-content:space-between}.tot{border-top:1px solid #000;border-bottom:1px solid #000;text-align:center;padding:1mm;font-weight:bold;font-size:10pt}.ftr{text-align:center;font-size:7pt;margin-top:2mm}</style></head><body><div class="hed"><div class="ttl">' + sanitize(businessName) + '</div><div>' + sanitize(address) + '</div><div>Tel: ' + sanitize(phone) + '</div></div><div class="row"><span>Receipt:</span><b>' + sanitize(invNumber) + '</b></div><div class="row"><span>Date:</span><span>' + sanitize(invDate) + ' ' + sanitize(printTime) + '</span></div><div class="row"><span>Customer:</span><b>' + sanitize(invCustomer) + '</b></div><table width="100%">' + itemsHTML + '</table><div class="tot">Grand Total: ' + fmtRs(grandTotal) + '</div><div style="text-align:center;font-weight:bold">*** ' + paymentStatus + ' ***</div><div class="ftr">Thank You!<br>DESIGN ORBITS<br>03225267908</div></body></html>';
 
   if (window.electronAPI && window.electronAPI.printReceipt) {
-    window.electronAPI.printReceipt(h);
+    window.electronAPI.printReceipt(h).then(function (result) {
+      if (!result || !result.success) {
+        var reason = result ? result.reason : "unknown";
+        if (reason === "no-printer") {
+          toast("Koi printer connected/configured nahi hai", "error");
+        } else if (reason === "timeout") {
+          toast("Print dialog time out ho gaya, dobara try karein", "error");
+        } else {
+          toast("Print fail: " + reason, "error");
+        }
+      }
+    }).catch(function () {
+      toast("Print error - dobara try karein", "error");
+    });
   } else {
-    toast("Printing unavailable — restart the app", "error");
+    // Browser fallback (no Electron IPC available)
+    var w = window.open("", "_blank");
+    w.document.write(h);
+    w.document.close();
+    setTimeout(function () { w.print(); }, 500);
   }
 }
 // ==================== PRODUCT SALE ====================

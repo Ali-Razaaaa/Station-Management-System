@@ -27,8 +27,29 @@ function createWindow() {
   win.loadFile("index.html");
 }
 
+ipcMain.handle("get-printers", async () => {
+  try {
+    const printers = await win.webContents.getPrintersAsync();
+    return printers || [];
+  } catch (e) {
+    return [];
+  }
+});
+
 ipcMain.handle("print-receipt", async (event, htmlContent) => {
+  let printers = [];
+  try {
+    printers = await win.webContents.getPrintersAsync();
+  } catch (e) {
+    printers = [];
+  }
+
+  if (!printers || printers.length === 0) {
+    return { success: false, reason: "no-printer" };
+  }
+
   return new Promise((resolve) => {
+    let settled = false;
     const printWin = new BrowserWindow({
       show: false,
       webPreferences: {
@@ -37,22 +58,46 @@ ipcMain.handle("print-receipt", async (event, htmlContent) => {
         nodeIntegration: false,
       },
     });
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      setTimeout(() => {
+        if (!printWin.isDestroyed()) printWin.close();
+      }, 3000);
+      resolve(result);
+    };
+
+    // Safety timeout in case print dialog / callback never fires
+    const safetyTimer = setTimeout(() => {
+      finish({ success: false, reason: "timeout" });
+    }, 30000);
+
     printWin.webContents.on("did-finish-load", () => {
       printWin.webContents.print(
-        { silent: false, printBackground: true, margins: { marginType: "none" } },
-        (success) => {
-          setTimeout(() => {
-            if (!printWin.isDestroyed()) printWin.close();
-          }, 3000);
-          resolve(success);
+        {
+          silent: false,
+          printBackground: true,
+          margins: { marginType: "none" },
+        },
+        (success, failureReason) => {
+          clearTimeout(safetyTimer);
+          finish({
+            success: success,
+            reason: success ? null : failureReason || "print-failed",
+          });
         },
       );
     });
-    printWin.webContents.on("did-fail-load", () => {
-      if (!printWin.isDestroyed()) printWin.close();
-      resolve(false);
+
+    printWin.webContents.on("did-fail-load", (e, code, desc) => {
+      clearTimeout(safetyTimer);
+      finish({ success: false, reason: "load-failed: " + desc });
     });
-    printWin.loadURL("data:text/html;charset=UTF-8," + encodeURIComponent(htmlContent));
+
+    printWin.loadURL(
+      "data:text/html;charset=UTF-8," + encodeURIComponent(htmlContent),
+    );
   });
 });
 
