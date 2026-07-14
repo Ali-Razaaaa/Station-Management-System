@@ -602,41 +602,41 @@ function getWhatsAppNumber(phone) {
   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
   return c;
 }
-function openWhatsApp(phone, cn, vn, svc, sd) {
-  var wa = getWhatsAppNumber(phone);
-  if (!wa) {
-    toast("Invalid phone", "error");
-    return;
-  }
-  var biz = getCurrentBusiness();
-  var allBizNames = "Wheel Works. Service station & Metabuilt Solutions";
+// function openWhatsApp(phone, cn, vn, svc, sd) {
+//   var wa = getWhatsAppNumber(phone);
+//   if (!wa) {
+//     toast("Invalid phone", "error");
+//     return;
+//   }
+//   var biz = getCurrentBusiness();
+//   var allBizNames = "Wheel Works. Service station & Metabuilt Solutions";
 
-  var msg =
-    "Assalamualaikum " +
-    cn +
-    "\n\n" +
-    "Friendly reminder from " +
-    allBizNames +
-    "\n\n" +
-    "Vehicle: " +
-    vn +
-    "\n" +
-    "Service: " +
-    svc +
-    "\n" +
-    "Date: " +
-    sd +
-    "\n\n" +
-    "Visit us:\n" +
-    biz.address +
-    "\n" +
-    biz.phone +
-    "\n\n" +
-    allBizNames;
+//   var msg =
+//     "Assalamualaikum " +
+//     cn +
+//     "\n\n" +
+//     "Friendly reminder from " +
+//     allBizNames +
+//     "\n\n" +
+//     "Vehicle: " +
+//     vn +
+//     "\n" +
+//     "Service: " +
+//     svc +
+//     "\n" +
+//     "Date: " +
+//     sd +
+//     "\n\n" +
+//     "Visit us:\n" +
+//     biz.address +
+//     "\n" +
+//     biz.phone +
+//     "\n\n" +
+//     allBizNames;
 
-  var url = "https://wa.me/" + wa + "?text=" + encodeURIComponent(msg);
-  window.open(url, "_blank");
-}
+//   var url = "https://wa.me/" + wa + "?text=" + encodeURIComponent(msg);
+//   window.open(url, "_blank");
+// }
 function createReminderFromToken(token) {
   if (!token.contactNumber || token.contactNumber === "N/A") return;
   var rd = getReminderDays(token.service);
@@ -2760,7 +2760,7 @@ function printThermalReceipt() {
         qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
       if (nm && nm !== "Select...")
         items.push({ name: nm, price: pr, qty: qt, type: "service" });
-    },
+    }
   );
   qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
     function (r) {
@@ -2769,7 +2769,7 @@ function printThermalReceipt() {
         pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
         qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
       if (nm) items.push({ name: nm, price: pr, qty: qt, type: "product" });
-    },
+    }
   );
   var svcTotal = 0,
     prdTotal = 0;
@@ -2894,38 +2894,33 @@ function printThermalReceipt() {
     sanitize(printTime) +
     "</div></div></body></html>";
 
-  // ==================== SIMPLE DIRECT PRINT ====================
-  // Ye method Browser aur Electron DONO mein kaam karta hai
+  // ==================== DIRECT BLOB PRINT (NO POPUP) ====================
+  // Best method - Electron + Browser dono mein perfect kaam karta hai
   
-  var printWindow = window.open("", "_blank", "width=320,height=700");
+  var blob = new Blob([h], { type: 'text/html' });
+  var blobUrl = URL.createObjectURL(blob);
+  
+  var printWindow = window.open(blobUrl, "_blank", "width=320,height=700");
   
   if (printWindow) {
-    printWindow.document.write(h);
-    printWindow.document.close();
-    
-    // Print after content loads
     printWindow.onload = function() {
+      // Wait extra time for Electron to fully load
       setTimeout(function() {
         printWindow.print();
-      }, 300);
+        // DON'T auto-close - user khud close karega
+      }, 800);
     };
-    
-    // Auto-close after print
-    printWindow.onafterprint = function() {
-      printWindow.close();
-    };
-    
-    // Fallback: if onload doesn't fire
-    setTimeout(function() {
-      try {
-        if (printWindow && !printWindow.closed) {
-          printWindow.print();
-        }
-      } catch(e) {}
-    }, 1000);
-    
   } else {
-    toast("Popup blocked! Please allow popups for printing.", "error");
+    // Agar popup block ho - direct iframe
+    var ifr = document.createElement("iframe");
+    ifr.style.cssText = "position:fixed;top:0;left:0;width:80mm;height:100%;border:none;z-index:99999;background:#fff;";
+    ifr.src = blobUrl;
+    ifr.onload = function() {
+      setTimeout(function() {
+        ifr.contentWindow.print();
+      }, 500);
+    };
+    document.body.appendChild(ifr);
   }
 }
 
