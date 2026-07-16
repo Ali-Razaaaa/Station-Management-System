@@ -36,7 +36,8 @@ ipcMain.handle("get-printers", async () => {
   }
 });
 
-ipcMain.handle("print-receipt", async (event, htmlContent) => {
+ipcMain.handle("print-receipt", async (event, htmlContent, options) => {
+  options = options || {};
   let printers = [];
   try {
     printers = await win.webContents.getPrintersAsync();
@@ -73,19 +74,20 @@ ipcMain.handle("print-receipt", async (event, htmlContent) => {
     }, 30000);
 
     printWin.webContents.on("did-finish-load", () => {
-      printWin.webContents.print(
-        {
-          silent: false,
-          printBackground: true,
-        },
-        (success, failureReason) => {
-          clearTimeout(safetyTimer);
-          finish({
-            success: success,
-            reason: success ? null : failureReason || "print-failed",
-          });
-        },
-      );
+      const printOptions = {
+        silent: false,
+        printBackground: true,
+      };
+      if (options.pageSize) printOptions.pageSize = options.pageSize;
+      if (options.margins) printOptions.margins = options.margins;
+
+      printWin.webContents.print(printOptions, (success, failureReason) => {
+        clearTimeout(safetyTimer);
+        finish({
+          success: success,
+          reason: success ? null : failureReason || "print-failed",
+        });
+      });
     });
 
     printWin.webContents.on("did-fail-load", (e, code, desc) => {
