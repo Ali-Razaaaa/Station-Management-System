@@ -2861,13 +2861,16 @@ function _printSingleCopy(htmlContent, callback) {
     });
   } else {
     var w = window.open("", "_blank");
-    w.document.write(htmlContent);
-    w.document.close();
-    w.onload = function() {
-      w.print();
-      // Window close mat karo, user khud kare
+    if (w) {
+      w.document.write(htmlContent);
+      w.document.close();
+      w.onload = function() {
+        w.print();
+        if (callback) callback(true);
+      };
+    } else {
       if (callback) callback(true);
-    };
+    }
   }
 }
 
@@ -2988,6 +2991,7 @@ function printA4Invoice(invoiceId) {
   }
   var biz = getCurrentBusiness();
   var content = generateA4Invoice(inv, biz);
+  
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI
       .printReceipt(content, {
@@ -2998,10 +3002,7 @@ function printA4Invoice(invoiceId) {
       })
       .then(function (result) {
         if (!result || !result.success) {
-          toast(
-            "A4 print failed: " + (result ? result.reason : "unknown"),
-            "error",
-          );
+          toast("A4 print failed: " + (result ? result.reason : "unknown"), "error");
         }
       })
       .catch(function () {
@@ -3030,180 +3031,67 @@ function generateA4Invoice(inv, biz) {
     else { productsTotal += amount; }
     itemsRows += 
       '<tr>' +
-      '<td style="text-align:left;padding-left:8px">' + sanitize(item.name) + '</td>' +
+      '<td style="text-align:left;padding:2mm">' + sanitize(item.name) + '</td>' +
       '<td style="text-align:center">' + sanitize(item.type || "—") + '</td>' +
       '<td style="text-align:center">' + item.qty + '</td>' +
       '<td style="text-align:right">' + fmtPrice(item.price) + '</td>' +
-      '<td style="text-align:center">—</td>' +
-      '<td style="text-align:center">—</td>' +
-      '<td style="text-align:right;padding-right:8px">' + fmtPrice(amount) + '</td>' +
+      '<td style="text-align:right;font-weight:700">' + fmtPrice(amount) + '</td>' +
       '</tr>';
   });
   
-  var taxAmount = inv.tax || 0;
   var grandTotal = inv.total || subtotal;
   var cashReceived = inv.cashReceived || 0;
-  var balanceReturned = inv.changeReturned || 0;
-  var paymentStatus = inv.status || "UNPAID";
-  var printTimeNow = new Date().toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+  var balanceReturned = Math.max(0, cashReceived - grandTotal);
+  var paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
+  var printTimeNow = new Date().toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true });
   var printDateNow = fmtDate();
   
-  return '<!DOCTYPE html>' +
-'<html><head><meta charset="UTF-8">' +
-'<style>' +
-  '@page { size: A4 portrait; margin: 14mm 12mm 14mm 12mm; }' +
-  '* { margin: 0; padding: 0; box-sizing: border-box; }' +
-  'body { font-family: "Segoe UI", "Inter", "Roboto", "Helvetica Neue", "Arial", sans-serif; color: #1a1a1a; font-size: 10.5pt; line-height: 1.45; width: 100%; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
-  '.invoice { width: 100%; max-width: 186mm; margin: 0 auto; }' +
-  
-  '.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0F4C81; padding-bottom: 6mm; margin-bottom: 6mm; }' +
-  '.header-left { display: flex; align-items: center; gap: 4mm; }' +
-  '.logo-box { width: 18mm; height: 18mm; background: #0F4C81; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20pt; font-weight: 900; letter-spacing: 1px; flex-shrink: 0; }' +
-  '.header-info { }' +
-  '.company-name { font-size: 16pt; font-weight: 800; color: #0F4C81; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5mm; }' +
-  '.company-addr { font-size: 8pt; color: #555; line-height: 1.5; }' +
-  
-  '.header-right { border: 2px solid #0F4C81; padding: 3mm 5mm; text-align: center; min-width: 45mm; }' +
-  '.invoice-label { font-size: 14pt; font-weight: 900; color: #0F4C81; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 2mm; border-bottom: 1px solid #0F4C81; padding-bottom: 1mm; }' +
-  '.inv-detail-row { display: flex; justify-content: space-between; font-size: 7.5pt; padding: 0.6mm 0; }' +
-  '.inv-detail-lbl { color: #555; font-weight: 600; }' +
-  '.inv-detail-val { color: #111; font-weight: 700; }' +
-  
-  '.info-table { width: 100%; border-collapse: collapse; margin-bottom: 5mm; border: 1px solid #DADADA; }' +
-  '.info-table td { padding: 2mm 3mm; border: 1px solid #DADADA; font-size: 8.5pt; vertical-align: top; width: 50%; }' +
-  '.info-inner { width: 100%; border-collapse: collapse; }' +
-  '.info-inner td { padding: 0.8mm 0; border: none; font-size: 8.5pt; }' +
-  '.info-inner .lbl { color: #555; font-weight: 600; width: 35%; }' +
-  '.info-inner .val { color: #111; font-weight: 700; }' +
-  '.section-title { font-size: 11pt; font-weight: 800; color: #0F4C81; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0; padding: 2mm 3mm; background: #F4F6F9; border: 1px solid #DADADA; border-bottom: none; }' +
-  
-  '.items-table { width: 100%; border-collapse: collapse; border: 1px solid #DADADA; margin-bottom: 5mm; }' +
-  '.items-table thead th { background: #0F4C81; color: #fff; padding: 2.5mm 2mm; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border: 1px solid #0F4C81; }' +
-  '.items-table tbody td { padding: 2mm; border: 1px solid #DADADA; font-size: 8.5pt; }' +
-  '.items-table tbody tr:nth-child(even) td { background: #FAFBFC; }' +
-  '.items-table tfoot td { padding: 2mm; border: 1px solid #DADADA; font-weight: 700; font-size: 8.5pt; }' +
-  
-  '.bottom-grid { display: flex; gap: 5mm; margin-bottom: 5mm; }' +
-  '.bottom-left { flex: 1; }' +
-  '.bottom-right { width: 55mm; flex-shrink: 0; }' +
-  
-  '.notes-box { border: 1px solid #DADADA; padding: 2.5mm; min-height: 22mm; font-size: 8pt; color: #555; line-height: 1.5; }' +
-  '.notes-box strong { color: #333; display: block; margin-bottom: 1mm; }' +
-  
-  '.summary-table { width: 100%; border-collapse: collapse; border: 1px solid #DADADA; }' +
-  '.summary-table td { padding: 2mm 3mm; border: 1px solid #DADADA; font-size: 8.5pt; }' +
-  '.summary-table .s-lbl { color: #555; font-weight: 600; }' +
-  '.summary-table .s-val { text-align: right; font-weight: 700; color: #111; }' +
-  '.summary-table .grand-tr td { background: #0F4C81; color: #fff; font-size: 12pt; font-weight: 900; padding: 3mm; text-transform: uppercase; letter-spacing: 1px; }' +
-  
-  '.signature-section { display: flex; gap: 5mm; margin-top: 5mm; border-top: 1px solid #DADADA; padding-top: 4mm; }' +
-  '.sig-box { flex: 1; text-align: center; }' +
-  '.sig-line { border-bottom: 1px solid #333; margin-top: 10mm; margin-bottom: 1.5mm; }' +
-  '.sig-label { font-size: 7.5pt; color: #555; font-weight: 600; }' +
-  
-  '.footer { text-align: center; margin-top: 5mm; padding-top: 3mm; border-top: 1px solid #DADADA; font-size: 7pt; color: #888; line-height: 1.6; }' +
-  '.footer .ft-name { font-weight: 700; color: #555; }' +
-  '.footer .ft-dev { color: #aaa; }' +
-  
-  '.status-paid { color: #0F4C81; font-weight: 800; font-size: 9pt; }' +
-  '.status-unpaid { color: #C0392B; font-weight: 800; font-size: 9pt; }' +
-'</style></head><body>' +
-'<div class="invoice">' +
-  
-  '<div class="header">' +
-    '<div class="header-left">' +
-      '<div class="logo-box">' + sanitize(biz.prefix) + '</div>' +
-      '<div class="header-info">' +
-        '<div class="company-name">' + sanitize(biz.name) + '</div>' +
-        '<div class="company-addr">' + sanitize(biz.address) + '<br>Tel: ' + sanitize(biz.phone) + ' | Email: ' + sanitize(biz.email) + '</div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="header-right">' +
-      '<div class="invoice-label">INVOICE</div>' +
-      '<div class="inv-detail-row"><span class="inv-detail-lbl">Invoice No</span><span class="inv-detail-val">' + sanitize(inv.number) + '</span></div>' +
-      '<div class="inv-detail-row"><span class="inv-detail-lbl">Date</span><span class="inv-detail-val">' + sanitize(inv.date) + '</span></div>' +
-      '<div class="inv-detail-row"><span class="inv-detail-lbl">Time</span><span class="inv-detail-val">' + sanitize(inv.time) + '</span></div>' +
-      '<div class="inv-detail-row"><span class="inv-detail-lbl">Cashier</span><span class="inv-detail-val">Admin</span></div>' +
-    '</div>' +
-  '</div>' +
-  
-  '<table class="info-table">' +
-    '<tr>' +
-      '<td>' +
-        '<table class="info-inner">' +
-          '<tr><td class="lbl">Customer Name</td><td class="val">' + sanitize(inv.customer) + '</td></tr>' +
-          '<tr><td class="lbl">Phone</td><td class="val">' + sanitize(formatContactDisplay(inv.contactNumber || "N/A")) + '</td></tr>' +
-          '<tr><td class="lbl">Vehicle No</td><td class="val">' + sanitize(inv.vehicle || "N/A") + '</td></tr>' +
-          '<tr><td class="lbl">Token No</td><td class="val">' + sanitize(inv.token || "N/A") + '</td></tr>' +
-        '</table>' +
-      '</td>' +
-      '<td>' +
-        '<table class="info-inner">' +
-          '<tr><td class="lbl">Payment Method</td><td class="val">Cash</td></tr>' +
-          '<tr><td class="lbl">Invoice Status</td><td class="val ' + (paymentStatus === "PAID" ? "status-paid" : "status-unpaid") + '">' + sanitize(paymentStatus) + '</td></tr>' +
-          '<tr><td class="lbl">Print Date</td><td class="val">' + sanitize(printDateNow) + '</td></tr>' +
-          '<tr><td class="lbl">Print Time</td><td class="val">' + sanitize(printTimeNow) + '</td></tr>' +
-        '</table>' +
-      '</td>' +
-    '</tr>' +
-  '</table>' +
-  
-  '<div class="section-title">Services &amp; Products</div>' +
-  '<table class="items-table">' +
-    '<thead><tr>' +
-      '<th style="width:30%;text-align:left;padding-left:8px">Description</th>' +
-      '<th style="width:10%;text-align:center">Category</th>' +
-      '<th style="width:8%;text-align:center">Qty</th>' +
-      '<th style="width:15%;text-align:right">Unit Price</th>' +
-      '<th style="width:10%;text-align:center">Discount</th>' +
-      '<th style="width:10%;text-align:center">Tax</th>' +
-      '<th style="width:17%;text-align:right;padding-right:8px">Amount</th>' +
-    '</tr></thead>' +
-    '<tbody>' + itemsRows + '</tbody>' +
-  '</table>' +
-  
-  '<div class="bottom-grid">' +
-    '<div class="bottom-left">' +
-      '<div class="section-title">Notes &amp; Terms</div>' +
-      '<div class="notes-box">' +
-        '<strong>Warranty &amp; Terms:</strong><br>' +
-        '• Goods once sold will not be taken back or exchanged.<br>' +
-        '• Warranty claims are subject to manufacturer policy.<br>' +
-        '• Vehicle must be collected within 24 hours of service completion.<br>' +
-        '• All prices are inclusive of applicable taxes.<br><br>' +
-        '<strong>Remarks:</strong><br>' +
-        'Thank you for choosing ' + sanitize(biz.name) + '. We value your trust and look forward to serving you again.' +
-      '</div>' +
-    '</div>' +
-    '<div class="bottom-right">' +
-      '<table class="summary-table">' +
-        '<tr><td class="s-lbl">Subtotal</td><td class="s-val">' + fmtPrice(subtotal) + '</td></tr>' +
-        (servicesTotal > 0 ? '<tr><td class="s-lbl">Services Total</td><td class="s-val">' + fmtPrice(servicesTotal) + '</td></tr>' : '') +
-        (productsTotal > 0 ? '<tr><td class="s-lbl">Products Total</td><td class="s-val">' + fmtPrice(productsTotal) + '</td></tr>' : '') +
-        '<tr><td class="s-lbl">Discount</td><td class="s-val">Rs. 0</td></tr>' +
-        (taxAmount > 0 ? '<tr><td class="s-lbl">Tax (' + STATE.settings.taxRate + '%)</td><td class="s-val">' + fmtPrice(taxAmount) + '</td></tr>' : '<tr><td class="s-lbl">Tax</td><td class="s-val">Rs. 0</td></tr>') +
-        '<tr class="grand-tr"><td>Grand Total</td><td style="text-align:right">' + fmtPrice(grandTotal) + '</td></tr>' +
-        '<tr><td class="s-lbl">Cash Received</td><td class="s-val">' + fmtPrice(cashReceived) + '</td></tr>' +
-        '<tr><td class="s-lbl">Change Returned</td><td class="s-val">' + fmtPrice(balanceReturned) + '</td></tr>' +
-      '</table>' +
-    '</div>' +
-  '</div>' +
-  
-  '<div class="signature-section">' +
-    '<div class="sig-box"><div class="sig-line"></div><div class="sig-label">Prepared By</div></div>' +
-    '<div class="sig-box"><div class="sig-line"></div><div class="sig-label">Cashier Signature</div></div>' +
-    '<div class="sig-box"><div class="sig-line"></div><div class="sig-label">Manager Signature</div></div>' +
-    '<div class="sig-box"><div class="sig-line"></div><div class="sig-label">Customer Signature</div></div>' +
-  '</div>' +
-  
-  '<div class="footer">' +
-    '<div class="ft-name">' + sanitize(biz.name) + ' | ' + sanitize(biz.address) + ' | Tel: ' + sanitize(biz.phone) + ' | Email: ' + sanitize(biz.email) + '</div>' +
-    '<div>This is a computer-generated invoice. Thank you for your business.</div>' +
-    '<div class="ft-dev">Developed by DESIGN ORBITS | 0322-5267908 | Printed: ' + sanitize(printDateNow) + ' ' + sanitize(printTimeNow) + '</div>' +
-  '</div>' +
-  
-'</div>' +
-'</body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+  '@page{size:A4;margin:15mm}' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#222;font-size:10pt;line-height:1.4;background:#fff;padding:0}' +
+  '.page{max-width:180mm;margin:0 auto;padding:5mm 0}' +
+  '.top{border-bottom:3px solid #1a3c6e;padding-bottom:5mm;margin-bottom:5mm;display:flex;justify-content:space-between}' +
+  '.top-l{flex:1}' +
+  '.top-logo{width:18mm;height:18mm;background:#1a3c6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20pt;font-weight:900;margin-bottom:2mm}' +
+  '.top-name{font-size:16pt;font-weight:900;color:#1a3c6e;text-transform:uppercase;letter-spacing:1px}' +
+  '.top-addr{font-size:8pt;color:#555}' +
+  '.top-r{border:2px solid #1a3c6e;padding:3mm 5mm;text-align:center;min-width:42mm}' +
+  '.top-r-title{font-size:12pt;font-weight:900;color:#1a3c6e;letter-spacing:2px;border-bottom:1px solid #1a3c6e;padding-bottom:1mm;margin-bottom:1.5mm}' +
+  '.top-r-row{font-size:7.5pt;display:flex;justify-content:space-between;padding:0.4mm 0}' +
+  '.top-r-lbl{color:#666}' +
+  '.top-r-val{font-weight:700}' +
+  '.info-box{display:flex;gap:5mm;margin-bottom:5mm}' +
+  '.info-box>div{flex:1;border:1px solid #ccc;padding:2.5mm}' +
+  '.info-box .ttl{font-size:8pt;font-weight:700;color:#1a3c6e;border-bottom:1px solid #ccc;padding-bottom:1mm;margin-bottom:1.5mm;text-transform:uppercase}' +
+  '.info-r{display:flex;justify-content:space-between;padding:0.8mm 0;border-bottom:1px dotted #eee;font-size:8pt}' +
+  '.info-r .l{color:#666}' +
+  '.info-r .v{font-weight:700}' +
+  '.tbl{width:100%;border-collapse:collapse;margin-bottom:5mm;border:1px solid #ccc}' +
+  '.tbl th{background:#1a3c6e;color:#fff;padding:2.5mm;font-size:7.5pt;text-transform:uppercase;text-align:left}' +
+  '.tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}' +
+  '.tbl tr:nth-child(even) td{background:#f9fafb}' +
+  '.sum-box{display:flex;justify-content:flex-end;margin-bottom:5mm}' +
+  '.sum-tbl{width:42%;border-collapse:collapse;border:1px solid #ccc}' +
+  '.sum-tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}' +
+  '.sum-tbl .lbl{color:#555}' +
+  '.sum-tbl .val{text-align:right;font-weight:700}' +
+  '.sum-tbl .gt{background:#1a3c6e;color:#fff;font-size:11pt;font-weight:900}' +
+  '.bottom{display:flex;gap:5mm;margin-top:5mm;border-top:1px solid #ccc;padding-top:4mm}' +
+  '.bottom-l{flex:1;font-size:7pt;color:#777;line-height:1.6}' +
+  '.bottom-r{width:35%;text-align:center}' +
+  '.sig-line{border-top:1px solid #333;margin-top:12mm;padding-top:1.5mm;font-size:7.5pt;color:#555}' +
+  '.ftr{text-align:center;margin-top:5mm;border-top:1px solid #ccc;padding-top:3mm;font-size:7pt;color:#999}' +
+  '.paid{color:#059669;font-weight:800}' +
+  '.unpaid{color:#dc2626;font-weight:800}' +
+  '</style></head><body><div class="page">' +
+  '<div class="top"><div class="top-l"><div class="top-logo">' + sanitize(biz.prefix) + '</div><div class="top-name">' + sanitize(biz.name) + '</div><div class="top-addr">' + sanitize(biz.address) + ' | Tel: ' + sanitize(biz.phone) + ' | Email: ' + sanitize(biz.email) + '</div></div><div class="top-r"><div class="top-r-title">INVOICE</div><div class="top-r-row"><span class="top-r-lbl">Invoice #</span><span class="top-r-val">' + sanitize(inv.number) + '</span></div><div class="top-r-row"><span class="top-r-lbl">Date</span><span class="top-r-val">' + sanitize(inv.date) + '</span></div><div class="top-r-row"><span class="top-r-lbl">Time</span><span class="top-r-val">' + sanitize(inv.time) + '</span></div></div></div>' +
+  '<div class="info-box"><div><div class="ttl">Bill To</div><div class="info-r"><span class="l">Customer</span><span class="v">' + sanitize(inv.customer || "—") + '</span></div><div class="info-r"><span class="l">Phone</span><span class="v">' + sanitize(formatContactDisplay(inv.contactNumber || "N/A")) + '</span></div><div class="info-r"><span class="l">Vehicle</span><span class="v">' + sanitize(inv.vehicle || "—") + '</span></div><div class="info-r"><span class="l">Token</span><span class="v">' + sanitize(inv.token || "—") + '</span></div></div><div><div class="ttl">Payment Info</div><div class="info-r"><span class="l">Status</span><span class="v ' + (paymentStatus === "PAID" ? "paid" : "unpaid") + '">' + paymentStatus + '</span></div><div class="info-r"><span class="l">Method</span><span class="v">Cash</span></div><div class="info-r"><span class="l">Business</span><span class="v">' + sanitize(biz.name) + '</span></div></div></div>' +
+  '<table class="tbl"><thead><tr><th>Description</th><th style="width:12%;text-align:center">Qty</th><th style="width:18%;text-align:right">Rate</th><th style="width:20%;text-align:right">Amount</th></tr></thead><tbody>' + itemsRows + '</tbody></table>' +
+  '<div class="sum-box"><table class="sum-tbl"><tr><td class="lbl">Subtotal</td><td class="val">' + fmtPrice(subtotal) + '</td></tr>' + (servicesTotal > 0 ? '<tr><td class="lbl">Services</td><td class="val">' + fmtPrice(servicesTotal) + '</td></tr>' : '') + (productsTotal > 0 ? '<tr><td class="lbl">Products</td><td class="val">' + fmtPrice(productsTotal) + '</td></tr>' : '') + '<tr><td class="lbl">Cash Received</td><td class="val">' + fmtPrice(cashReceived) + '</td></tr><tr><td class="lbl">Change Returned</td><td class="val">' + fmtPrice(balanceReturned) + '</td></tr><tr><td class="gt" colspan="2"><div style="display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div></td></tr></table></div>' +
+  '<div class="bottom"><div class="bottom-l"><strong>Terms &amp; Conditions</strong><br>1. Goods once sold will not be taken back.<br>2. Warranty subject to manufacturer policy.<br>3. Vehicle must be collected within 24 hours.<br><br>Thank you for your business!</div><div class="bottom-r"><div class="sig-line">Authorized Signature</div></div></div>' +
+  '<div class="ftr">' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + ' | Developed by DESIGN ORBITS | 0322-5267908</div>' +
+  '</div></body></html>';
 }
 
 // ==================== PRODUCT SALE ====================
