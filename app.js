@@ -24,6 +24,9 @@ const KEYS = {
   inventoryMigratedFinal: "servicepro_inventory_migrated_final",
   businesses: "servicepro_businesses",
   currentBusiness: "servicepro_current_business",
+  vendorPayments: "servicepro_vendor_payments",
+  vendors: "servicepro_vendors",
+  purchaseOrders: "servicepro_purchase_orders",
 };
 
 function getBusinesses() {
@@ -256,6 +259,9 @@ var STATE = {
     { id: "zic", name: "ZIC" },
   ],
   reminders: JSON.parse(localStorage.getItem(KEYS.reminders)) || [],
+  vendorPayments: JSON.parse(localStorage.getItem(KEYS.vendorPayments)) || [],
+  vendors: JSON.parse(localStorage.getItem(KEYS.vendors)) || [],
+  purchaseOrders: JSON.parse(localStorage.getItem(KEYS.purchaseOrders)) || [],
   confirmCallback: null,
   sessionStart: new Date(),
   lastProductSaleInvoiceId: null,
@@ -312,6 +318,15 @@ function saveBrands() {
 }
 function saveReminders() {
   persist(KEYS.reminders, STATE.reminders);
+}
+function saveVendorPayments() {
+  persist(KEYS.vendorPayments, STATE.vendorPayments);
+}
+function saveVendors() {
+  persist(KEYS.vendors, STATE.vendors);
+}
+function savePurchaseOrders() {
+  persist(KEYS.purchaseOrders, STATE.purchaseOrders);
 }
 
 function uid() {
@@ -999,266 +1014,57 @@ function initApp() {
   });
   document.addEventListener("click", function (e) {
     var ab = e.target.closest("[data-action]");
-    if (ab) {
-      handleQuickAction(ab.dataset.action);
-      return;
-    }
+    if (ab) { handleQuickAction(ab.dataset.action); return; }
     var nb = e.target.closest("[data-nav]");
-    if (nb) {
-      navigateTo(nb.dataset.nav);
-      return;
-    }
+    if (nb) { navigateTo(nb.dataset.nav); return; }
     var wa = e.target.closest("[data-wa]");
-    if (wa) {
-      var r = STATE.reminders.find(function (r) {
-        return r.id === wa.dataset.wa;
-      });
-      if (r)
-        openWhatsApp(
-          r.phone,
-          r.customerName,
-          r.vehicleNo,
-          r.service,
-          r.serviceDate,
-        );
-      return;
-    }
+    if (wa) { var r = STATE.reminders.find(function (r) { return r.id === wa.dataset.wa; }); if (r) openWhatsApp(r.phone, r.customerName, r.vehicleNo, r.service, r.serviceDate); return; }
     var cr = e.target.closest("[data-cr]");
-    if (cr) {
-      var r = STATE.reminders.find(function (r) {
-        return r.id === cr.dataset.cr;
-      });
-      if (r) {
-        r.status = "completed";
-        saveReminders();
-        renderReminderTable();
-        refreshDashboard();
-      }
-      return;
-    }
+    if (cr) { var r = STATE.reminders.find(function (r) { return r.id === cr.dataset.cr; }); if (r) { r.status = "completed"; saveReminders(); renderReminderTable(); refreshDashboard(); } return; }
     var dr = e.target.closest("[data-dr]");
-    if (dr) {
-      confirm("Delete reminder?", function () {
-        STATE.reminders = STATE.reminders.filter(function (r) {
-          return r.id !== dr.dataset.dr;
-        });
-        saveReminders();
-        renderReminderTable();
-        refreshDashboard();
-      });
-      return;
-    }
+    if (dr) { confirm("Delete reminder?", function () { STATE.reminders = STATE.reminders.filter(function (r) { return r.id !== dr.dataset.dr; }); saveReminders(); renderReminderTable(); refreshDashboard(); }); return; }
     var tpr = e.target.closest("[data-token-print]");
-    if (tpr) {
-      printTokenReceipt(tpr.dataset.tokenPrint);
-      return;
-    }
+    if (tpr) { printTokenReceipt(tpr.dataset.tokenPrint); return; }
     var tp = e.target.closest("[data-token-progress]");
-    if (tp) {
-      updateTokenStatus(tp.dataset.tokenProgress, "in-progress");
-      return;
-    }
+    if (tp) { updateTokenStatus(tp.dataset.tokenProgress, "in-progress"); return; }
     var tc = e.target.closest("[data-token-complete]");
-    if (tc) {
-      var t = STATE.tokens.find(function (t) {
-        return t.id === tc.dataset.tokenComplete;
-      });
-      if (t) {
-        t.status = "completed";
-        saveTokens();
-        createReminderFromToken(t);
-        renderTokenTable();
-        refreshDashboard();
-      }
-      return;
-    }
+    if (tc) { var t = STATE.tokens.find(function (t) { return t.id === tc.dataset.tokenComplete; }); if (t) { t.status = "completed"; saveTokens(); createReminderFromToken(t); renderTokenTable(); refreshDashboard(); } return; }
     var ti = e.target.closest("[data-token-invoice]");
-    if (ti) {
-      openInvoiceForToken(ti.dataset.tokenInvoice);
-      return;
-    }
+    if (ti) { openInvoiceForToken(ti.dataset.tokenInvoice); return; }
     var te = e.target.closest("[data-token-edit]");
-    if (te) {
-      openEditTokenModal(te.dataset.tokenEdit);
-      return;
-    }
+    if (te) { openEditTokenModal(te.dataset.tokenEdit); return; }
     var td = e.target.closest("[data-token-delete]");
-    if (td) {
-      confirm("Remove token?", function () {
-        var t = STATE.tokens.find(function (t) {
-          return t.id === td.dataset.tokenDelete;
-        });
-        if (t && t.products) {
-          t.products.forEach(function (p) {
-            var f = findVariantById(p.variantId);
-            if (f) f.variant.stock += p.qty;
-          });
-          saveInventory();
-        }
-        STATE.tokens = STATE.tokens.filter(function (t) {
-          return t.id !== td.dataset.tokenDelete;
-        });
-        saveTokens();
-        renderTokenTable();
-        refreshDashboard();
-      });
-      return;
-    }
+    if (td) { confirm("Remove token?", function () { var t = STATE.tokens.find(function (t) { return t.id === td.dataset.tokenDelete; }); if (t && t.products) { t.products.forEach(function (p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; }); saveInventory(); } STATE.tokens = STATE.tokens.filter(function (t) { return t.id !== td.dataset.tokenDelete; }); saveTokens(); renderTokenTable(); refreshDashboard(); }); return; }
     var ve = e.target.closest("[data-vehicle-edit]");
-    if (ve) {
-      var v = STATE.vehicles.find(function (v) {
-        return v.id === ve.dataset.vehicleEdit;
-      });
-      if (v) openNewVehicleModal(v);
-      return;
-    }
+    if (ve) { var v = STATE.vehicles.find(function (v) { return v.id === ve.dataset.vehicleEdit; }); if (v) openNewVehicleModal(v); return; }
     var vd = e.target.closest("[data-vehicle-delete]");
-    if (vd) {
-      confirm("Delete vehicle?", function () {
-        STATE.vehicles = STATE.vehicles.filter(function (v) {
-          return v.id !== vd.dataset.vehicleDelete;
-        });
-        saveVehicles();
-        renderVehicleTable();
-      });
-      return;
-    }
+    if (vd) { confirm("Delete vehicle?", function () { STATE.vehicles = STATE.vehicles.filter(function (v) { return v.id !== vd.dataset.vehicleDelete; }); saveVehicles(); renderVehicleTable(); }); return; }
     var si = e.target.closest("[data-stock-in]");
-    if (si) {
-      openStockModal(si.dataset.stockIn, "in");
-      return;
-    }
+    if (si) { openStockModal(si.dataset.stockIn, "in"); return; }
     var so = e.target.closest("[data-stock-out]");
-    if (so) {
-      openStockModal(so.dataset.stockOut, "out");
-      return;
-    }
+    if (so) { openStockModal(so.dataset.stockOut, "out"); return; }
     var vdd = e.target.closest("[data-variant-delete]");
-    if (vdd) {
-      confirm("Delete variant?", function () {
-        STATE.inventory.forEach(function (p) {
-          p.variants = (p.variants || []).filter(function (v) {
-            return v.id !== vdd.dataset.variantDelete;
-          });
-        });
-        STATE.inventory = STATE.inventory.filter(function (p) {
-          return (p.variants || []).length > 0;
-        });
-        saveInventory();
-        renderInventoryTable();
-        updateInventoryKPI();
-        refreshDashboard();
-      });
-      return;
-    }
+    if (vdd) { confirm("Delete variant?", function () { STATE.inventory.forEach(function (p) { p.variants = (p.variants || []).filter(function (v) { return v.id !== vdd.dataset.variantDelete; }); }); STATE.inventory = STATE.inventory.filter(function (p) { return (p.variants || []).length > 0; }); saveInventory(); renderInventoryTable(); updateInventoryKPI(); refreshDashboard(); }); return; }
     var vi = e.target.closest("[data-view-invoice]");
-    if (vi) {
-      viewInvoice(vi.dataset.viewInvoice);
-      return;
-    }
+    if (vi) { viewInvoice(vi.dataset.viewInvoice); return; }
     var pi = e.target.closest("[data-print-receipt]");
-    if (pi) {
-      printSavedReceipt(pi.dataset.printReceipt);
-      return;
-    }
+    if (pi) { printSavedReceipt(pi.dataset.printReceipt); return; }
     var pa4 = e.target.closest("[data-print-a4]");
-    if (pa4) {
-      printA4Invoice(pa4.dataset.printA4);
-      return;
-    }
+    if (pa4) { printA4Invoice(pa4.dataset.printA4); return; }
     var di = e.target.closest("[data-delete-invoice]");
-    if (di) {
-      confirm("Delete invoice?", function () {
-        STATE.invoices = STATE.invoices.filter(function (i) {
-          return i.id !== di.dataset.deleteInvoice;
-        });
-        saveInvoices();
-        renderSavedInvoices();
-      });
-      return;
-    }
+    if (di) { confirm("Delete invoice?", function () { STATE.invoices = STATE.invoices.filter(function (i) { return i.id !== di.dataset.deleteInvoice; }); saveInvoices(); renderSavedInvoices(); }); return; }
     var ed = e.target.closest("[data-expense-del]");
-    if (ed) {
-      confirm("Delete?", function () {
-        STATE.expenses = STATE.expenses.filter(function (ex) {
-          return ex.id !== ed.dataset.expenseDel;
-        });
-        saveExpenses();
-        renderExpenses();
-        refreshDashboard();
-      });
-      return;
-    }
+    if (ed) { confirm("Delete?", function () { STATE.expenses = STATE.expenses.filter(function (ex) { return ex.id !== ed.dataset.expenseDel; }); saveExpenses(); renderExpenses(); refreshDashboard(); }); return; }
     var bd2 = e.target.closest("[data-brand-delete]");
-    if (bd2) {
-      var id = bd2.dataset.brandDelete;
-      if (
-        getAllVariantsFlat().some(function (v) {
-          return (
-            v.brand ===
-            (
-              STATE.brands.find(function (b) {
-                return b.id === id;
-              }) || {}
-            ).name
-          );
-        })
-      ) {
-        toast("Brand in use", "warning");
-        return;
-      }
-      STATE.brands = STATE.brands.filter(function (b) {
-        return b.id !== id;
-      });
-      saveBrands();
-      populateBrandDropdowns();
-      renderBrandList();
-      return;
-    }
+    if (bd2) { var id = bd2.dataset.brandDelete; if (getAllVariantsFlat().some(function (v) { return v.brand === (STATE.brands.find(function (b) { return b.id === id; }) || {}).name; })) { toast("Brand in use", "warning"); return; } STATE.brands = STATE.brands.filter(function (b) { return b.id !== id; }); saveBrands(); populateBrandDropdowns(); renderBrandList(); return; }
     var cd = e.target.closest("[data-cat-delete]");
-    if (cd) {
-      var id = cd.dataset.catDelete;
-      if (
-        STATE.inventory.some(function (p) {
-          return p.category === id;
-        })
-      ) {
-        toast("Category in use", "warning");
-        return;
-      }
-      STATE.categories = STATE.categories.filter(function (c) {
-        return c.id !== id;
-      });
-      saveCategories();
-      populateCategoryDropdowns();
-      renderCategoryList();
-      return;
-    }
+    if (cd) { var id = cd.dataset.catDelete; if (STATE.inventory.some(function (p) { return p.category === id; })) { toast("Category in use", "warning"); return; } STATE.categories = STATE.categories.filter(function (c) { return c.id !== id; }); saveCategories(); populateCategoryDropdowns(); renderCategoryList(); return; }
     var vtd = e.target.closest("[data-vtype-delete]");
-    if (vtd) {
-      STATE.pricingVehicles = STATE.pricingVehicles.filter(function (v) {
-        return v.id !== vtd.dataset.vtypeDelete;
-      });
-      savePricingVehicles();
-      renderVehicleTypeList();
-      renderPricingMatrix();
-      return;
-    }
+    if (vtd) { STATE.pricingVehicles = STATE.pricingVehicles.filter(function (v) { return v.id !== vtd.dataset.vtypeDelete; }); savePricingVehicles(); renderVehicleTypeList(); renderPricingMatrix(); return; }
     var psd = e.target.closest("[data-psvc-delete]");
-    if (psd) {
-      STATE.pricingServices = STATE.pricingServices.filter(function (s) {
-        return s.id !== psd.dataset.psvcDelete;
-      });
-      savePricingServices();
-      renderPricingServiceList();
-      renderPricingMatrix();
-      return;
-    }
+    if (psd) { STATE.pricingServices = STATE.pricingServices.filter(function (s) { return s.id !== psd.dataset.psvcDelete; }); savePricingServices(); renderPricingServiceList(); renderPricingMatrix(); return; }
     var bed = e.target.closest("[data-biz-edit]");
-    if (bed) {
-      openBusinessEditModal(bed.dataset.bizEdit);
-      return;
-    }
+    if (bed) { openBusinessEditModal(bed.dataset.bizEdit); return; }
   });
   initDashboard();
   initTokens();
@@ -1272,6 +1078,7 @@ function initApp() {
   initReminders();
   initImportExport();
   initSettings();
+  initVendors();
   navigateTo("dashboard");
 }
 // ==================== BUSINESS SWITCHER ====================
@@ -1528,6 +1335,7 @@ var MODULE_TITLES = {
   reminders: ["Customer Reminders", "Service reminders"],
   importexport: ["Import/Export", "Data management"],
   settings: ["Settings", "Configuration"],
+  vendors: ["Vendor Management", "Payments & Purchases"],
 };
 function navigateTo(mod) {
   qsa(".nav-link").forEach(function (l) {
@@ -1551,6 +1359,10 @@ function navigateTo(mod) {
   else if (mod === "productsale") renderProductSalePage();
   else if (mod === "reminders") renderReminderTable();
   else if (mod === "settings") loadSettingsForm();
+  else if (mod === "vendors") {
+    renderVendorKPIs();
+    renderVendorTable();
+  }
 }
 function handleQuickAction(a) {
   var m = {
@@ -2321,75 +2133,85 @@ function initBilling() {
     addInvoiceProductRow("", 0, 1);
   });
   qs("#saveInvoiceBtn")?.addEventListener("click", saveInvoice);
-qs("#printReceiptBtn")?.addEventListener("click", function() {
-  var invNumber = (qs("#invNumber")?.textContent || "").trim();
-  var invCustomer = (qs("#invCustomer")?.textContent || "").trim();
-  var invDate = (qs("#invDate")?.textContent || "").trim();
-  var invVehicle = (qs("#invVehicle")?.textContent || "").trim();
-  var invToken = (qs("#invToken")?.textContent || "").trim();
-  
-  if (!invCustomer || invCustomer === "—") {
-    toast("Please add customer and items first", "warning");
-    return;
-  }
-  
-  var items = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function(r) {
-    var s = r.querySelector(".invoice-svc-select");
-    var nm = s?.options[s.selectedIndex]?.text || "";
-    var pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
-    var qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt });
-  });
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function(r) {
-    var s = r.querySelector(".invoice-prd-select");
-    var nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
-    var pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
-    var qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-    if (nm) items.push({ name: nm, price: pr, qty: qt });
-  });
-  
-  if (!items.length) {
-    toast("Add items first", "warning");
-    return;
-  }
-  
-  var subtotal = 0;
-  items.forEach(function(i) { subtotal += i.price * i.qty; });
-  var total = subtotal;
-  var cash = parseFloat(qs("#cashReceived")?.value) || 0;
-  var change = cash >= total ? cash - total : 0;
-  
-  var tempInv = {
-    number: invNumber || "—",
-    date: invDate || fmtDate(),
-    time: fmtTime(),
-    customer: invCustomer,
-    contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
-    vehicle: invVehicle !== "—" ? invVehicle : (qs("#invoiceVehicle")?.value || ""),
-    token: invToken !== "—" ? invToken : "",
-    items: items,
-    total: total,
-    cashReceived: cash,
-    changeReturned: change,
-    status: cash >= total && cash > 0 ? "PAID" : "UNPAID"
-  };
-  
-  var biz = getCurrentBusiness();
-  var content = generateThermalInvoice(tempInv, biz);
-  
-  if (window.electronAPI && window.electronAPI.printReceipt) {
-    window.electronAPI.printReceipt(content, {
-      pageSize: { width: 80000, height: 297000 },
-      margins: { top: 0, bottom: 0, left: 0, right: 0 }
+  qs("#printReceiptBtn")?.addEventListener("click", function () {
+    var invNumber = (qs("#invNumber")?.textContent || "").trim();
+    var invCustomer = (qs("#invCustomer")?.textContent || "").trim();
+    var invDate = (qs("#invDate")?.textContent || "").trim();
+    var invVehicle = (qs("#invVehicle")?.textContent || "").trim();
+    var invToken = (qs("#invToken")?.textContent || "").trim();
+
+    if (!invCustomer || invCustomer === "—") {
+      toast("Please add customer and items first", "warning");
+      return;
+    }
+
+    var items = [];
+    qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
+      function (r) {
+        var s = r.querySelector(".invoice-svc-select");
+        var nm = s?.options[s.selectedIndex]?.text || "";
+        var pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
+        var qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+        if (nm && nm !== "Select...")
+          items.push({ name: nm, price: pr, qty: qt });
+      },
+    );
+    qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
+      function (r) {
+        var s = r.querySelector(".invoice-prd-select");
+        var nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
+        var pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
+        var qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+        if (nm) items.push({ name: nm, price: pr, qty: qt });
+      },
+    );
+
+    if (!items.length) {
+      toast("Add items first", "warning");
+      return;
+    }
+
+    var subtotal = 0;
+    items.forEach(function (i) {
+      subtotal += i.price * i.qty;
     });
-  } else {
-    var w = window.open("", "_blank");
-    w.document.write(content);
-    w.document.close();
-    setTimeout(function() { w.print(); }, 500);
-  }
-});
+    var total = subtotal;
+    var cash = parseFloat(qs("#cashReceived")?.value) || 0;
+    var change = cash >= total ? cash - total : 0;
+
+    var tempInv = {
+      number: invNumber || "—",
+      date: invDate || fmtDate(),
+      time: fmtTime(),
+      customer: invCustomer,
+      contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
+      vehicle:
+        invVehicle !== "—" ? invVehicle : qs("#invoiceVehicle")?.value || "",
+      token: invToken !== "—" ? invToken : "",
+      items: items,
+      total: total,
+      cashReceived: cash,
+      changeReturned: change,
+      status: cash >= total && cash > 0 ? "PAID" : "UNPAID",
+    };
+
+    var biz = getCurrentBusiness();
+    var content = generateThermalInvoice(tempInv, biz);
+
+    if (window.electronAPI && window.electronAPI.printReceipt) {
+      window.electronAPI.printReceipt(content, {
+        pageSize: { width: 80000, height: 297000 },
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      });
+    } else {
+      var w = window.open("", "_blank");
+      w.document.write(content);
+      w.document.close();
+      setTimeout(function () {
+        w.print();
+      }, 500);
+    }
+  });
   qs("#invoiceToken")?.addEventListener("input", function () {
     autoFillFromToken(this.value.trim());
     updateInvoicePreview();
@@ -2598,10 +2420,10 @@ function saveInvoice() {
   STATE.counters[counterKey]++;
   saveInvoices();
   saveCounters();
-  
+
   // Save current invoice ID for Print Receipt button
   qs("#invoiceToken").dataset.savedId = inv.id;
-  
+
   var tn = inv.token;
   if (tn) {
     var tk = STATE.tokens.find(function (t) {
@@ -2952,20 +2774,23 @@ function printTokenReceipt(tokenId) {
 
 function _printSingleCopy(htmlContent, callback) {
   if (window.electronAPI && window.electronAPI.printReceipt) {
-    window.electronAPI.printReceipt(htmlContent, { 
-      pageSize: { width: 80000, height: 297000 },
-      silent: true
-    }).then(function(result) {
-      if (callback) callback(true);
-    }).catch(function() {
-      if (callback) callback(true);
-    });
+    window.electronAPI
+      .printReceipt(htmlContent, {
+        pageSize: { width: 80000, height: 297000 },
+        silent: true,
+      })
+      .then(function (result) {
+        if (callback) callback(true);
+      })
+      .catch(function () {
+        if (callback) callback(true);
+      });
   } else {
     var w = window.open("", "_blank");
     if (w) {
       w.document.write(htmlContent);
       w.document.close();
-      setTimeout(function() {
+      setTimeout(function () {
         w.print();
         w.close();
         if (callback) callback(true);
@@ -2976,42 +2801,142 @@ function _printSingleCopy(htmlContent, callback) {
   }
 }
 
-function generateThermalCustomerCopy(token, businessName, address, phone, date, time) {
-  var itemsHTML = '';
+function generateThermalCustomerCopy(
+  token,
+  businessName,
+  address,
+  phone,
+  date,
+  time,
+) {
+  var itemsHTML = "";
   var totalAmount = token.servicePrice || 0;
-  
+
   if (token.service) {
-    var svcPrice = token.servicePrice || getMatrixPrice(token.service, token.vehicleType) || 0;
-    itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(token.service) + '</span><span class="svc-price">' + fmtPrice(svcPrice) + '</span></div>';
+    var svcPrice =
+      token.servicePrice ||
+      getMatrixPrice(token.service, token.vehicleType) ||
+      0;
+    itemsHTML +=
+      '<div class="svc-row"><span class="svc-dot">•</span><span>' +
+      sanitize(token.service) +
+      '</span><span class="svc-price">' +
+      fmtPrice(svcPrice) +
+      "</span></div>";
     totalAmount = Math.max(totalAmount, svcPrice);
   }
   if (token.products && token.products.length > 0) {
-    token.products.forEach(function(p) {
-      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
+    token.products.forEach(function (p) {
+      itemsHTML +=
+        '<div class="svc-row"><span class="svc-dot">•</span><span>' +
+        sanitize(p.fullName) +
+        " x" +
+        p.qty +
+        '</span><span class="svc-price">' +
+        fmtPrice(p.price * p.qty) +
+        "</span></div>";
       totalAmount += p.price * p.qty;
     });
   }
-  
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="addr">' + sanitize(address) + '</div><div class="addr">Tel: ' + sanitize(phone) + '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' + sanitize(token.number) + '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + ' (' + sanitize(token.vehicleType) + ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for reference</div><div class="ftr-note">' + sanitize(phone) + '</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>';
+
+  return (
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' +
+    sanitize(businessName) +
+    '</div><div class="addr">' +
+    sanitize(address) +
+    '</div><div class="addr">Tel: ' +
+    sanitize(phone) +
+    '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' +
+    sanitize(token.number) +
+    '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
+    sanitize(token.ownerName || "N/A") +
+    '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
+    sanitize(token.vehicleNo) +
+    " (" +
+    sanitize(token.vehicleType) +
+    ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' +
+    sanitize(formatContactDisplay(token.contactNumber || "N/A")) +
+    '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
+    sanitize(date) +
+    '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' +
+    sanitize(time) +
+    '</span></div></div><div class="svc-title">Services & Products</div>' +
+    (itemsHTML ||
+      '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') +
+    '<div class="total-row"><span>TOTAL</span><span>' +
+    fmtPrice(totalAmount) +
+    '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for reference</div><div class="ftr-note">' +
+    sanitize(phone) +
+    '</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>'
+  );
 }
 
-function generateThermalCashierCopy(token, businessName, address, phone, date, time) {
-  var itemsHTML = '';
+function generateThermalCashierCopy(
+  token,
+  businessName,
+  address,
+  phone,
+  date,
+  time,
+) {
+  var itemsHTML = "";
   var totalAmount = token.servicePrice || 0;
-  
+
   if (token.service) {
-    var svcPrice = token.servicePrice || getMatrixPrice(token.service, token.vehicleType) || 0;
-    itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(token.service) + '</span><span class="svc-price">' + fmtPrice(svcPrice) + '</span></div>';
+    var svcPrice =
+      token.servicePrice ||
+      getMatrixPrice(token.service, token.vehicleType) ||
+      0;
+    itemsHTML +=
+      '<div class="svc-row"><span class="svc-dot">•</span><span>' +
+      sanitize(token.service) +
+      '</span><span class="svc-price">' +
+      fmtPrice(svcPrice) +
+      "</span></div>";
     totalAmount = Math.max(totalAmount, svcPrice);
   }
   if (token.products && token.products.length > 0) {
-    token.products.forEach(function(p) {
-      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
+    token.products.forEach(function (p) {
+      itemsHTML +=
+        '<div class="svc-row"><span class="svc-dot">•</span><span>' +
+        sanitize(p.fullName) +
+        " x" +
+        p.qty +
+        '</span><span class="svc-price">' +
+        fmtPrice(p.price * p.qty) +
+        "</span></div>";
       totalAmount += p.price * p.qty;
     });
   }
-  
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' + sanitize(token.number) + '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' + sanitize(token.vehicleType) + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + ' ' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' + sanitize(businessName) + ' | ' + sanitize(phone) + ' | Attendant\'s Copy</div></body></html>';
+
+  return (
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' +
+    sanitize(businessName) +
+    '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' +
+    sanitize(token.number) +
+    '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
+    sanitize(token.ownerName || "N/A") +
+    '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
+    sanitize(token.vehicleNo) +
+    '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' +
+    sanitize(token.vehicleType) +
+    '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' +
+    sanitize(formatContactDisplay(token.contactNumber || "N/A")) +
+    '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
+    sanitize(date) +
+    " " +
+    sanitize(time) +
+    '</span></div></div><div class="svc-title">Services & Products</div>' +
+    (itemsHTML ||
+      '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') +
+    '<div class="total-row"><span>TOTAL</span><span>' +
+    fmtPrice(totalAmount) +
+    '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' +
+    sanitize(businessName) +
+    " | " +
+    sanitize(phone) +
+    " | Attendant's Copy</div></body></html>"
+  );
 }
 // ==================== A4 INVOICE PRINTING ====================
 function printA4Invoice(invoiceId) {
@@ -3024,7 +2949,7 @@ function printA4Invoice(invoiceId) {
   }
   var biz = getCurrentBusiness();
   var content = generateA4Invoice(inv, biz);
-  
+
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI
       .printReceipt(content, {
@@ -3035,7 +2960,10 @@ function printA4Invoice(invoiceId) {
       })
       .then(function (result) {
         if (!result || !result.success) {
-          toast("A4 print failed: " + (result ? result.reason : "unknown"), "error");
+          toast(
+            "A4 print failed: " + (result ? result.reason : "unknown"),
+            "error",
+          );
         }
       })
       .catch(function () {
@@ -3056,127 +2984,239 @@ function generateA4Invoice(inv, biz) {
   var subtotal = 0;
   var servicesTotal = 0;
   var productsTotal = 0;
-  
-  inv.items.forEach(function(item, i) {
+
+  inv.items.forEach(function (item, i) {
     var amount = item.price * item.qty;
     subtotal += amount;
-    if (item.type === "service") { servicesTotal += amount; }
-    else { productsTotal += amount; }
-    itemsRows += 
-      '<tr>' +
-      '<td style="text-align:left;padding:2mm">' + sanitize(item.name) + '</td>' +
-      '<td style="text-align:center">' + sanitize(item.type || "—") + '</td>' +
-      '<td style="text-align:center">' + item.qty + '</td>' +
-      '<td style="text-align:right">' + fmtPrice(item.price) + '</td>' +
-      '<td style="text-align:right;font-weight:700">' + fmtPrice(amount) + '</td>' +
-      '</tr>';
+    if (item.type === "service") {
+      servicesTotal += amount;
+    } else {
+      productsTotal += amount;
+    }
+    itemsRows +=
+      "<tr>" +
+      '<td style="text-align:left;padding:2mm">' +
+      sanitize(item.name) +
+      "</td>" +
+      '<td style="text-align:center">' +
+      sanitize(item.type || "—") +
+      "</td>" +
+      '<td style="text-align:center">' +
+      item.qty +
+      "</td>" +
+      '<td style="text-align:right">' +
+      fmtPrice(item.price) +
+      "</td>" +
+      '<td style="text-align:right;font-weight:700">' +
+      fmtPrice(amount) +
+      "</td>" +
+      "</tr>";
   });
-  
+
   var grandTotal = inv.total || subtotal;
   var cashReceived = inv.cashReceived || 0;
   var balanceReturned = Math.max(0, cashReceived - grandTotal);
-  var paymentStatus = cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
-  var printTimeNow = new Date().toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true });
+  var paymentStatus =
+    cashReceived >= grandTotal && cashReceived > 0 ? "PAID" : "UNPAID";
+  var printTimeNow = new Date().toLocaleTimeString("en-PK", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
   var printDateNow = fmtDate();
-  
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-  '@page{size:A4;margin:15mm}' +
-  '*{margin:0;padding:0;box-sizing:border-box}' +
-  'body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#222;font-size:10pt;line-height:1.4;background:#fff;padding:0}' +
-  '.page{max-width:180mm;margin:0 auto;padding:5mm 0}' +
-  '.top{border-bottom:3px solid #1a3c6e;padding-bottom:5mm;margin-bottom:5mm;display:flex;justify-content:space-between}' +
-  '.top-l{flex:1}' +
-  '.top-logo{width:18mm;height:18mm;background:#1a3c6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20pt;font-weight:900;margin-bottom:2mm}' +
-  '.top-name{font-size:16pt;font-weight:900;color:#1a3c6e;text-transform:uppercase;letter-spacing:1px}' +
-  '.top-addr{font-size:8pt;color:#555}' +
-  '.top-r{border:2px solid #1a3c6e;padding:3mm 5mm;text-align:center;min-width:42mm}' +
-  '.top-r-title{font-size:12pt;font-weight:900;color:#1a3c6e;letter-spacing:2px;border-bottom:1px solid #1a3c6e;padding-bottom:1mm;margin-bottom:1.5mm}' +
-  '.top-r-row{font-size:7.5pt;display:flex;justify-content:space-between;padding:0.4mm 0}' +
-  '.top-r-lbl{color:#666}' +
-  '.top-r-val{font-weight:700}' +
-  '.info-box{display:flex;gap:5mm;margin-bottom:5mm}' +
-  '.info-box>div{flex:1;border:1px solid #ccc;padding:2.5mm}' +
-  '.info-box .ttl{font-size:8pt;font-weight:700;color:#1a3c6e;border-bottom:1px solid #ccc;padding-bottom:1mm;margin-bottom:1.5mm;text-transform:uppercase}' +
-  '.info-r{display:flex;justify-content:space-between;padding:0.8mm 0;border-bottom:1px dotted #eee;font-size:8pt}' +
-  '.info-r .l{color:#666}' +
-  '.info-r .v{font-weight:700}' +
-  '.tbl{width:100%;border-collapse:collapse;margin-bottom:5mm;border:1px solid #ccc}' +
-  '.tbl th{background:#1a3c6e;color:#fff;padding:2.5mm;font-size:7.5pt;text-transform:uppercase;text-align:left}' +
-  '.tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}' +
-  '.tbl tr:nth-child(even) td{background:#f9fafb}' +
-  '.sum-box{display:flex;justify-content:flex-end;margin-bottom:5mm}' +
-  '.sum-tbl{width:42%;border-collapse:collapse;border:1px solid #ccc}' +
-  '.sum-tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}' +
-  '.sum-tbl .lbl{color:#555}' +
-  '.sum-tbl .val{text-align:right;font-weight:700}' +
-  '.sum-tbl .gt{background:#1a3c6e;color:#fff;font-size:11pt;font-weight:900}' +
-  '.bottom{display:flex;gap:5mm;margin-top:5mm;border-top:1px solid #ccc;padding-top:4mm}' +
-  '.bottom-l{flex:1;font-size:7pt;color:#777;line-height:1.6}' +
-  '.bottom-r{width:35%;text-align:center}' +
-  '.sig-line{border-top:1px solid #333;margin-top:12mm;padding-top:1.5mm;font-size:7.5pt;color:#555}' +
-  '.ftr{text-align:center;margin-top:5mm;border-top:1px solid #ccc;padding-top:3mm;font-size:7pt;color:#999}' +
-  '.paid{color:#059669;font-weight:800}' +
-  '.unpaid{color:#dc2626;font-weight:800}' +
-  '</style></head><body><div class="page">' +
-  '<div class="top"><div class="top-l"><div class="top-logo">' + sanitize(biz.prefix) + '</div><div class="top-name">' + sanitize(biz.name) + '</div><div class="top-addr">' + sanitize(biz.address) + ' | Tel: ' + sanitize(biz.phone) + ' | Email: ' + sanitize(biz.email) + '</div></div><div class="top-r"><div class="top-r-title">INVOICE</div><div class="top-r-row"><span class="top-r-lbl">Invoice #</span><span class="top-r-val">' + sanitize(inv.number) + '</span></div><div class="top-r-row"><span class="top-r-lbl">Date</span><span class="top-r-val">' + sanitize(inv.date) + '</span></div><div class="top-r-row"><span class="top-r-lbl">Time</span><span class="top-r-val">' + sanitize(inv.time) + '</span></div></div></div>' +
-  '<div class="info-box"><div><div class="ttl">Bill To</div><div class="info-r"><span class="l">Customer</span><span class="v">' + sanitize(inv.customer || "—") + '</span></div><div class="info-r"><span class="l">Phone</span><span class="v">' + sanitize(formatContactDisplay(inv.contactNumber || "N/A")) + '</span></div><div class="info-r"><span class="l">Vehicle</span><span class="v">' + sanitize(inv.vehicle || "—") + '</span></div><div class="info-r"><span class="l">Token</span><span class="v">' + sanitize(inv.token || "—") + '</span></div></div><div><div class="ttl">Payment Info</div><div class="info-r"><span class="l">Status</span><span class="v ' + (paymentStatus === "PAID" ? "paid" : "unpaid") + '">' + paymentStatus + '</span></div><div class="info-r"><span class="l">Method</span><span class="v">Cash</span></div><div class="info-r"><span class="l">Business</span><span class="v">' + sanitize(biz.name) + '</span></div></div></div>' +
-  '<table class="tbl"><thead><tr><th>Description</th><th style="width:12%;text-align:center">Qty</th><th style="width:18%;text-align:right">Rate</th><th style="width:20%;text-align:right">Amount</th></tr></thead><tbody>' + itemsRows + '</tbody></table>' +
-  '<div class="sum-box"><table class="sum-tbl"><tr><td class="lbl">Subtotal</td><td class="val">' + fmtPrice(subtotal) + '</td></tr>' + (servicesTotal > 0 ? '<tr><td class="lbl">Services</td><td class="val">' + fmtPrice(servicesTotal) + '</td></tr>' : '') + (productsTotal > 0 ? '<tr><td class="lbl">Products</td><td class="val">' + fmtPrice(productsTotal) + '</td></tr>' : '') + '<tr><td class="lbl">Cash Received</td><td class="val">' + fmtPrice(cashReceived) + '</td></tr><tr><td class="lbl">Change Returned</td><td class="val">' + fmtPrice(balanceReturned) + '</td></tr><tr><td class="gt" colspan="2"><div style="display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div></td></tr></table></div>' +
-  '<div class="bottom"><div class="bottom-l"><strong>Terms &amp; Conditions</strong><br>1. Goods once sold will not be taken back.<br>2. Warranty subject to manufacturer policy.<br>3. Vehicle must be collected within 24 hours.<br><br>Thank you for your business!</div><div class="bottom-r"><div class="sig-line">Authorized Signature</div></div></div>' +
-  '<div class="ftr">' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + ' | Developed by DESIGN ORBITS | 0322-5267908</div>' +
-  '</div></body></html>';
+
+  return (
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+    "@page{size:A4;margin:15mm}" +
+    "*{margin:0;padding:0;box-sizing:border-box}" +
+    'body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#222;font-size:10pt;line-height:1.4;background:#fff;padding:0}' +
+    ".page{max-width:180mm;margin:0 auto;padding:5mm 0}" +
+    ".top{border-bottom:3px solid #1a3c6e;padding-bottom:5mm;margin-bottom:5mm;display:flex;justify-content:space-between}" +
+    ".top-l{flex:1}" +
+    ".top-logo{width:18mm;height:18mm;background:#1a3c6e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20pt;font-weight:900;margin-bottom:2mm}" +
+    ".top-name{font-size:16pt;font-weight:900;color:#1a3c6e;text-transform:uppercase;letter-spacing:1px}" +
+    ".top-addr{font-size:8pt;color:#555}" +
+    ".top-r{border:2px solid #1a3c6e;padding:3mm 5mm;text-align:center;min-width:42mm}" +
+    ".top-r-title{font-size:12pt;font-weight:900;color:#1a3c6e;letter-spacing:2px;border-bottom:1px solid #1a3c6e;padding-bottom:1mm;margin-bottom:1.5mm}" +
+    ".top-r-row{font-size:7.5pt;display:flex;justify-content:space-between;padding:0.4mm 0}" +
+    ".top-r-lbl{color:#666}" +
+    ".top-r-val{font-weight:700}" +
+    ".info-box{display:flex;gap:5mm;margin-bottom:5mm}" +
+    ".info-box>div{flex:1;border:1px solid #ccc;padding:2.5mm}" +
+    ".info-box .ttl{font-size:8pt;font-weight:700;color:#1a3c6e;border-bottom:1px solid #ccc;padding-bottom:1mm;margin-bottom:1.5mm;text-transform:uppercase}" +
+    ".info-r{display:flex;justify-content:space-between;padding:0.8mm 0;border-bottom:1px dotted #eee;font-size:8pt}" +
+    ".info-r .l{color:#666}" +
+    ".info-r .v{font-weight:700}" +
+    ".tbl{width:100%;border-collapse:collapse;margin-bottom:5mm;border:1px solid #ccc}" +
+    ".tbl th{background:#1a3c6e;color:#fff;padding:2.5mm;font-size:7.5pt;text-transform:uppercase;text-align:left}" +
+    ".tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}" +
+    ".tbl tr:nth-child(even) td{background:#f9fafb}" +
+    ".sum-box{display:flex;justify-content:flex-end;margin-bottom:5mm}" +
+    ".sum-tbl{width:42%;border-collapse:collapse;border:1px solid #ccc}" +
+    ".sum-tbl td{padding:2mm 2.5mm;border:1px solid #ccc;font-size:8.5pt}" +
+    ".sum-tbl .lbl{color:#555}" +
+    ".sum-tbl .val{text-align:right;font-weight:700}" +
+    ".sum-tbl .gt{background:#1a3c6e;color:#fff;font-size:11pt;font-weight:900}" +
+    ".bottom{display:flex;gap:5mm;margin-top:5mm;border-top:1px solid #ccc;padding-top:4mm}" +
+    ".bottom-l{flex:1;font-size:7pt;color:#777;line-height:1.6}" +
+    ".bottom-r{width:35%;text-align:center}" +
+    ".sig-line{border-top:1px solid #333;margin-top:12mm;padding-top:1.5mm;font-size:7.5pt;color:#555}" +
+    ".ftr{text-align:center;margin-top:5mm;border-top:1px solid #ccc;padding-top:3mm;font-size:7pt;color:#999}" +
+    ".paid{color:#059669;font-weight:800}" +
+    ".unpaid{color:#dc2626;font-weight:800}" +
+    '</style></head><body><div class="page">' +
+    '<div class="top"><div class="top-l"><div class="top-logo">' +
+    sanitize(biz.prefix) +
+    '</div><div class="top-name">' +
+    sanitize(biz.name) +
+    '</div><div class="top-addr">' +
+    sanitize(biz.address) +
+    " | Tel: " +
+    sanitize(biz.phone) +
+    " | Email: " +
+    sanitize(biz.email) +
+    '</div></div><div class="top-r"><div class="top-r-title">INVOICE</div><div class="top-r-row"><span class="top-r-lbl">Invoice #</span><span class="top-r-val">' +
+    sanitize(inv.number) +
+    '</span></div><div class="top-r-row"><span class="top-r-lbl">Date</span><span class="top-r-val">' +
+    sanitize(inv.date) +
+    '</span></div><div class="top-r-row"><span class="top-r-lbl">Time</span><span class="top-r-val">' +
+    sanitize(inv.time) +
+    "</span></div></div></div>" +
+    '<div class="info-box"><div><div class="ttl">Bill To</div><div class="info-r"><span class="l">Customer</span><span class="v">' +
+    sanitize(inv.customer || "—") +
+    '</span></div><div class="info-r"><span class="l">Phone</span><span class="v">' +
+    sanitize(formatContactDisplay(inv.contactNumber || "N/A")) +
+    '</span></div><div class="info-r"><span class="l">Vehicle</span><span class="v">' +
+    sanitize(inv.vehicle || "—") +
+    '</span></div><div class="info-r"><span class="l">Token</span><span class="v">' +
+    sanitize(inv.token || "—") +
+    '</span></div></div><div><div class="ttl">Payment Info</div><div class="info-r"><span class="l">Status</span><span class="v ' +
+    (paymentStatus === "PAID" ? "paid" : "unpaid") +
+    '">' +
+    paymentStatus +
+    '</span></div><div class="info-r"><span class="l">Method</span><span class="v">Cash</span></div><div class="info-r"><span class="l">Business</span><span class="v">' +
+    sanitize(biz.name) +
+    "</span></div></div></div>" +
+    '<table class="tbl"><thead><tr><th>Description</th><th style="width:12%;text-align:center">Qty</th><th style="width:18%;text-align:right">Rate</th><th style="width:20%;text-align:right">Amount</th></tr></thead><tbody>' +
+    itemsRows +
+    "</tbody></table>" +
+    '<div class="sum-box"><table class="sum-tbl"><tr><td class="lbl">Subtotal</td><td class="val">' +
+    fmtPrice(subtotal) +
+    "</td></tr>" +
+    (servicesTotal > 0
+      ? '<tr><td class="lbl">Services</td><td class="val">' +
+        fmtPrice(servicesTotal) +
+        "</td></tr>"
+      : "") +
+    (productsTotal > 0
+      ? '<tr><td class="lbl">Products</td><td class="val">' +
+        fmtPrice(productsTotal) +
+        "</td></tr>"
+      : "") +
+    '<tr><td class="lbl">Cash Received</td><td class="val">' +
+    fmtPrice(cashReceived) +
+    '</td></tr><tr><td class="lbl">Change Returned</td><td class="val">' +
+    fmtPrice(balanceReturned) +
+    '</td></tr><tr><td class="gt" colspan="2"><div style="display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span>' +
+    fmtPrice(grandTotal) +
+    "</span></div></td></tr></table></div>" +
+    '<div class="bottom"><div class="bottom-l"><strong>Terms &amp; Conditions</strong><br>1. Goods once sold will not be taken back.<br>2. Warranty subject to manufacturer policy.<br>3. Vehicle must be collected within 24 hours.<br><br>Thank you for your business!</div><div class="bottom-r"><div class="sig-line">Authorized Signature</div></div></div>' +
+    '<div class="ftr">' +
+    sanitize(biz.name) +
+    " | " +
+    sanitize(biz.phone) +
+    " | Developed by DESIGN ORBITS | 0322-5267908</div>" +
+    "</div></body></html>"
+  );
 }
 
 function generateThermalInvoice(inv, biz) {
   var itemsRows = "";
   var subtotal = 0;
-  inv.items.forEach(function(item, i) {
+  inv.items.forEach(function (item, i) {
     var amount = item.price * item.qty;
     subtotal += amount;
-    itemsRows += '<tr><td style="padding:1.2mm 0;font-size:9pt;color:#000">' + sanitize(item.name) + '</td><td style="text-align:right;font-size:9pt;font-weight:900;color:#000">' + fmtPrice(amount) + '</td></tr>';
+    itemsRows +=
+      '<tr><td style="padding:1.2mm 0;font-size:9pt;color:#000">' +
+      sanitize(item.name) +
+      '</td><td style="text-align:right;font-size:9pt;font-weight:900;color:#000">' +
+      fmtPrice(amount) +
+      "</td></tr>";
   });
   var grandTotal = inv.total || subtotal;
   var cashReceived = inv.cashReceived || 0;
   var balanceReturned = Math.max(0, cashReceived - grandTotal);
-  
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
-  '*{margin:0;padding:0;box-sizing:border-box}' +
-  'body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:10pt;color:#000;background:#fff;line-height:1.3}' +
-  '.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}' +
-  '.biz{font-size:14pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;color:#000}' +
-  '.addr{font-size:8pt;color:#000;margin-top:0.5mm}' +
-  '.inv-box{text-align:center;margin:3mm 0;padding:2mm;border:2px solid #000}' +
-  '.inv-lbl{font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#000}' +
-  '.inv-num{font-size:14pt;font-weight:900;letter-spacing:1px;color:#000}' +
-  '.info{margin:3mm 0}' +
-  '.info-row{display:flex;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-size:9pt}' +
-  '.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#000;padding-top:0.5mm}' +
-  '.info-val{flex:1;font-weight:700;color:#000}' +
-  '.sec-title{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm;text-align:center;color:#000}' +
-  '.tbl{width:100%;border-collapse:collapse;margin:1mm 0}' +
-  '.tbl th{background:#000;color:#fff;padding:1.5mm;font-size:7.5pt;text-transform:uppercase}' +
-  '.sum-box{margin-top:2mm;border-top:2px solid #000;padding-top:1.5mm}' +
-  '.sum-row{display:flex;justify-content:space-between;font-size:9pt;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-weight:700;color:#000}' +
-  '.grand{display:flex;justify-content:space-between;font-size:13pt;font-weight:900;padding:2mm;border:2px solid #000;margin-top:2mm;color:#000}' +
-  '.ftr{text-align:center;font-size:7.5pt;color:#000;margin-top:3mm;border-top:1px solid #000;padding-top:2mm}' +
-  '</style></head><body>' +
-  '<div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div class="addr">' + sanitize(biz.address) + '</div><div class="addr">Tel: ' + sanitize(biz.phone) + '</div></div>' +
-  '<div class="inv-box"><div class="inv-lbl">INVOICE</div><div class="inv-num">' + sanitize(inv.number) + '</div></div>' +
-  '<div class="info">' +
-    '<div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(inv.date) + ' ' + sanitize(inv.time) + '</span></div>' +
-    '<div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(inv.customer) + '</span></div>' +
-    '<div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(inv.vehicle || "—") + '</span></div>' +
-  '</div>' +
-  '<div class="sec-title">Items</div>' +
-  '<table class="tbl"><thead><tr><th style="text-align:left">Description</th><th style="width:30%;text-align:right">Amount</th></tr></thead><tbody>' + itemsRows + '</tbody></table>' +
-  '<div class="sum-box">' +
-    '<div class="sum-row"><span>Subtotal</span><span>' + fmtPrice(subtotal) + '</span></div>' +
-    '<div class="sum-row"><span>Cash</span><span>' + fmtPrice(cashReceived) + '</span></div>' +
-    '<div class="sum-row"><span>Change</span><span>' + fmtPrice(balanceReturned) + '</span></div>' +
-    '<div class="grand"><span>TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div>' +
-  '</div>' +
-  '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '</div>' +
-  '</body></html>';
+
+  return (
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+    "*{margin:0;padding:0;box-sizing:border-box}" +
+    'body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:10pt;color:#000;background:#fff;line-height:1.3}' +
+    ".hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}" +
+    ".biz{font-size:14pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;color:#000}" +
+    ".addr{font-size:8pt;color:#000;margin-top:0.5mm}" +
+    ".inv-box{text-align:center;margin:3mm 0;padding:2mm;border:2px solid #000}" +
+    ".inv-lbl{font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#000}" +
+    ".inv-num{font-size:14pt;font-weight:900;letter-spacing:1px;color:#000}" +
+    ".info{margin:3mm 0}" +
+    ".info-row{display:flex;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-size:9pt}" +
+    ".info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#000;padding-top:0.5mm}" +
+    ".info-val{flex:1;font-weight:700;color:#000}" +
+    ".sec-title{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm;text-align:center;color:#000}" +
+    ".tbl{width:100%;border-collapse:collapse;margin:1mm 0}" +
+    ".tbl th{background:#000;color:#fff;padding:1.5mm;font-size:7.5pt;text-transform:uppercase}" +
+    ".sum-box{margin-top:2mm;border-top:2px solid #000;padding-top:1.5mm}" +
+    ".sum-row{display:flex;justify-content:space-between;font-size:9pt;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-weight:700;color:#000}" +
+    ".grand{display:flex;justify-content:space-between;font-size:13pt;font-weight:900;padding:2mm;border:2px solid #000;margin-top:2mm;color:#000}" +
+    ".ftr{text-align:center;font-size:7.5pt;color:#000;margin-top:3mm;border-top:1px solid #000;padding-top:2mm}" +
+    "</style></head><body>" +
+    '<div class="hdr"><div class="biz">' +
+    sanitize(biz.name) +
+    '</div><div class="addr">' +
+    sanitize(biz.address) +
+    '</div><div class="addr">Tel: ' +
+    sanitize(biz.phone) +
+    "</div></div>" +
+    '<div class="inv-box"><div class="inv-lbl">INVOICE</div><div class="inv-num">' +
+    sanitize(inv.number) +
+    "</div></div>" +
+    '<div class="info">' +
+    '<div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
+    sanitize(inv.date) +
+    " " +
+    sanitize(inv.time) +
+    "</span></div>" +
+    '<div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
+    sanitize(inv.customer) +
+    "</span></div>" +
+    '<div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
+    sanitize(inv.vehicle || "—") +
+    "</span></div>" +
+    "</div>" +
+    '<div class="sec-title">Items</div>' +
+    '<table class="tbl"><thead><tr><th style="text-align:left">Description</th><th style="width:30%;text-align:right">Amount</th></tr></thead><tbody>' +
+    itemsRows +
+    "</tbody></table>" +
+    '<div class="sum-box">' +
+    '<div class="sum-row"><span>Subtotal</span><span>' +
+    fmtPrice(subtotal) +
+    "</span></div>" +
+    '<div class="sum-row"><span>Cash</span><span>' +
+    fmtPrice(cashReceived) +
+    "</span></div>" +
+    '<div class="sum-row"><span>Change</span><span>' +
+    fmtPrice(balanceReturned) +
+    "</span></div>" +
+    '<div class="grand"><span>TOTAL</span><span>' +
+    fmtPrice(grandTotal) +
+    "</span></div>" +
+    "</div>" +
+    '<div class="ftr">Thank You!<br>' +
+    sanitize(biz.name) +
+    " | " +
+    sanitize(biz.phone) +
+    "</div>" +
+    "</body></html>"
+  );
 }
 
 // ==================== PRODUCT SALE ====================
@@ -5103,6 +5143,442 @@ function loadSettingsForm() {
     }
   }
 })();
+
+
+
+function openVendorModal() {
+  setValue("#vendorEditId", "");
+  setValue("#vendorCompany", "");
+  setValue("#vendorContactPerson", "");
+  setValue("#vendorPhone", "");
+  setValue("#vendorEmail", "");
+  setValue("#vendorAddress", "");
+  setValue("#vendorCategory", "");
+  setValue("#vendorStatus", "Active");
+  openModal("vendorModal");
+}
+
+function saveVendor() {
+  var company = (qs("#vendorCompany")?.value || "").trim();
+  var contact = (qs("#vendorContactPerson")?.value || "").trim();
+  var phone = (qs("#vendorPhone")?.value || "").trim();
+  if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
+  var vendor = {
+    id: uid(),
+    company: company,
+    contactPerson: contact,
+    phone: phone,
+    email: (qs("#vendorEmail")?.value || "").trim(),
+    address: (qs("#vendorAddress")?.value || "").trim(),
+    category: qs("#vendorCategory")?.value || "General Supplier",
+    status: qs("#vendorStatus")?.value || "Active",
+    dateAdded: fmtDate(),
+    totalPurchases: 0
+  };
+  STATE.vendors.push(vendor);
+  saveVendors();
+  closeModal("vendorModal");
+  renderVendorTable();
+  renderVendorKPIs();
+  toast("Vendor added", "success");
+}
+// ==================== VENDORS ====================
+function initVendors() {
+  qs("#addVendorBtn")?.addEventListener("click", function() { openVendorModal(); });
+  qs("#saveVendorBtn")?.addEventListener("click", saveVendor);
+  qs("#vendorPaymentsBtn")?.addEventListener("click", openPaymentModal);
+  qs("#savePaymentBtn")?.addEventListener("click", savePayment);
+  qs("#vendorSearch")?.addEventListener("input", renderVendorTable);
+  qs("#vendorCategoryFilter")?.addEventListener("change", renderVendorTable);
+  if (qs("#paymentDate")) qs("#paymentDate").value = toDateInputValue(new Date());
+  
+  // Print payment receipt handler
+  document.addEventListener("click", function(e) {
+    var pr = e.target.closest("[data-print-vpayment]");
+    if (pr) {
+      var pid = pr.dataset.printVpayment;
+      var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
+      if (pay) printVendorPaymentReceipt(pay);
+    }
+  });
+}
+
+function openVendorCategoryModal() {
+  var existing = qs("#vendorCategoryModal");
+  if (existing) existing.remove();
+  var cats = ["Oil Supplier", "Parts Supplier", "Accessories", "Car Wash Chemicals", "Tires", "General Supplier"];
+  var h = '<div class="modal-overlay" id="vendorCategoryModal"><div class="modal modal--sm"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">category</span> Vendor Categories</h2><button class="modal-close" onclick="document.getElementById(\'vendorCategoryModal\').remove()"><span class="material-icons">close</span></button></div><div class="modal-body"><div style="display:flex;gap:0.5rem;margin-bottom:1rem"><input type="text" class="form-input" id="newVendorCategory" placeholder="New category" style="flex:1" /><button class="btn btn-primary btn-sm" id="addVendorCategoryBtn">Add</button></div><div id="vendorCategoryList">';
+  cats.forEach(function(c) {
+    h += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e2e8f0"><span>' + c + '</span></div>';
+  });
+  h += '</div></div></div></div>';
+  document.body.insertAdjacentHTML("beforeend", h);
+  
+  qs("#addVendorCategoryBtn")?.addEventListener("click", function() {
+    var n = (qs("#newVendorCategory")?.value || "").trim();
+    if (n) {
+      var sel = qs("#vendorCategoryFilter");
+      if (sel) sel.innerHTML += '<option value="' + n + '">' + n + '</option>';
+      var sel2 = qs("#vendorCategory");
+      if (sel2) sel2.innerHTML += '<option value="' + n + '">' + n + '</option>';
+      toast("Category added", "success");
+      document.getElementById("vendorCategoryModal").remove();
+    }
+  });
+}
+function printVendorPaymentReceipt(pay) {
+  var v = STATE.vendors.find(function(v) { return v.id === pay.vendorId; });
+  var biz = getCurrentBusiness();
+  
+  // Get purchases for this vendor
+  var purchasesHTML = '';
+  if (v && v.purchases && v.purchases.length > 0) {
+    purchasesHTML += '<div class="sec-title">Purchases</div>';
+    v.purchases.forEach(function(p) {
+      purchasesHTML += '<div class="info-row"><span class="info-lbl">' + sanitize(p.description) + ' x' + p.qty + '</span><span class="info-val">' + fmtPrice(p.amount) + '</span></div>';
+    });
+  }
+  
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:10pt;color:#000;background:#fff;line-height:1.3}' +
+  '.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}' +
+  '.biz{font-size:14pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}' +
+  '.addr{font-size:8pt;color:#000;margin-top:0.5mm}' +
+  '.rec-box{text-align:center;margin:3mm 0;padding:2mm;border:2px solid #000}' +
+  '.rec-lbl{font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#000}' +
+  '.rec-title{font-size:12pt;font-weight:900}' +
+  '.info{margin:3mm 0}' +
+  '.info-row{display:flex;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-size:9pt}' +
+  '.info-lbl{width:40%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#000}' +
+  '.info-val{flex:1;font-weight:700;color:#000;text-align:right}' +
+  '.sec-title{font-size:8pt;font-weight:900;text-transform:uppercase;text-align:center;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}' +
+  '.amount-box{text-align:center;margin:3mm 0;padding:2mm;border:2px solid #000}' +
+  '.amount-lbl{font-size:7pt;text-transform:uppercase}' +
+  '.amount-val{font-size:16pt;font-weight:900}' +
+  '.ftr{text-align:center;font-size:7.5pt;color:#000;margin-top:3mm;border-top:1px solid #000;padding-top:2mm}' +
+  '</style></head><body>' +
+  '<div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div class="addr">' + sanitize(biz.address) + '</div><div class="addr">Tel: ' + sanitize(biz.phone) + '</div></div>' +
+  '<div class="rec-box"><div class="rec-lbl">PAYMENT RECEIPT</div><div class="rec-title">' + sanitize(v ? v.company : "N/A") + '</div></div>' +
+  '<div class="info">' +
+    '<div class="info-row"><span class="info-lbl">Contact</span><span class="info-val">' + sanitize(v ? v.contactPerson : "—") + ' | ' + sanitize(v ? v.phone : "—") + '</span></div>' +
+    '<div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(pay.date) + '</span></div>' +
+    '<div class="info-row"><span class="info-lbl">Method</span><span class="info-val">' + sanitize(pay.method) + '</span></div>' +
+    '<div class="info-row"><span class="info-lbl">Reference</span><span class="info-val">' + sanitize(pay.notes || "—") + '</span></div>' +
+  '</div>' +
+  purchasesHTML +
+  '<div class="amount-box"><div class="amount-lbl">AMOUNT PAID</div><div class="amount-val">' + fmtPrice(pay.amount) + '</div></div>' +
+  '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '</div>' +
+  '</body></html>';
+  
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    window.electronAPI.printReceipt(html, { pageSize: { width: 80000, height: 297000 } });
+  } else {
+    var w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(function() { w.print(); }, 500);
+  }
+}
+function printVendorPaymentA4(pay) {
+  var v = STATE.vendors.find(function(v) { return v.id === pay.vendorId; });
+  var biz = getCurrentBusiness();
+  
+  var purchasesRows = '';
+  if (v && v.purchases && v.purchases.length > 0) {
+    v.purchases.forEach(function(p, i) {
+      purchasesRows += '<tr><td style="text-align:center">' + (i+1) + '</td><td>' + sanitize(p.description) + '</td><td style="text-align:center">' + p.qty + '</td><td style="text-align:right">' + fmtPrice(p.amount) + '</td></tr>';
+    });
+  } else {
+    purchasesRows = '<tr><td colspan="4" style="text-align:center;padding:1rem">No purchases recorded</td></tr>';
+  }
+  
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+  '@page{size:A4;margin:15mm}' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;color:#222;font-size:10pt;line-height:1.4;background:#fff}' +
+  '.page{max-width:180mm;margin:0 auto}' +
+  '.hdr{border-bottom:3px solid #1a3c6e;padding-bottom:5mm;margin-bottom:5mm;display:flex;justify-content:space-between}' +
+  '.biz-name{font-size:18pt;font-weight:900;color:#1a3c6e;text-transform:uppercase}' +
+  '.biz-addr{font-size:8pt;color:#555}' +
+  '.logo{width:18mm;height:18mm;background:#1a3c6e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20pt;font-weight:900}' +
+  '.title-box{background:#1a3c6e;color:#fff;display:inline-block;padding:3mm 8mm;margin:5mm 0}' +
+  '.title{font-size:14pt;font-weight:900;letter-spacing:3px}' +
+  '.info-grid{display:flex;gap:5mm;margin-bottom:5mm}' +
+  '.info-box{flex:1;border:1px solid #ccc;padding:3mm}' +
+  '.info-box-title{font-size:8pt;font-weight:700;color:#1a3c6e;border-bottom:1px solid #ccc;padding-bottom:1mm;margin-bottom:2mm;text-transform:uppercase}' +
+  '.info-row{display:flex;justify-content:space-between;padding:0.8mm 0;border-bottom:1px dotted #eee;font-size:9pt}' +
+  '.info-lbl{color:#555;font-weight:600}' +
+  '.info-val{font-weight:700}' +
+  '.tbl{width:100%;border-collapse:collapse;margin:5mm 0;border:1px solid #ccc}' +
+  '.tbl th{background:#1a3c6e;color:#fff;padding:2.5mm;font-size:8pt;text-transform:uppercase}' +
+  '.tbl td{padding:2mm;border:1px solid #ccc;font-size:9pt}' +
+  '.amount-section{margin:5mm 0;padding:4mm;border:2px solid #1a3c6e;text-align:center}' +
+  '.amount-lbl{font-size:10pt;color:#555}' +
+  '.amount-val{font-size:22pt;font-weight:900;color:#1a3c6e}' +
+  '.ftr{text-align:center;margin-top:8mm;border-top:1px solid #ccc;padding-top:3mm;font-size:8pt;color:#999}' +
+  '</style></head><body><div class="page">' +
+  '<div class="hdr"><div><div class="biz-name">' + sanitize(biz.name) + '</div><div class="biz-addr">' + sanitize(biz.address) + ' | Tel: ' + sanitize(biz.phone) + '</div></div><div class="logo">' + sanitize(biz.prefix) + '</div></div>' +
+  '<div class="title-box"><span class="title">PAYMENT RECEIPT</span></div>' +
+  '<div class="info-grid">' +
+    '<div class="info-box"><div class="info-box-title">Vendor Details</div><div class="info-row"><span class="info-lbl">Company</span><span class="info-val">' + sanitize(v ? v.company : "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Contact</span><span class="info-val">' + sanitize(v ? v.contactPerson : "—") + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(v ? v.phone : "—") + '</span></div><div class="info-row"><span class="info-lbl">Category</span><span class="info-val">' + sanitize(v ? v.category : "—") + '</span></div></div>' +
+    '<div class="info-box"><div class="info-box-title">Payment Details</div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(pay.date) + '</span></div><div class="info-row"><span class="info-lbl">Method</span><span class="info-val">' + sanitize(pay.method) + '</span></div><div class="info-row"><span class="info-lbl">Reference</span><span class="info-val">' + sanitize(pay.notes || "—") + '</span></div><div class="info-row"><span class="info-lbl">Business</span><span class="info-val">' + sanitize(biz.name) + '</span></div></div>' +
+  '</div>' +
+  '<div style="font-size:10pt;font-weight:700;color:#1a3c6e;margin-bottom:2mm">Purchase Details</div>' +
+  '<table class="tbl"><thead><tr><th style="width:6%;text-align:center">#</th><th>Description</th><th style="width:12%;text-align:center">Qty</th><th style="width:22%;text-align:right">Amount</th></tr></thead><tbody>' + purchasesRows + '</tbody></table>' +
+  '<div class="amount-section"><div class="amount-lbl">AMOUNT PAID</div><div class="amount-val">' + fmtPrice(pay.amount) + '</div></div>' +
+  '<div class="ftr">' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + ' | Thank you for your business</div>' +
+  '</div></body></html>';
+  
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    window.electronAPI.printReceipt(html, { pageSize: { width: 210000, height: 297000 }, printBackground: true });
+  } else {
+    var w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(function() { w.print(); }, 500);
+  }
+}
+function openVendorModal(d) {
+  setValue("#vendorEditId", d ? d.id : "");
+  setValue("#vendorCompany", d ? d.company : "");
+  setValue("#vendorContactPerson", d ? d.contactPerson : "");
+  setValue("#vendorPhone", d ? d.phone : "");
+  setValue("#vendorEmail", d ? d.email : "");
+  setValue("#vendorAddress", d ? d.address : "");
+  setValue("#vendorCategory", d ? d.category : "");
+  setValue("#vendorStatus", d ? d.status : "Active");
+  openModal("vendorModal");
+}
+
+function saveVendor() {
+  var company = (qs("#vendorCompany")?.value || "").trim();
+  var contact = (qs("#vendorContactPerson")?.value || "").trim();
+  var phone = (qs("#vendorPhone")?.value || "").trim();
+  if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
+  var vendor = {
+    id: uid(),
+    company: company,
+    contactPerson: contact,
+    phone: phone,
+    email: (qs("#vendorEmail")?.value || "").trim(),
+    address: (qs("#vendorAddress")?.value || "").trim(),
+    category: qs("#vendorCategory")?.value || "General Supplier",
+    status: qs("#vendorStatus")?.value || "Active",
+    dateAdded: fmtDate(),
+    totalPurchases: 0
+  };
+  STATE.vendors.push(vendor);
+  saveVendors();
+  closeModal("vendorModal");
+  renderVendorTable();
+  renderVendorKPIs();
+  toast("Vendor added", "success");
+}
+
+function openPaymentModal(vendorId) {
+  var sel = qs("#paymentVendor");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select Vendor</option>';
+  STATE.vendors.forEach(function(v) {
+    var sel2 = v.id === vendorId ? " selected" : "";
+    sel.innerHTML += '<option value="' + v.id + '"' + sel2 + '>' + sanitize(v.company) + '</option>';
+  });
+  setValue("#paymentAmount", "");
+  setValue("#paymentNotes", "");
+  if (qs("#paymentDate")) qs("#paymentDate").value = toDateInputValue(new Date());
+  openModal("vendorPaymentModal");
+}
+
+function savePayment() {
+  var vid = qs("#paymentVendor")?.value;
+  var amt = parseFloat(qs("#paymentAmount")?.value) || 0;
+  if (!vid || !amt) { toast("Select vendor and enter amount", "error"); return; }
+  STATE.vendorPayments.push({
+    id: uid(),
+    vendorId: vid,
+    amount: amt,
+    date: qs("#paymentDate")?.value ? fmtDate(new Date(qs("#paymentDate").value)) : fmtDate(),
+    method: qs("#paymentMethod")?.value || "Cash",
+    notes: (qs("#paymentNotes")?.value || "").trim()
+  });
+  saveVendorPayments();
+  closeModal("vendorPaymentModal");
+  renderVendorTable();
+  renderVendorKPIs();
+  toast("Payment saved", "success");
+}
+
+function viewVendor(vid) {
+  var v = STATE.vendors.find(function(v) { return v.id === vid; });
+  if (!v) return;
+  var paid = STATE.vendorPayments.filter(function(p) { return p.vendorId === vid; }).reduce(function(s, p) { return s + p.amount; }, 0);
+  var balance = (v.totalPurchases || 0) - paid;
+  var paymentHistory = STATE.vendorPayments.filter(function(p) { return p.vendorId === vid; }).map(function(p) {
+    return '<tr><td>' + sanitize(p.date) + '</td><td>' + fmtPrice(p.amount) + '</td><td>' + sanitize(p.method) + '</td><td>' + sanitize(p.notes || "—") + '</td><td><div class="table-actions"><button class="btn btn-sm btn-primary" onclick="printVendorPaymentReceiptById(\'' + p.id + '\')" style="background:#000;font-size:0.6rem;padding:2px 6px" title="80mm Receipt">Receipt</button><button class="btn btn-sm btn-outline" onclick="printVendorPaymentA4ById(\'' + p.id + '\')" style="font-size:0.6rem;padding:2px 6px" title="A4 Invoice">A4</button></div></td></tr>';
+  }).join("") || '<tr><td colspan="5" style="text-align:center;padding:1rem;">No payments yet</td></tr>';
+  
+  var modalHTML = '<div class="modal-overlay" id="vendorViewModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> ' + sanitize(v.company) + '</h2><button class="modal-close" onclick="document.getElementById(\'vendorViewModal\').remove()"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="kpi-grid kpi-grid--3"><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Purchases</span><span class="kpi-value">' + fmtPrice(v.totalPurchases || 0) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value">' + fmtPrice(paid) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Balance</span><span class="kpi-value" style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + '">' + fmtPrice(balance) + '</span></div></div></div><div class="invoice-section-label">Payment History</div><table class="data-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Notes</th><th>Print</th></tr></thead><tbody>' + paymentHistory + '</tbody></table><button class="btn btn-primary" style="margin-top:1rem" onclick="openPaymentModal(\'' + v.id + '\');document.getElementById(\'vendorViewModal\').remove()">Add Payment</button></div></div></div>';
+  document.body.insertAdjacentHTML("beforeend", modalHTML);
+}
+
+function printVendorPaymentReceiptById(pid) {
+  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
+  if (pay) printVendorPaymentReceipt(pay);
+}
+
+function printVendorPaymentA4ById(pid) {
+  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
+  if (pay) printVendorPaymentA4(pay);
+}
+
+function printVendorPaymentReceiptById(pid) {
+  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
+  if (pay) printVendorPaymentReceipt(pay);
+}
+function printVendorPaymentA4ById(pid) {
+  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
+  if (pay) printVendorPaymentA4(pay);
+}
+
+function renderVendorKPIs() {
+  var vendors = STATE.vendors;
+  var payments = STATE.vendorPayments;
+  var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
+  var totalPurchases = vendors.reduce(function(s, v) { return s + (v.totalPurchases || 0); }, 0);
+  var pending = Math.max(0, totalPurchases - totalPaid);
+  setText("#kpiTotalVendors", vendors.length);
+  setText("#kpiVendorPaid", fmtPrice(totalPaid));
+  setText("#kpiVendorPending", fmtPrice(pending));
+  setText("#kpiVendorMonth", fmtPrice(0));
+}
+
+
+function openPaymentModal() {
+  var sel = qs("#paymentVendor");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Select Vendor</option>';
+  STATE.vendors.forEach(function(v) {
+    sel.innerHTML += '<option value="' + v.id + '">' + sanitize(v.company) + '</option>';
+  });
+  setValue("#paymentAmount", "");
+  setValue("#paymentNotes", "");
+  if (qs("#paymentDate")) qs("#paymentDate").value = toDateInputValue(new Date());
+  openModal("vendorPaymentModal");
+}
+
+function savePayment() {
+  var vid = qs("#paymentVendor")?.value;
+  var amt = parseFloat(qs("#paymentAmount")?.value) || 0;
+  if (!vid || !amt) { toast("Select vendor and enter amount", "error"); return; }
+  STATE.vendorPayments.push({
+    id: uid(),
+    vendorId: vid,
+    amount: amt,
+    date: qs("#paymentDate")?.value ? fmtDate(new Date(qs("#paymentDate").value)) : fmtDate(),
+    method: qs("#paymentMethod")?.value || "Cash",
+    notes: (qs("#paymentNotes")?.value || "").trim()
+  });
+  saveVendorPayments();
+  closeModal("vendorPaymentModal");
+  renderVendorTable();
+  renderVendorKPIs();
+  toast("Payment saved", "success");
+}
+
+function renderVendorKPIs() {
+  var vendors = STATE.vendors;
+  var payments = STATE.vendorPayments;
+  var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
+  var totalPurchases = vendors.reduce(function(s, v) { return s + (v.totalPurchases || 0); }, 0);
+  var pending = totalPurchases - totalPaid;
+  setText("#kpiTotalVendors", vendors.length);
+  setText("#kpiVendorPaid", fmtPrice(totalPaid));
+  setText("#kpiVendorPending", fmtPrice(pending));
+  setText("#kpiVendorMonth", fmtPrice(0));
+}
+
+function renderVendorTable() {
+  var sr = (qs("#vendorSearch")?.value || "").toLowerCase();
+  var cf = qs("#vendorCategoryFilter")?.value || "";
+  var fl = STATE.vendors.filter(function(v) {
+    return (!sr || v.company.toLowerCase().includes(sr) || v.contactPerson.toLowerCase().includes(sr) || v.phone.includes(sr)) && (!cf || v.category === cf);
+  });
+  var tb = qs("#vendorTableBody");
+  if (!tb) return;
+  var badge = qs("#vendorCountBadge");
+  if (badge) badge.textContent = fl.length;
+  if (!fl.length) {
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;">No vendors added yet</td></tr>';
+    return;
+  }
+  tb.innerHTML = fl.map(function(v) {
+    var paid = STATE.vendorPayments.filter(function(p) { return p.vendorId === v.id; }).reduce(function(s, p) { return s + p.amount; }, 0);
+    var balance = (v.totalPurchases || 0) - paid;
+    return '<tr><td style="font-weight:600">' + sanitize(v.company) + '</td><td>' + sanitize(v.contactPerson) + '</td><td>' + sanitize(v.phone) + '</td><td><span class="badge badge--blue">' + sanitize(v.category) + '</span></td><td>' + fmtPrice(v.totalPurchases || 0) + '</td><td>' + fmtPrice(paid) + '</td><td style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:700">' + fmtPrice(balance) + '</td><td><span class="badge ' + (v.status === 'Active' ? 'badge--green' : 'badge--red') + '">' + v.status + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" onclick="viewVendor(\'' + v.id + '\')">View</button><button class="btn btn-sm btn-ghost" onclick="openPurchaseModal(\'' + v.id + '\')">+Purchase</button></div></td></tr>';
+  }).join("");
+}
+
+function addVendorPurchaseRow(data) {
+  var c = qs("#vendorPurchasesContainer");
+  if (!c) return;
+  var r = document.createElement("div");
+  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+  r.innerHTML = '<input type="text" class="form-input" placeholder="Description" value="' + sanitize((data && data.description) || "") + '" style="flex:1;font-size:0.75rem;padding:4px 6px" /><input type="number" class="form-input" placeholder="Qty" value="' + ((data && data.qty) || 1) + '" min="1" style="width:50px;font-size:0.75rem;padding:4px" /><input type="number" class="form-input" placeholder="Amount" value="' + ((data && data.amount) || "") + '" min="0" style="width:80px;font-size:0.75rem;padding:4px" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove()"><span class="material-icons">close</span></button>';
+  c.appendChild(r);
+}
+
+function openVendorModal(d) {
+  setValue("#vendorEditId", d ? d.id : "");
+  setValue("#vendorCompany", d ? d.company : "");
+  setValue("#vendorContactPerson", d ? d.contactPerson : "");
+  setValue("#vendorPhone", d ? d.phone : "");
+  setValue("#vendorEmail", d ? d.email : "");
+  setValue("#vendorAddress", d ? d.address : "");
+  setValue("#vendorCategory", d ? d.category : "");
+  setValue("#vendorStatus", d ? d.status : "Active");
+  qs("#vendorPurchasesContainer").innerHTML = "";
+  if (d && d.purchases) {
+    d.purchases.forEach(function(p) { addVendorPurchaseRow(p); });
+  }
+  openModal("vendorModal");
+}
+
+function saveVendor() {
+  var company = (qs("#vendorCompany")?.value || "").trim();
+  var contact = (qs("#vendorContactPerson")?.value || "").trim();
+  var phone = (qs("#vendorPhone")?.value || "").trim();
+  if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
+  
+  var purchases = [];
+  var totalPurchases = 0;
+  qsa("#vendorPurchasesContainer > div").forEach(function(row) {
+    var inputs = row.querySelectorAll("input");
+    var desc = (inputs[0]?.value || "").trim();
+    var qty = parseInt(inputs[1]?.value) || 1;
+    var amt = parseFloat(inputs[2]?.value) || 0;
+    if (desc && amt > 0) {
+      purchases.push({ description: desc, qty: qty, amount: amt, date: fmtDate() });
+      totalPurchases += amt;
+    }
+  });
+  
+  var vendor = {
+    id: uid(),
+    company: company,
+    contactPerson: contact,
+    phone: phone,
+    email: (qs("#vendorEmail")?.value || "").trim(),
+    address: (qs("#vendorAddress")?.value || "").trim(),
+    category: qs("#vendorCategory")?.value || "General Supplier",
+    status: qs("#vendorStatus")?.value || "Active",
+    dateAdded: fmtDate(),
+    purchases: purchases,
+    totalPurchases: totalPurchases
+  };
+  STATE.vendors.push(vendor);
+  saveVendors();
+  closeModal("vendorModal");
+  renderVendorTable();
+  renderVendorKPIs();
+  toast("Vendor added with " + purchases.length + " purchases", "success");
+}
 
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {

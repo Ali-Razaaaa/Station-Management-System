@@ -159,6 +159,7 @@
                 ></a
               >
             </li>
+            <li><a href="#" class="nav-link" data-module="vendors"><span class="material-icons nav-icon">people</span><span class="nav-label">Vendors</span></a></li>
             <li>
               <a href="#" class="nav-link" data-module="reminders"
                 ><span class="material-icons nav-icon">notifications</span
@@ -1723,6 +1724,74 @@
               </div>
             </div>
           </section>
+
+                    <!-- ====== VENDOR MANAGEMENT MODULE ====== -->
+          <section class="module hidden" id="module-vendors">
+            <div class="kpi-grid">
+              <div class="kpi-card"><div class="kpi-icon kpi-icon--blue"><span class="material-icons">business</span></div><div class="kpi-body"><span class="kpi-label">Total Vendors</span><span class="kpi-value" id="kpiTotalVendors">0</span></div></div>
+              <div class="kpi-card"><div class="kpi-icon kpi-icon--green"><span class="material-icons">payments</span></div><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value" id="kpiVendorPaid">Rs. 0</span></div></div>
+              <div class="kpi-card"><div class="kpi-icon kpi-icon--red"><span class="material-icons">pending</span></div><div class="kpi-body"><span class="kpi-label">Pending Balance</span><span class="kpi-value" id="kpiVendorPending">Rs. 0</span></div></div>
+              <div class="kpi-card"><div class="kpi-icon kpi-icon--orange"><span class="material-icons">shopping_cart</span></div><div class="kpi-body"><span class="kpi-label">This Month</span><span class="kpi-value" id="kpiVendorMonth">Rs. 0</span></div></div>
+            </div>
+            <div class="module-toolbar">
+              <div class="toolbar-left">
+                <div class="search-box"><span class="material-icons">search</span><input type="text" placeholder="Search vendors..." id="vendorSearch" class="search-input" /></div>
+                <select class="filter-select" id="vendorCategoryFilter"><option value="">All Categories</option><option value="Oil Supplier">Oil Supplier</option><option value="Parts Supplier">Parts Supplier</option><option value="Accessories">Accessories</option><option value="Car Wash Chemicals">Chemicals</option><option value="Tires">Tires</option><option value="General Supplier">General</option></select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn btn-outline" onclick="openVendorCategoryModal()"><span class="material-icons">category</span> Categories</button>
+                <button class="btn btn-outline" id="vendorPaymentsBtn"><span class="material-icons">payments</span> Payments</button>
+                <button class="btn btn-primary" id="addVendorBtn"><span class="material-icons">add</span> Add Vendor</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title"><span class="material-icons">people</span> Vendors</h2><span class="badge badge--blue" id="vendorCountBadge">0</span></div>
+              <div class="card-body p-0">
+                <table class="data-table"><thead><tr><th>Company</th><th>Contact</th><th>Phone</th><th>Category</th><th>Purchases</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody id="vendorTableBody"></tbody></table>
+              </div>
+            </div>
+          </section>
+
+  <div class="modal-overlay hidden" id="vendorModal">
+  <div class="modal">
+    <div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> Add Vendor</h2><button class="modal-close" data-close="vendorModal"><span class="material-icons">close</span></button></div>
+    <div class="modal-body">
+      <input type="hidden" id="vendorEditId" />
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Company Name <span class="required">*</span></label><input type="text" class="form-input" id="vendorCompany" /></div>
+        <div class="form-group"><label class="form-label">Contact Person <span class="required">*</span></label><input type="text" class="form-input" id="vendorContactPerson" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Phone <span class="required">*</span></label><input type="text" class="form-input" id="vendorPhone" /></div>
+        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="vendorEmail" /></div>
+      </div>
+      <div class="form-group"><label class="form-label">Address</label><input type="text" class="form-input" id="vendorAddress" /></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Category <span class="required">*</span></label><select class="form-input" id="vendorCategory"><option value="">Select</option><option value="Oil Supplier">Oil Supplier</option><option value="Parts Supplier">Parts Supplier</option><option value="Accessories">Accessories</option><option value="Car Wash Chemicals">Chemicals</option><option value="Tires">Tires</option><option value="General Supplier">General</option></select></div>
+        <div class="form-group"><label class="form-label">Status</label><select class="form-input" id="vendorStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></div>
+      </div>
+      <div class="invoice-section-label" style="margin-top:1rem"><span class="material-icons">shopping_cart</span> Purchases</div>
+      <div id="vendorPurchasesContainer"></div>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="addVendorPurchaseRow()"><span class="material-icons">add</span> Add Purchase Item</button>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" data-close="vendorModal">Cancel</button><button class="btn btn-primary" id="saveVendorBtn">Save Vendor</button></div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="vendorPaymentModal">
+  <div class="modal modal--sm">
+    <div class="modal-header"><h2 class="modal-title"><span class="material-icons">payments</span> Vendor Payment</h2><button class="modal-close" data-close="vendorPaymentModal"><span class="material-icons">close</span></button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Vendor <span class="required">*</span></label><select class="form-input" id="paymentVendor"></select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Amount <span class="required">*</span></label><input type="number" class="form-input" id="paymentAmount" min="0" /></div>
+        <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="paymentDate" /></div>
+      </div>
+      <div class="form-group"><label class="form-label">Payment Method</label><select class="form-input" id="paymentMethod"><option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option><option value="Cheque">Cheque</option></select></div>
+      <div class="form-group"><label class="form-label">Reference / Notes</label><input type="text" class="form-input" id="paymentNotes" placeholder="Optional" /></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-ghost" data-close="vendorPaymentModal">Cancel</button><button class="btn btn-primary" id="savePaymentBtn">Save Payment</button></div>
+  </div>
+</div>
         </main>
       </div>
     </div>
