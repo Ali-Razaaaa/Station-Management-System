@@ -602,6 +602,41 @@ function getWhatsAppNumber(phone) {
   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
   return c;
 }
+// function openWhatsApp(phone, cn, vn, svc, sd) {
+//   var wa = getWhatsAppNumber(phone);
+//   if (!wa) {
+//     toast("Invalid phone", "error");
+//     return;
+//   }
+//   var biz = getCurrentBusiness();
+//   var allBizNames = "Wheel Works. Service station & Metabuilt Solutions";
+
+//   var msg =
+//     "Assalamualaikum " +
+//     cn +
+//     "\n\n" +
+//     "Friendly reminder from " +
+//     allBizNames +
+//     "\n\n" +
+//     "Vehicle: " +
+//     vn +
+//     "\n" +
+//     "Service: " +
+//     svc +
+//     "\n" +
+//     "Date: " +
+//     sd +
+//     "\n\n" +
+//     "Visit us:\n" +
+//     biz.address +
+//     "\n" +
+//     biz.phone +
+//     "\n\n" +
+//     allBizNames;
+
+//   var url = "https://wa.me/" + wa + "?text=" + encodeURIComponent(msg);
+//   window.open(url, "_blank");
+// }
 function createReminderFromToken(token) {
   if (!token.contactNumber || token.contactNumber === "N/A") return;
   var rd = getReminderDays(token.service);
@@ -2286,12 +2321,73 @@ function initBilling() {
     addInvoiceProductRow("", 0, 1);
   });
   qs("#saveInvoiceBtn")?.addEventListener("click", saveInvoice);
-  qs("#printReceiptBtn")?.addEventListener("click", function() {
-  var lastInv = STATE.invoices[STATE.invoices.length - 1];
-  if (lastInv) {
-    printA4Invoice(lastInv.id);
+qs("#printReceiptBtn")?.addEventListener("click", function() {
+  var invNumber = (qs("#invNumber")?.textContent || "").trim();
+  var invCustomer = (qs("#invCustomer")?.textContent || "").trim();
+  var invDate = (qs("#invDate")?.textContent || "").trim();
+  var invVehicle = (qs("#invVehicle")?.textContent || "").trim();
+  var invToken = (qs("#invToken")?.textContent || "").trim();
+  
+  if (!invCustomer || invCustomer === "—") {
+    toast("Please add customer and items first", "warning");
+    return;
+  }
+  
+  var items = [];
+  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function(r) {
+    var s = r.querySelector(".invoice-svc-select");
+    var nm = s?.options[s.selectedIndex]?.text || "";
+    var pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
+    var qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+    if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt });
+  });
+  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function(r) {
+    var s = r.querySelector(".invoice-prd-select");
+    var nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
+    var pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
+    var qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+    if (nm) items.push({ name: nm, price: pr, qty: qt });
+  });
+  
+  if (!items.length) {
+    toast("Add items first", "warning");
+    return;
+  }
+  
+  var subtotal = 0;
+  items.forEach(function(i) { subtotal += i.price * i.qty; });
+  var total = subtotal;
+  var cash = parseFloat(qs("#cashReceived")?.value) || 0;
+  var change = cash >= total ? cash - total : 0;
+  
+  var tempInv = {
+    number: invNumber || "—",
+    date: invDate || fmtDate(),
+    time: fmtTime(),
+    customer: invCustomer,
+    contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
+    vehicle: invVehicle !== "—" ? invVehicle : (qs("#invoiceVehicle")?.value || ""),
+    token: invToken !== "—" ? invToken : "",
+    items: items,
+    total: total,
+    cashReceived: cash,
+    changeReturned: change,
+    status: cash >= total && cash > 0 ? "PAID" : "UNPAID"
+  };
+  
+  var biz = getCurrentBusiness();
+  var content = generateThermalInvoice(tempInv, biz);
+  
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    window.electronAPI.printReceipt(content, {
+      pageSize: { width: 80000, height: 297000 },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 }
+    });
   } else {
-    toast("Save invoice first", "warning");
+    var w = window.open("", "_blank");
+    w.document.write(content);
+    w.document.close();
+    setTimeout(function() { w.print(); }, 500);
   }
 });
   qs("#invoiceToken")?.addEventListener("input", function () {
@@ -2502,6 +2598,10 @@ function saveInvoice() {
   STATE.counters[counterKey]++;
   saveInvoices();
   saveCounters();
+  
+  // Save current invoice ID for Print Receipt button
+  qs("#invoiceToken").dataset.savedId = inv.id;
+  
   var tn = inv.token;
   if (tn) {
     var tk = STATE.tokens.find(function (t) {
@@ -2853,7 +2953,8 @@ function printTokenReceipt(tokenId) {
 function _printSingleCopy(htmlContent, callback) {
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI.printReceipt(htmlContent, { 
-      pageSize: { width: 80000, height: 297000 } 
+      pageSize: { width: 80000, height: 297000 },
+      silent: true
     }).then(function(result) {
       if (callback) callback(true);
     }).catch(function() {
@@ -2864,122 +2965,54 @@ function _printSingleCopy(htmlContent, callback) {
     if (w) {
       w.document.write(htmlContent);
       w.document.close();
-      w.onload = function() {
+      setTimeout(function() {
         w.print();
+        w.close();
         if (callback) callback(true);
-      };
+      }, 800);
     } else {
       if (callback) callback(true);
     }
   }
 }
 
-function generateThermalCustomerCopy(
-  token,
-  businessName,
-  address,
-  phone,
-  date,
-  time,
-) {
-  var servicesHTML = token.service
-    ? '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-      sanitize(token.service) +
-      "</span></div>"
-    : "";
+function generateThermalCustomerCopy(token, businessName, address, phone, date, time) {
+  var itemsHTML = '';
+  var totalAmount = token.servicePrice || 0;
+  
+  if (token.service) {
+    var svcPrice = token.servicePrice || getMatrixPrice(token.service, token.vehicleType) || 0;
+    itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(token.service) + '</span><span class="svc-price">' + fmtPrice(svcPrice) + '</span></div>';
+    totalAmount = Math.max(totalAmount, svcPrice);
+  }
   if (token.products && token.products.length > 0) {
-    token.products.forEach(function (p) {
-      servicesHTML +=
-        '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-        sanitize(p.fullName) +
-        " x" +
-        p.qty +
-        "</span></div>";
+    token.products.forEach(function(p) {
+      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
+      totalAmount += p.price * p.qty;
     });
   }
-  return (
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' +
-    sanitize(businessName) +
-    '</div><div class="addr">' +
-    sanitize(address) +
-    '</div><div class="addr">Tel: ' +
-    sanitize(phone) +
-    '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' +
-    sanitize(token.number) +
-    '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
-    sanitize(token.ownerName || "N/A") +
-    '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
-    sanitize(token.vehicleNo) +
-    " (" +
-    sanitize(token.vehicleType) +
-    ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' +
-    sanitize(formatContactDisplay(token.contactNumber || "N/A")) +
-    '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
-    sanitize(date) +
-    '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' +
-    sanitize(time) +
-    '</span></div></div><div class="svc-title">Services</div>' +
-    (servicesHTML ||
-      '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') +
-    '<div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for reference</div><div class="ftr-note">' +
-    sanitize(phone) +
-    '</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>'
-  );
+  
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="addr">' + sanitize(address) + '</div><div class="addr">Tel: ' + sanitize(phone) + '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' + sanitize(token.number) + '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + ' (' + sanitize(token.vehicleType) + ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for reference</div><div class="ftr-note">' + sanitize(phone) + '</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>';
 }
 
-function generateThermalCashierCopy(
-  token,
-  businessName,
-  address,
-  phone,
-  date,
-  time,
-) {
-  var servicesHTML = token.service
-    ? '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-      sanitize(token.service) +
-      "</span></div>"
-    : "";
+function generateThermalCashierCopy(token, businessName, address, phone, date, time) {
+  var itemsHTML = '';
+  var totalAmount = token.servicePrice || 0;
+  
+  if (token.service) {
+    var svcPrice = token.servicePrice || getMatrixPrice(token.service, token.vehicleType) || 0;
+    itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(token.service) + '</span><span class="svc-price">' + fmtPrice(svcPrice) + '</span></div>';
+    totalAmount = Math.max(totalAmount, svcPrice);
+  }
   if (token.products && token.products.length > 0) {
-    token.products.forEach(function (p) {
-      servicesHTML +=
-        '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-        sanitize(p.fullName) +
-        " x" +
-        p.qty +
-        " @ " +
-        fmtPrice(p.price) +
-        "</span></div>";
+    token.products.forEach(function(p) {
+      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
+      totalAmount += p.price * p.qty;
     });
   }
-  return (
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' +
-    sanitize(businessName) +
-    '</div><div class="copy-badge">CASHIER COPY</div></div><div class="tok-num">TOKEN: ' +
-    sanitize(token.number) +
-    '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
-    sanitize(token.ownerName || "N/A") +
-    '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
-    sanitize(token.vehicleNo) +
-    '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' +
-    sanitize(token.vehicleType) +
-    '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' +
-    sanitize(formatContactDisplay(token.contactNumber || "N/A")) +
-    '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
-    sanitize(date) +
-    " " +
-    sanitize(time) +
-    '</span></div></div><div class="svc-title">Services &amp; Products</div>' +
-    (servicesHTML ||
-      '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') +
-    '<div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' +
-    sanitize(businessName) +
-    " | " +
-    sanitize(phone) +
-    " | Cashier Copy</div></body></html>"
-  );
+  
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' + sanitize(token.number) + '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' + sanitize(token.vehicleType) + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + ' ' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' + sanitize(businessName) + ' | ' + sanitize(phone) + ' | Attendant\'s Copy</div></body></html>';
 }
-
 // ==================== A4 INVOICE PRINTING ====================
 function printA4Invoice(invoiceId) {
   var inv = STATE.invoices.find(function (i) {
@@ -3092,6 +3125,58 @@ function generateA4Invoice(inv, biz) {
   '<div class="bottom"><div class="bottom-l"><strong>Terms &amp; Conditions</strong><br>1. Goods once sold will not be taken back.<br>2. Warranty subject to manufacturer policy.<br>3. Vehicle must be collected within 24 hours.<br><br>Thank you for your business!</div><div class="bottom-r"><div class="sig-line">Authorized Signature</div></div></div>' +
   '<div class="ftr">' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + ' | Developed by DESIGN ORBITS | 0322-5267908</div>' +
   '</div></body></html>';
+}
+
+function generateThermalInvoice(inv, biz) {
+  var itemsRows = "";
+  var subtotal = 0;
+  inv.items.forEach(function(item, i) {
+    var amount = item.price * item.qty;
+    subtotal += amount;
+    itemsRows += '<tr><td style="padding:1.2mm 0;font-size:9pt;color:#000">' + sanitize(item.name) + '</td><td style="text-align:right;font-size:9pt;font-weight:900;color:#000">' + fmtPrice(amount) + '</td></tr>';
+  });
+  var grandTotal = inv.total || subtotal;
+  var cashReceived = inv.cashReceived || 0;
+  var balanceReturned = Math.max(0, cashReceived - grandTotal);
+  
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+  '*{margin:0;padding:0;box-sizing:border-box}' +
+  'body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:10pt;color:#000;background:#fff;line-height:1.3}' +
+  '.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}' +
+  '.biz{font-size:14pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;color:#000}' +
+  '.addr{font-size:8pt;color:#000;margin-top:0.5mm}' +
+  '.inv-box{text-align:center;margin:3mm 0;padding:2mm;border:2px solid #000}' +
+  '.inv-lbl{font-size:7pt;text-transform:uppercase;letter-spacing:2px;color:#000}' +
+  '.inv-num{font-size:14pt;font-weight:900;letter-spacing:1px;color:#000}' +
+  '.info{margin:3mm 0}' +
+  '.info-row{display:flex;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-size:9pt}' +
+  '.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#000;padding-top:0.5mm}' +
+  '.info-val{flex:1;font-weight:700;color:#000}' +
+  '.sec-title{font-size:8pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm;text-align:center;color:#000}' +
+  '.tbl{width:100%;border-collapse:collapse;margin:1mm 0}' +
+  '.tbl th{background:#000;color:#fff;padding:1.5mm;font-size:7.5pt;text-transform:uppercase}' +
+  '.sum-box{margin-top:2mm;border-top:2px solid #000;padding-top:1.5mm}' +
+  '.sum-row{display:flex;justify-content:space-between;font-size:9pt;padding:0.8mm 0;border-bottom:1px dotted #ccc;font-weight:700;color:#000}' +
+  '.grand{display:flex;justify-content:space-between;font-size:13pt;font-weight:900;padding:2mm;border:2px solid #000;margin-top:2mm;color:#000}' +
+  '.ftr{text-align:center;font-size:7.5pt;color:#000;margin-top:3mm;border-top:1px solid #000;padding-top:2mm}' +
+  '</style></head><body>' +
+  '<div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div class="addr">' + sanitize(biz.address) + '</div><div class="addr">Tel: ' + sanitize(biz.phone) + '</div></div>' +
+  '<div class="inv-box"><div class="inv-lbl">INVOICE</div><div class="inv-num">' + sanitize(inv.number) + '</div></div>' +
+  '<div class="info">' +
+    '<div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(inv.date) + ' ' + sanitize(inv.time) + '</span></div>' +
+    '<div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(inv.customer) + '</span></div>' +
+    '<div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(inv.vehicle || "—") + '</span></div>' +
+  '</div>' +
+  '<div class="sec-title">Items</div>' +
+  '<table class="tbl"><thead><tr><th style="text-align:left">Description</th><th style="width:30%;text-align:right">Amount</th></tr></thead><tbody>' + itemsRows + '</tbody></table>' +
+  '<div class="sum-box">' +
+    '<div class="sum-row"><span>Subtotal</span><span>' + fmtPrice(subtotal) + '</span></div>' +
+    '<div class="sum-row"><span>Cash</span><span>' + fmtPrice(cashReceived) + '</span></div>' +
+    '<div class="sum-row"><span>Change</span><span>' + fmtPrice(balanceReturned) + '</span></div>' +
+    '<div class="grand"><span>TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div>' +
+  '</div>' +
+  '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '</div>' +
+  '</body></html>';
 }
 
 // ==================== PRODUCT SALE ====================
