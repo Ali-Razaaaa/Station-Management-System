@@ -3266,52 +3266,35 @@ function saveProduct() {
   var cat = qs("#productCategory")?.value || "misc";
   if (!pt) return;
   var variants = [];
+  var hasError = false;
   qsa("#variantsContainer .variant-card").forEach(function (card, idx) {
     var b = card.querySelector(".variant-brand")?.value || "General",
       m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
       g = card.querySelector(".variant-grade")?.value?.trim() || "",
       s = card.querySelector(".variant-size")?.value?.trim() || "",
-      pp =
-        parseFloat(card.querySelector(".variant-purchase-price")?.value) || 0,
+      pp = parseFloat(card.querySelector(".variant-purchase-price")?.value) || 0,
       sp = parseFloat(card.querySelector(".variant-selling-price")?.value) || 0,
       st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
       ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
     var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
     if (!sp) {
       toast("Variant #" + (idx + 1) + ": Enter price", "error");
+      hasError = true;
       return;
     }
     if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
     variants.push({
-      id: uid(),
-      brand: b,
-      model: m,
-      grade: g,
-      size: s,
-      sku: sku,
-      purchasePrice: pp,
-      sellingPrice: sp,
-      stock: st,
-      minStock: ms,
+      id: uid(), brand: b, model: m, grade: g, size: s, sku: sku,
+      purchasePrice: pp, sellingPrice: sp, stock: st, minStock: ms,
     });
   });
-  if (!variants.length) return;
+  if (hasError || !variants.length) return;
+  
   if (ei) {
-    var p = STATE.inventory.find(function (p) {
-      return p.id === ei;
-    });
-    if (p) {
-      p.productType = pt;
-      p.category = cat;
-      p.variants = variants;
-    }
+    var p = STATE.inventory.find(function (p) { return p.id === ei; });
+    if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
   } else {
-    STATE.inventory.push({
-      id: uid(),
-      productType: pt,
-      category: cat,
-      variants: variants,
-    });
+    STATE.inventory.push({ id: uid(), productType: pt, category: cat, variants: variants });
   }
   saveInventory();
   closeModal("productModal");
