@@ -595,58 +595,50 @@
           </section>
 
           <!-- VEHICLES -->
-          <section class="module hidden" id="module-vehicles">
-            <div class="module-toolbar">
-              <div class="toolbar-left">
-                <div class="search-box">
-                  <span class="material-icons">search</span
-                  ><input
-                    type="text"
-                    placeholder="Search vehicles..."
-                    id="vehicleSearch"
-                    class="search-input"
-                  />
-                </div>
-                <select class="filter-select" id="vehicleTypeFilter">
-                  <option value="">All Types</option>
-                </select>
-              </div>
-              <div class="toolbar-right">
-                <button class="btn btn-primary" id="newVehicleBtn">
-                  <span class="material-icons">add</span> Add Vehicle
-                </button>
-              </div>
-            </div>
-            <div class="card">
-              <div class="card-header">
-                <h2 class="card-title">
-                  <span class="material-icons">directions_car</span> Vehicle
-                  Records
-                </h2>
-                <div class="card-header-meta">
-                  <span class="badge badge--blue" id="vehicleCountBadge"
-                    >0 vehicles</span
-                  >
-                </div>
-              </div>
-              <div class="card-body p-0">
-                <table class="data-table" id="vehicleTable">
-                  <thead>
-                    <tr>
-                      <th>Vehicle No.</th>
-                      <th>Owner</th>
-                      <th>Contact</th>
-                      <th>Type</th>
-                      <th>Last Service</th>
-                      <th>Visits</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="vehicleTableBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
+        
+<section class="module hidden" id="module-vehicles">
+  <div class="module-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <span class="material-icons">search</span
+        ><input
+          type="text"
+          placeholder="Search vehicles..."
+          id="vehicleSearch"
+          class="search-input"
+        />
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <span class="material-icons">directions_car</span> Vehicle
+        Records
+      </h2>
+      <div class="card-header-meta">
+        <span class="badge badge--blue" id="vehicleCountBadge"
+          >0 vehicles</span
+        >
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <table class="data-table" id="vehicleTable">
+        <thead>
+          <tr>
+            <th>Vehicle No.</th>
+            <th>Owner</th>
+            <th>Contact</th>
+            <th>Type</th>
+            <th>Last Service</th>
+            <th>Visits</th>
+          </tr>
+        </thead>
+        <tbody id="vehicleTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
           <!-- SERVICES -->
           <section class="module hidden" id="module-services">
