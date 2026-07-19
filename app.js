@@ -1,8 +1,25 @@
 /**
- * Wheel Works Service Station — Enterprise Management System V6.2
+ * Wheel Works Service Station — Enterprise Management System V6.3
  * DUAL BUSINESS SUPPORT: Wheel Works & Meta Built
+ * FIX APPLIED: openModal()/closeModal() now properly track and close
+ * stray overlays so modals can never stack and block clicks across
+ * the entire app (this was the root cause of "no buttons work").
  */
 "use strict";
+
+// ============================================================
+// STARTUP SAFETY: force-hide any modal overlay the instant the
+// script loads, before anything else runs. This guarantees the
+// app never starts in a blocked state.
+// ============================================================
+(function forceHideAllModalsOnLoad() {
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".modal-overlay").forEach(function (m) {
+      m.classList.add("hidden");
+    });
+    document.body.style.overflow = "";
+  });
+})();
 
 const KEYS = {
   services: "servicepro_services",
@@ -454,7 +471,18 @@ function toast(m, t) {
   }, 3200);
 }
 
+// ============================================================
+// MODAL SYSTEM — FIXED
+// openModal() now ALWAYS closes every other overlay first, so
+// modals can never stack on top of each other and silently
+// block clicks across the whole app. This was the root cause
+// of buttons appearing "dead" everywhere.
+// ============================================================
 function openModal(id) {
+  // Close every other modal overlay before opening the requested one
+  document.querySelectorAll(".modal-overlay").forEach(function (m) {
+    if (m.id !== id) m.classList.add("hidden");
+  });
   var m = qs("#" + id);
   if (m) {
     m.classList.remove("hidden");
@@ -465,8 +493,18 @@ function closeModal(id) {
   var m = qs("#" + id);
   if (m) {
     m.classList.add("hidden");
+  }
+  // Only restore scrolling if NO modal is open anymore
+  var stillOpen = document.querySelectorAll(".modal-overlay:not(.hidden)").length;
+  if (stillOpen === 0) {
     document.body.style.overflow = "";
   }
+}
+function closeAllModals() {
+  document.querySelectorAll(".modal-overlay").forEach(function (m) {
+    m.classList.add("hidden");
+  });
+  document.body.style.overflow = "";
 }
 function setupModalClosers() {
   document.addEventListener("click", function (e) {
@@ -484,6 +522,12 @@ function setupModalClosers() {
     if (e.key === "Escape") {
       var om = qsa(".modal-overlay:not(.hidden)");
       if (om.length > 0) closeModal(om[om.length - 1].id);
+    }
+    // Manual escape hatch: Ctrl+Shift+X force-closes every modal,
+    // in case something unexpected leaves one stuck open.
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "x") {
+      closeAllModals();
+      toast("All modals force-closed", "info");
     }
   });
 }
@@ -625,7 +669,6 @@ function getWhatsAppNumber(phone) {
 //   }
 //   var biz = getCurrentBusiness();
 //   var allBizNames = "Wheel Works. Service station & Metabuilt Solutions";
-
 //   var msg =
 //     "Assalamualaikum " +
 //     cn +
@@ -648,7 +691,6 @@ function getWhatsAppNumber(phone) {
 //     biz.phone +
 //     "\n\n" +
 //     allBizNames;
-
 //   var url = "https://wa.me/" + wa + "?text=" + encodeURIComponent(msg);
 //   window.open(url, "_blank");
 // }
@@ -884,6 +926,7 @@ function logoutSession() {
   sessionStorage.removeItem("servicepro_logged_in");
   sessionStorage.removeItem("servicepro_last_activity");
   if (sessionTimer) clearTimeout(sessionTimer);
+  closeAllModals();
   qs("#app").classList.add("hidden");
   qs("#loginScreen").classList.remove("hidden");
   setValue("#loginUsername", "");
@@ -956,6 +999,7 @@ function initLogin() {
 
 // ==================== INIT APP ====================
 function initApp() {
+  closeAllModals();
   updateLastActivity();
   setText("#currentDate", fmtDate());
   updateSessionTime();
@@ -1338,6 +1382,7 @@ var MODULE_TITLES = {
   vendors: ["Vendor Management", "Payments & Purchases"],
 };
 function navigateTo(mod) {
+  closeAllModals();
   qsa(".nav-link").forEach(function (l) {
     l.classList.toggle("active", l.dataset.module === mod);
   });
@@ -1588,118 +1633,6 @@ function updateTokenPrice() {
   updateTokenTotal();
 }
 
-
-
-
-function openNewTokenModal() {
-  var bizSelect = qs("#tokenBusinessSelect");
-  if (bizSelect) {
-    var businesses = getBusinesses(); var currentBiz = getCurrentBusiness();
-    bizSelect.innerHTML = '<option value="">Select Business</option>';
-    for (var i = 0; i < businesses.length; i++) {
-      var sel = businesses[i].id === currentBiz.id ? " selected" : "";
-      bizSelect.innerHTML += '<option value="' + businesses[i].id + '" data-prefix="' + businesses[i].prefix + '" data-name="' + sanitize(businesses[i].name) + '"' + sel + ">" + businesses[i].name + " (" + businesses[i].prefix + ")</option>";
-    }
-    bizSelect.onchange = function() {
-      var opt = this.options[this.selectedIndex];
-      if (opt && opt.value) {
-        var prefix = opt.getAttribute("data-prefix"); var today = new Date();
-        var ds = today.getFullYear() + "" + String(today.getMonth() + 1).padStart(2, "0") + String(today.getDate()).padStart(2, "0");
-        var bizTokens = STATE.tokens.filter(function(t) { return t.businessPrefix === prefix && t.number && t.number.startsWith(prefix + "-" + ds); });
-        setText("#autoTokenNumber", prefix + "-" + ds + "-" + String(bizTokens.length + 1).padStart(3, "0"));
-      }
-    };
-  }
-  setText("#autoTokenNumber", generateTokenNumber());
-  setValue("#tokenVehicleNo", ""); setValue("#tokenVehicleType", "");
-  setValue("#tokenOwnerName", ""); setValue("#tokenContactNumber", "");
-  populateVehicleTypes();
-  setValue("#tokenDiscount", "0");
-  qs("#tokenServicesList").innerHTML = "";
-  qs("#tokenProductsList").innerHTML = "";
-  qs("#customTokenServicesList").innerHTML = "";
-qs("#customTokenProductsList").innerHTML = "";
-  setText("#tokenGrandTotal", "Rs. 0");
-  qs("#tokenModal").dataset.editId = "";
-  qs("#tokenModalTitle").innerHTML = '<span class="material-icons">token</span> Generate Token';
-  document.getElementById("tokenServicesSection").style.display = "";
-  document.getElementById("tokenProductsSection").style.display = "";
-  document.getElementById("customTokenServicesSection").style.display = "none";
-  document.getElementById("customTokenProductsSection").style.display = "none";
-  openModal("tokenModal");
-  setTimeout(function() {
-    qs("#tokenVehicleNo")?.focus();
-    var discEl = qs("#tokenDiscount");
-    if (discEl) {
-      discEl.oninput = function() { updateTokenTotal(); updateCustomTokenTotal(); };
-    }
-  }, 100);
-}
-function saveToken() {
-
-  updateTokenTotal();
-  var editId = qs("#tokenModal")?.dataset?.editId || "";
-  var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
-  var vt = qs("#tokenVehicleType")?.value || "";
-  var on = (qs("#tokenOwnerName")?.value || "").trim();
-  var cn = (qs("#tokenContactNumber")?.value || "").trim();
-  var bizSelect = qs("#tokenBusinessSelect"); var businesses = getBusinesses(); var biz;
-  if (bizSelect && bizSelect.value) { biz = businesses.find(function(b) { return b.id === bizSelect.value; }); }
-  if (!biz) { biz = getCurrentBusiness(); }
-  var prefix = biz.prefix;
-  
-  var hasServices = qsa("#tokenServicesList .token-service-select").some(function(s) { return s.value; });
-  if (!vn || !vt || !hasServices) { toast("Please fill all required fields", "error"); return; }
-  
-  var cv = validateContactNumber(cn);
-  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
-  
-  var selectedServices = []; var totalServicePrice = 0;
-  qsa("#tokenServicesList .token-service-select").forEach(function(s) {
-    var sv = s.value;
-    if (sv) {
-      var pr = parseFloat(s.parentElement.querySelector(".token-service-price")?.value) || getMatrixPrice(sv, vt) || 0;
-      selectedServices.push(sv); totalServicePrice += pr;
-    }
-  });
-  var fs = selectedServices.join(", ");
-  var sp = totalServicePrice;
-  
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
-  
-  
-  var newProducts = []; var hasError = false;
-  qsa("#tokenProductsList .token-product-select").forEach(function(s, i) {
-    var vid = s.value; if (!vid) return;
-    var f = findVariantById(vid); if (!f) return;
-    var q = parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 1;
-    if (q > f.variant.stock) { toast("Only " + f.variant.stock + " units available for " + f.fullName, "error"); hasError = true; return; }
-    var p = parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) || f.variant.sellingPrice;
-    newProducts.push({ variantId: f.variant.id, fullName: f.fullName, qty: q, price: p });
-  });
-  if (hasError) return;
-  
-  if (editId) {
-    var t = STATE.tokens.find(function(t) { return t.id === editId; }); if (!t) return;
-    if (t.products) t.products.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; });
-    newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
-    t.vehicleNo = vn; t.vehicleType = vt; t.ownerName = on; t.contactNumber = cv.formatted;
-    t.service = fs; t.servicePrice = sp; t.products = newProducts; t.discount = discount;
-    t.editedAt = fmtDate() + " " + fmtTime(); t.businessPrefix = prefix; t.businessId = biz.id; t.businessName = biz.name;
-    saveTokens(); saveInventory(); renderTokenTable(); closeModal("tokenModal"); refreshDashboard();
-    toast("Token updated successfully", "success");
-  } else {
-    newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
-    var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
-    if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
-    else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
-    var newToken = { id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(), vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, time: fmtTime(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
-    STATE.tokens.push(newToken); saveTokens(); saveInventory(); saveCounters();
-    closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
-    toast("Token " + newToken.number + " generated successfully", "success");
-    setTimeout(function() { var tb = qs("#tokenModal"); if (tb) { var printBtn = document.createElement("button"); printBtn.className = "btn btn-primary"; printBtn.style.background = "#000"; printBtn.innerHTML = '<span class="material-icons">print</span> Print Token'; printBtn.onclick = function() { printTokenReceipt(newToken.id); this.remove(); }; var footer = tb.querySelector(".modal-footer"); if (footer) { footer.insertBefore(printBtn, footer.firstChild); } } }, 200);
-  }
-}
 function openNewTokenModal() {
   var bizSelect = qs("#tokenBusinessSelect");
   if (bizSelect) {
@@ -1725,7 +1658,6 @@ function openNewTokenModal() {
   populateVehicleTypes();
   setValue("#tokenDiscount", "0");
 
-  // Clear BOTH regular and custom lists — prevents stale leftover data
   qs("#tokenServicesList").innerHTML = "";
   qs("#tokenProductsList").innerHTML = "";
   qs("#customTokenServicesList").innerHTML = "";
@@ -1769,7 +1701,6 @@ function openCustomTokenModal() {
   populateVehicleTypes();
   setValue("#tokenDiscount", "0");
 
-  // Clear BOTH custom and regular lists — prevents stale leftover data
   qs("#customTokenServicesList").innerHTML = "";
   qs("#customTokenProductsList").innerHTML = "";
   qs("#tokenServicesList").innerHTML = "";
@@ -1788,7 +1719,6 @@ function openCustomTokenModal() {
   }, 100);
 }
 
-
 function customServiceChanged(el) {
   var row = el.parentElement;
   if (el.value === "__custom__") {
@@ -1797,7 +1727,6 @@ function customServiceChanged(el) {
     row.querySelector(".custom-svc-name").focus();
   }
 }
-
 
 function customProductChanged(el) {
   var row = el.parentElement;
@@ -1808,7 +1737,69 @@ function customProductChanged(el) {
   }
 }
 
+function saveToken() {
+  updateTokenTotal();
+  var editId = qs("#tokenModal")?.dataset?.editId || "";
+  var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
+  var vt = qs("#tokenVehicleType")?.value || "";
+  var on = (qs("#tokenOwnerName")?.value || "").trim();
+  var cn = (qs("#tokenContactNumber")?.value || "").trim();
+  var bizSelect = qs("#tokenBusinessSelect"); var businesses = getBusinesses(); var biz;
+  if (bizSelect && bizSelect.value) { biz = businesses.find(function(b) { return b.id === bizSelect.value; }); }
+  if (!biz) { biz = getCurrentBusiness(); }
+  var prefix = biz.prefix;
 
+  var hasServices = qsa("#tokenServicesList .token-service-select").some(function(s) { return s.value; });
+  if (!vn || !vt || !hasServices) { toast("Please fill all required fields", "error"); return; }
+
+  var cv = validateContactNumber(cn);
+  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
+
+  var selectedServices = []; var totalServicePrice = 0;
+  qsa("#tokenServicesList .token-service-select").forEach(function(s) {
+    var sv = s.value;
+    if (sv) {
+      var pr = parseFloat(s.parentElement.querySelector(".token-service-price")?.value) || getMatrixPrice(sv, vt) || 0;
+      selectedServices.push(sv); totalServicePrice += pr;
+    }
+  });
+  var fs = selectedServices.join(", ");
+  var sp = totalServicePrice;
+
+  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+
+  var newProducts = []; var hasError = false;
+  qsa("#tokenProductsList .token-product-select").forEach(function(s, i) {
+    var vid = s.value; if (!vid) return;
+    var f = findVariantById(vid); if (!f) return;
+    var q = parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 1;
+    if (q > f.variant.stock) { toast("Only " + f.variant.stock + " units available for " + f.fullName, "error"); hasError = true; return; }
+    var p = parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) || f.variant.sellingPrice;
+    newProducts.push({ variantId: f.variant.id, fullName: f.fullName, qty: q, price: p });
+  });
+  if (hasError) return;
+
+  if (editId) {
+    var t = STATE.tokens.find(function(t) { return t.id === editId; }); if (!t) return;
+    if (t.products) t.products.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; });
+    newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
+    t.vehicleNo = vn; t.vehicleType = vt; t.ownerName = on; t.contactNumber = cv.formatted;
+    t.service = fs; t.servicePrice = sp; t.products = newProducts; t.discount = discount;
+    t.editedAt = fmtDate() + " " + fmtTime(); t.businessPrefix = prefix; t.businessId = biz.id; t.businessName = biz.name;
+    saveTokens(); saveInventory(); renderTokenTable(); closeModal("tokenModal"); refreshDashboard();
+    toast("Token updated successfully", "success");
+  } else {
+    newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
+    var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
+    if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
+    else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
+    var newToken = { id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(), vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, time: fmtTime(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
+    STATE.tokens.push(newToken); saveTokens(); saveInventory(); saveCounters();
+    closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
+    toast("Token " + newToken.number + " generated successfully", "success");
+    setTimeout(function() { var tb = qs("#tokenModal"); if (tb) { var printBtn = document.createElement("button"); printBtn.className = "btn btn-primary"; printBtn.style.background = "#000"; printBtn.innerHTML = '<span class="material-icons">print</span> Print Token'; printBtn.onclick = function() { printTokenReceipt(newToken.id); this.remove(); }; var footer = tb.querySelector(".modal-footer"); if (footer) { footer.insertBefore(printBtn, footer.firstChild); } } }, 200);
+  }
+}
 
 function saveCustomToken() {
   var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
@@ -1822,7 +1813,7 @@ function saveCustomToken() {
   if (!vn || !vt) { toast("Please fill vehicle details", "error"); return; }
   var cv = validateContactNumber(cn);
   if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
-  
+
   var customServices = [];
   qsa("#customTokenServicesList > div").forEach(function(row) {
     var sel = row.querySelector(".custom-svc-select");
@@ -1836,7 +1827,7 @@ function saveCustomToken() {
     }
     if (svcName && price > 0) customServices.push({ name: svcName, price: price });
   });
-  
+
   var customProducts = [];
   qsa("#customTokenProductsList > div").forEach(function(row) {
     var sel = row.querySelector(".custom-prd-select");
@@ -1851,15 +1842,15 @@ function saveCustomToken() {
     }
     if (prdName && price > 0) customProducts.push({ fullName: prdName, qty: qty, price: price });
   });
-  
+
   var serviceNames = customServices.map(function(s) { return s.name; }).join(", ");
   var totalServicePrice = customServices.reduce(function(t, s) { return t + s.price; }, 0);
   var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
-  
+
   var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
   if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
   else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
-  
+
   var newToken = {
     id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(),
     vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted,
@@ -2005,97 +1996,50 @@ function openEditTokenModal(tid) {
     return t.id === tid;
   });
   if (!t) return;
+  populateVehicleTypes();
   setText("#autoTokenNumber", t.number);
   setValue("#tokenVehicleNo", t.vehicleNo);
-  populateVehicleTypes();
-  setTimeout(function () {
-    setValue("#tokenVehicleType", t.vehicleType);
-  }, 50);
+  setValue("#tokenVehicleType", t.vehicleType);
   setValue("#tokenOwnerName", t.ownerName || "");
   setValue("#tokenContactNumber", t.contactNumber || "");
-  populateTokenServices();
-  setTimeout(function () {
-    var svc = qs("#tokenServiceType");
-    if (
-      Array.from(svc.options).some(function (o) {
-        return o.value === t.service;
-      })
-    ) {
-      setValue("#tokenServiceType", t.service);
-      qs("#customServiceGroup").style.display = "none";
-    } else {
-      setValue("#tokenServiceType", "Custom");
-      setValue("#tokenCustomService", t.service);
-      qs("#customServiceGroup").style.display = "";
-    }
-  }, 50);
-  var pl = qs("#tokenProductsList");
-  if (pl) pl.innerHTML = "";
-  if (t.products)
-    t.products.forEach(function (p) {
-      var c = qs("#tokenProductsList");
-      if (!c) return;
-      var av = getAllVariantsFlat();
-      var opts = av
-        .map(function (v) {
-          return (
-            '<option value="' +
-            v.id +
-            '" data-price="' +
-            v.sellingPrice +
-            '" ' +
-            (v.id === p.variantId ? "selected" : "") +
-            ">" +
-            sanitize(v.fullName) +
-            " | " +
-            fmtPrice(v.sellingPrice) +
-            "</option>"
-          );
-        })
-        .join("");
-      var r = document.createElement("div");
-      r.style.cssText =
-        "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-      r.innerHTML =
-        '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' +
-        opts +
-        '</select><input type="number" class="form-input token-product-qty" value="' +
-        p.qty +
-        '" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="' +
-        p.price +
-        '" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateTokenTotal();"><span class="material-icons">close</span></button>';
-      c.appendChild(r);
-      r.querySelector(".token-product-select").addEventListener(
-        "change",
-        function () {
-          var v = av.find(
-            function (x) {
-              return x.id === this.value;
-            }.bind(this),
-          );
-          if (v) {
-            r.querySelector(".token-product-price").value = v.sellingPrice;
-            updateTokenTotal();
-          }
-        },
-      );
-      r.querySelector(".token-product-qty").addEventListener(
-        "input",
-        updateTokenTotal,
-      );
+  setValue("#tokenDiscount", t.discount || 0);
+
+  qs("#tokenServicesList").innerHTML = "";
+  qs("#tokenProductsList").innerHTML = "";
+  qs("#customTokenServicesList").innerHTML = "";
+  qs("#customTokenProductsList").innerHTML = "";
+
+  document.getElementById("tokenServicesSection").style.display = "";
+  document.getElementById("tokenProductsSection").style.display = "";
+  document.getElementById("customTokenServicesSection").style.display = "none";
+  document.getElementById("customTokenProductsSection").style.display = "none";
+
+  if (t.service) {
+    t.service.split(", ").forEach(function (svc) {
+      if (svc) addTokenServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
     });
-  setTimeout(function () {
-    updateTokenPrice();
-    updateTokenTotal();
-  }, 100);
+  }
+
+  if (t.products) {
+    t.products.forEach(function (p) {
+      addTokenProduct();
+      var lastRow = qs("#tokenProductsList > div:last-child");
+      if (lastRow) {
+        var sel = lastRow.querySelector(".token-product-select");
+        if (sel) sel.value = p.variantId;
+        var priceInput = lastRow.querySelector(".token-product-price");
+        if (priceInput) priceInput.value = p.price;
+        var qtyInput = lastRow.querySelector(".token-product-qty");
+        if (qtyInput) qtyInput.value = p.qty;
+      }
+    });
+  }
+
   qs("#tokenModal").dataset.editId = tid;
-  var bizDisplay = qs("#tokenBusinessDisplay");
-  if (bizDisplay)
-    bizDisplay.textContent =
-      (t.businessName || "N/A") + " (" + (t.businessPrefix || "N/A") + ")";
   qs("#tokenModalTitle").innerHTML =
     '<span class="material-icons">edit</span> Edit Token';
   openModal("tokenModal");
+  setTimeout(recomputeTokenTotal, 100);
 }
 
 // ==================== BILLING ====================
@@ -2177,11 +2121,10 @@ function initBilling() {
     });
     var total = subtotal;
     var cash = parseFloat(qs("#cashReceived")?.value) || 0;
-    var change = cash >= total ? cash - total : 0;
 
- var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
-var totalAfterDiscount = Math.max(0, total - discount);
-var tempInv = {
+    var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
+    var totalAfterDiscount = Math.max(0, total - discount);
+    var tempInv = {
       number: invNumber || "—",
       date: invDate || fmtDate(),
       time: fmtTime(),
@@ -2221,6 +2164,7 @@ var tempInv = {
   });
   qs("#invoiceVehicle")?.addEventListener("input", updateInvoicePreview);
   qs("#invoiceCustomer")?.addEventListener("input", updateInvoicePreview);
+  qs("#invoiceDiscount")?.addEventListener("input", updateInvoicePreview);
   qs("#cashReceived")?.addEventListener("input", function () {
     var cash = parseFloat(this.value) || 0;
     var total =
@@ -2232,6 +2176,9 @@ var tempInv = {
       cash >= total ? fmtPrice(cash - total) : "Insufficient",
     );
   });
+  qs("#savedInvoiceSearch")?.addEventListener("input", renderSavedInvoices);
+  qs("#savedInvoiceStatusFilter")?.addEventListener("change", renderSavedInvoices);
+  qs("#savedInvoiceDateFilter")?.addEventListener("change", renderSavedInvoices);
   renderSavedInvoices();
 }
 function autoFillFromToken(tn) {
@@ -2248,22 +2195,22 @@ function autoFillFromToken(tn) {
   qs("#invoiceCustomer").dataset.contact = t.contactNumber || "";
   qs("#invoiceServicesContainer").innerHTML = "";
   qs("#invoiceProductsContainer").innerHTML = "";
-  
+
   if (t.service) {
     var services = t.service.split(", ");
     services.forEach(function(svc) {
       if (svc) addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
     });
   }
-  
+
   if (t.products)
     t.products.forEach(function (p) {
       addInvoiceProductRow(p.fullName, p.price, p.qty);
     });
-  
+
   if (t.discount) setValue("#invoiceDiscount", t.discount);
   else setValue("#invoiceDiscount", "0");
-  
+
   updateInvoicePreview();
   setValue("#cashReceived", "");
   setText("#changeReturned", "Rs. 0");
@@ -2388,10 +2335,10 @@ function saveInvoice() {
     st += i.price * i.qty;
   });
   var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
-var stAfterDiscount = Math.max(0, st - discount);
-var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
-var cr = parseFloat(qs("#cashReceived")?.value) || 0;
-var gt = stAfterDiscount + tx;
+  var stAfterDiscount = Math.max(0, st - discount);
+  var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
+  var cr = parseFloat(qs("#cashReceived")?.value) || 0;
+  var gt = stAfterDiscount + tx;
   var invBizSelect = qs("#invoiceBusinessSelect");
   var businesses = getBusinesses();
   var biz;
@@ -2408,7 +2355,7 @@ var gt = stAfterDiscount + tx;
   if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
   var invNumber =
     prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
- var inv = {
+  var inv = {
     id: uid(),
     number: invNumber,
     date: fmtDate(),
@@ -2435,7 +2382,6 @@ var gt = stAfterDiscount + tx;
   saveInvoices();
   saveCounters();
 
-  // Save current invoice ID for Print Receipt button
   qs("#invoiceToken").dataset.savedId = inv.id;
 
   var tn = inv.token;
@@ -2538,31 +2484,41 @@ function updateInvoicePreview() {
         );
       })
       .join("");
- var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
-var stAfterDiscount = Math.max(0, st - discount);
-var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
-setText("#invDiscount", fmtPrice(discount));
-setText("#invTaxRate", STATE.settings.taxRate);
-setText("#invTaxAmount", fmtPrice(tx));
-setText("#invSubtotal", fmtPrice(st));
-setText("#invTotal", fmtPrice(stAfterDiscount + tx));
+  var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
+  var stAfterDiscount = Math.max(0, st - discount);
+  var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
+  setText("#invDiscount", fmtPrice(discount));
+  setText("#invTaxRate", STATE.settings.taxRate);
+  setText("#invTaxAmount", fmtPrice(tx));
+  setText("#invSubtotal", fmtPrice(st));
+  setText("#invTotal", fmtPrice(stAfterDiscount + tx));
 
-// Update change returned
-var cr = parseFloat(qs("#cashReceived")?.value) || 0;
-var gt = stAfterDiscount + tx;
-setText("#changeReturned", cr >= gt ? fmtPrice(cr - gt) : "Insufficient");
+  var cr = parseFloat(qs("#cashReceived")?.value) || 0;
+  var gt = stAfterDiscount + tx;
+  setText("#changeReturned", cr >= gt ? fmtPrice(cr - gt) : "Insufficient");
 }
 function renderSavedInvoices() {
   var tb = qs("#savedInvoiceTableBody");
   if (!tb) return;
+  
+  var sr = (qs("#savedInvoiceSearch")?.value || "").toLowerCase();
+  var sf = qs("#savedInvoiceStatusFilter")?.value || "";
+  var df = qs("#savedInvoiceDateFilter")?.value || "";
+  
+  var filtered = STATE.invoices.filter(function(inv) {
+    return (!sr || inv.number.toLowerCase().includes(sr) || inv.customer.toLowerCase().includes(sr) || (inv.vehicle||"").toLowerCase().includes(sr) || (inv.token||"").toLowerCase().includes(sr)) &&
+           (!sf || inv.status === sf) &&
+           (!df || inv.date === fmtDate(new Date(df)));
+  });
+  
   var countBadge = qs("#savedInvoiceCount");
-  if (countBadge) countBadge.textContent = STATE.invoices.length;
-  if (!STATE.invoices.length) {
-    tb.innerHTML = '<tr><td colspan="8">No invoices</td></tr>';
-    if (countBadge) countBadge.textContent = "0";
+  if (countBadge) countBadge.textContent = filtered.length;
+  
+  if (!filtered.length) {
+    tb.innerHTML = '<tr><td colspan="8">No invoices found</td></tr>';
     return;
   }
-  tb.innerHTML = STATE.invoices
+  tb.innerHTML = filtered
     .map(function (inv) {
       return (
         '<tr><td style="font-weight:700;color:var(--primary);">' +
@@ -2844,7 +2800,7 @@ function generateThermalCustomerCopy(token, businessName, address, phone, date, 
       totalAmount += p.price * p.qty;
     });
   }
-  
+
   var grandTotal = Math.max(0, totalAmount - discount);
 
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.discount-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:10pt;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="addr">' + sanitize(address) + '</div><div class="addr">Tel: ' + sanitize(phone) + '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' + sanitize(token.number) + '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + ' (' + sanitize(token.vehicleType) + ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') + (discount > 0 ? '<div class="discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for Transaction ID</div><div class="ftr-note">' + sanitize(phone) + '</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>';
@@ -2852,7 +2808,7 @@ function generateThermalCustomerCopy(token, businessName, address, phone, date, 
 function generateThermalCashierCopy(token, businessName, address, phone, date, time) {
   var itemsHTML = '';
   var discount = token.discount || 0;
-  var totalAmount = token.servicePrice || 0;
+  var totalAmount = 0;
 
   if (token.service) {
     var services = token.service.split(", ");
@@ -2870,79 +2826,12 @@ function generateThermalCashierCopy(token, businessName, address, phone, date, t
       totalAmount += p.price * p.qty;
     });
   }
-  
+
   totalAmount = Math.max(0, totalAmount - discount);
 
   return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' + sanitize(token.number) + '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' + sanitize(token.vehicleType) + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + ' ' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') + (discount > 0 ? '<div class="total-row"><span>Discount</span><span>' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' + sanitize(businessName) + ' | ' + sanitize(phone) + ' | Attendant\'s Copy</div></body></html>';
 }
 
-function generateThermalCashierCopy(
-  token,
-  businessName,
-  address,
-  phone,
-  date,
-  time,
-) {
-  var itemsHTML = "";
-  var totalAmount = token.servicePrice || 0;
-
-  if (token.service) {
-    var svcPrice =
-      token.servicePrice ||
-      getMatrixPrice(token.service, token.vehicleType) ||
-      0;
-    itemsHTML +=
-      '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-      sanitize(token.service) +
-      '</span><span class="svc-price">' +
-      fmtPrice(svcPrice) +
-      "</span></div>";
-    totalAmount = Math.max(totalAmount, svcPrice);
-  }
-  if (token.products && token.products.length > 0) {
-    token.products.forEach(function (p) {
-      itemsHTML +=
-        '<div class="svc-row"><span class="svc-dot">•</span><span>' +
-        sanitize(p.fullName) +
-        " x" +
-        p.qty +
-        '</span><span class="svc-price">' +
-        fmtPrice(p.price * p.qty) +
-        "</span></div>";
-      totalAmount += p.price * p.qty;
-    });
-  }
-
-  return (
-    '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' +
-    sanitize(businessName) +
-    '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' +
-    sanitize(token.number) +
-    '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' +
-    sanitize(token.ownerName || "N/A") +
-    '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' +
-    sanitize(token.vehicleNo) +
-    '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' +
-    sanitize(token.vehicleType) +
-    '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' +
-    sanitize(formatContactDisplay(token.contactNumber || "N/A")) +
-    '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' +
-    sanitize(date) +
-    " " +
-    sanitize(time) +
-    '</span></div></div><div class="svc-title">Services & Products</div>' +
-    (itemsHTML ||
-      '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') +
-    '<div class="total-row"><span>TOTAL</span><span>' +
-    fmtPrice(totalAmount) +
-    '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' +
-    sanitize(businessName) +
-    " | " +
-    sanitize(phone) +
-    " | Attendant's Copy</div></body></html>"
-  );
-}
 // ==================== A4 INVOICE PRINTING ====================
 function printA4Invoice(invoiceId) {
   var inv = STATE.invoices.find(function (i) {
@@ -3379,7 +3268,8 @@ function openProductModal(d) {
   setValue("#productEditId", d ? d.id : "");
   setValue("#productName", d ? d.productType : "");
   populateCategoryDropdowns();
-  setValue("#productCategory", d ? d.category : "misc");
+  var catObj = STATE.categories.find(function(c) { return c.name === (d ? d.category : "misc"); });
+  setValue("#productCategory", catObj ? catObj.id : "misc");
   qs("#variantsContainer").innerHTML = "";
   vc = 0;
   if (d && d.variants)
@@ -3389,10 +3279,49 @@ function openProductModal(d) {
   else addVariantRow();
   openModal("productModal");
 }
+
 function saveProduct() {
   var ei = qs("#productEditId")?.value || "";
   var pt = (qs("#productName")?.value || "").trim();
-  var cat = qs("#productCategory")?.value || "misc";
+  var catId = qs("#productCategory")?.value || "misc";
+  var catObj = STATE.categories.find(function(c) { return c.id === catId; });
+  var cat = catObj ? catObj.name : "Miscellaneous";
+  if (!pt) return;
+  var variants = [];
+  var hasError = false;
+  qsa("#variantsContainer .variant-card").forEach(function (card, idx) {
+    var b = card.querySelector(".variant-brand")?.value || "General",
+      m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
+      g = card.querySelector(".variant-grade")?.value?.trim() || "",
+      s = card.querySelector(".variant-size")?.value?.trim() || "",
+      pp = parseFloat(card.querySelector(".variant-purchase-price")?.value) || 0,
+      sp = parseFloat(card.querySelector(".variant-selling-price")?.value) || 0,
+      st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
+      ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
+    var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
+    if (!sp) { toast("Variant #" + (idx + 1) + ": Enter price", "error"); hasError = true; return; }
+    if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
+    variants.push({ id: uid(), brand: b, model: m, grade: g, size: s, sku: sku, purchasePrice: pp, sellingPrice: sp, stock: st, minStock: ms });
+  });
+  if (hasError || !variants.length) return;
+  if (ei) {
+    var p = STATE.inventory.find(function (p) { return p.id === ei; });
+    if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
+  } else {
+    STATE.inventory.push({ id: uid(), productType: pt, category: cat, variants: variants });
+  }
+  saveInventory();
+  closeModal("productModal");
+  renderInventoryTable();
+  updateInventoryKPI();
+  refreshDashboard();
+}
+function saveProduct() {
+  var ei = qs("#productEditId")?.value || "";
+  var pt = (qs("#productName")?.value || "").trim();
+  var catId = qs("#productCategory")?.value || "misc";
+var catObj = STATE.categories.find(function(c) { return c.id === catId; });
+var cat = catObj ? catObj.name : "Miscellaneous";
   if (!pt) return;
   var variants = [];
   var hasError = false;
@@ -3418,7 +3347,7 @@ function saveProduct() {
     });
   });
   if (hasError || !variants.length) return;
-  
+
   if (ei) {
     var p = STATE.inventory.find(function (p) { return p.id === ei; });
     if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
@@ -3675,7 +3604,7 @@ function renderReports() {
   setText("#rptExpenses", fmtPrice(getTotalExpenses()));
   setText("#rptLabour", fmtPrice(getLabourCost()));
   setText("#rptProfit", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  
+
   var totalVendorPaid = STATE.vendorPayments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
   setText("#rptVendorPayments", fmtPrice(totalVendorPaid));
 
@@ -3764,7 +3693,7 @@ function renderExpenses() {
   setText("#totalExpenseAmt", fmtPrice(getTotalExpenses()));
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
-  
+
   var fl = STATE.expenses.sort(function (a, b) {
     return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
   });
@@ -4099,7 +4028,7 @@ function getModuleData(mod) {
       categories: STATE.categories,
       brands: STATE.brands,
       settings: STATE.settings,
-      version: "6.2",
+      version: "6.3",
     };
   if (mod === "inventory") return STATE.inventory;
   if (mod === "tokens") return STATE.tokens;
@@ -4795,55 +4724,16 @@ function loadSettingsForm() {
   }
 })();
 
-
-
-function openVendorModal() {
-  setValue("#vendorEditId", "");
-  setValue("#vendorCompany", "");
-  setValue("#vendorContactPerson", "");
-  setValue("#vendorPhone", "");
-  setValue("#vendorEmail", "");
-  setValue("#vendorAddress", "");
-  setValue("#vendorCategory", "");
-  setValue("#vendorStatus", "Active");
-  openModal("vendorModal");
-}
-
-function saveVendor() {
-  var company = (qs("#vendorCompany")?.value || "").trim();
-  var contact = (qs("#vendorContactPerson")?.value || "").trim();
-  var phone = (qs("#vendorPhone")?.value || "").trim();
-  if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
-  var vendor = {
-    id: uid(),
-    company: company,
-    contactPerson: contact,
-    phone: phone,
-    email: (qs("#vendorEmail")?.value || "").trim(),
-    address: (qs("#vendorAddress")?.value || "").trim(),
-    category: qs("#vendorCategory")?.value || "General Supplier",
-    status: qs("#vendorStatus")?.value || "Active",
-    dateAdded: fmtDate(),
-    totalPurchases: 0
-  };
-  STATE.vendors.push(vendor);
-  saveVendors();
-  closeModal("vendorModal");
-  renderVendorTable();
-  renderVendorKPIs();
-  toast("Vendor added", "success");
-}
 // ==================== VENDORS ====================
 function initVendors() {
   qs("#addVendorBtn")?.addEventListener("click", function() { openVendorModal(); });
   qs("#saveVendorBtn")?.addEventListener("click", saveVendor);
-  qs("#vendorPaymentsBtn")?.addEventListener("click", openPaymentModal);
+  qs("#vendorPaymentsBtn")?.addEventListener("click", function() { openPaymentModal(); });
   qs("#savePaymentBtn")?.addEventListener("click", savePayment);
   qs("#vendorSearch")?.addEventListener("input", renderVendorTable);
   qs("#vendorCategoryFilter")?.addEventListener("change", renderVendorTable);
   if (qs("#paymentDate")) qs("#paymentDate").value = toDateInputValue(new Date());
-  
-  // Print payment receipt handler
+
   document.addEventListener("click", function(e) {
     var pr = e.target.closest("[data-print-vpayment]");
     if (pr) {
@@ -4864,7 +4754,8 @@ function openVendorCategoryModal() {
   });
   h += '</div></div></div></div>';
   document.body.insertAdjacentHTML("beforeend", h);
-  
+  openModal("vendorCategoryModal");
+
   qs("#addVendorCategoryBtn")?.addEventListener("click", function() {
     var n = (qs("#newVendorCategory")?.value || "").trim();
     if (n) {
@@ -4880,8 +4771,7 @@ function openVendorCategoryModal() {
 function printVendorPaymentReceipt(pay) {
   var v = STATE.vendors.find(function(v) { return v.id === pay.vendorId; });
   var biz = getCurrentBusiness();
-  
-  // Get purchases for this vendor
+
   var purchasesHTML = '';
   if (v && v.purchases && v.purchases.length > 0) {
     purchasesHTML += '<div class="sec-title">Purchases</div>';
@@ -4889,7 +4779,7 @@ function printVendorPaymentReceipt(pay) {
       purchasesHTML += '<div class="info-row"><span class="info-lbl">' + sanitize(p.description) + ' x' + p.qty + '</span><span class="info-val">' + fmtPrice(p.amount) + '</span></div>';
     });
   }
-  
+
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
   '*{margin:0;padding:0;box-sizing:border-box}' +
   'body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:10pt;color:#000;background:#fff;line-height:1.3}' +
@@ -4921,7 +4811,7 @@ function printVendorPaymentReceipt(pay) {
   '<div class="amount-box"><div class="amount-lbl">AMOUNT PAID</div><div class="amount-val">' + fmtPrice(pay.amount) + '</div></div>' +
   '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '</div>' +
   '</body></html>';
-  
+
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI.printReceipt(html, { pageSize: { width: 80000, height: 297000 } });
   } else {
@@ -4932,22 +4822,22 @@ function printVendorPaymentReceipt(pay) {
 function printVendorPaymentA4(pay) {
   var v = STATE.vendors.find(function(v) { return v.id === pay.vendorId; });
   var biz = getCurrentBusiness();
-  
+
   var purchasesRows = '';
   if (v && v.purchases && v.purchases.length > 0) {
     v.purchases.forEach(function(p, i) {
       purchasesRows += '<tr><td style="text-align:center;border:1px solid #000;padding:1.5mm">' + (i+1) + '</td><td style="border:1px solid #000;padding:1.5mm">' + sanitize(p.description) + '</td><td style="text-align:center;border:1px solid #000;padding:1.5mm">' + p.qty + '</td><td style="text-align:right;border:1px solid #000;padding:1.5mm">' + fmtPrice(p.amount) + '</td></tr>';
     });
   }
-  
+
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>@page{size:A4;margin:10mm}*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI",Arial,sans-serif;color:#000;font-size:10pt;line-height:1.3;background:#fff}.page{max-width:190mm;margin:0 auto}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #000;padding-bottom:4mm;margin-bottom:4mm}.biz-name{font-size:16pt;font-weight:900;color:#000;text-transform:uppercase}.biz-addr{font-size:8pt;color:#000}.logo{width:16mm;height:16mm;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-size:18pt;font-weight:900;color:#000}.ttl-box{border:2px solid #000;display:inline-block;padding:2mm 6mm;margin:4mm 0}.ttl{font-size:12pt;font-weight:900;color:#000;letter-spacing:2px}.info-grid{display:flex;gap:4mm;margin-bottom:4mm}.info-box{flex:1;border:1px solid #000;padding:2mm}.info-box-title{font-size:7pt;font-weight:900;color:#000;border-bottom:1px solid #000;padding-bottom:1mm;margin-bottom:1.5mm;text-transform:uppercase}.info-row{display:flex;justify-content:space-between;padding:0.6mm 0;font-size:8pt;color:#000}.info-lbl{font-weight:700;color:#000}.info-val{font-weight:700;color:#000}.tbl{width:100%;border-collapse:collapse;margin:4mm 0;border:1px solid #000}.tbl th{border:1px solid #000;padding:2mm;font-size:8pt;text-transform:uppercase;color:#000;font-weight:900}.tbl td{border:1px solid #000;padding:1.5mm;font-size:9pt;color:#000}.amount-section{margin:5mm 0;padding:3mm;border:2px solid #000;text-align:center}.amount-lbl{font-size:9pt;font-weight:700;color:#000}.amount-val{font-size:20pt;font-weight:900;color:#000}.sig-section{display:flex;gap:5mm;margin-top:8mm}.sig-box{flex:1;text-align:center}.sig-line{border-top:1px solid #000;margin-top:10mm;padding-top:2mm;font-size:7pt;color:#000}.ftr{text-align:center;margin-top:6mm;border-top:1px solid #000;padding-top:2mm;font-size:7pt;color:#000}</style></head><body><div class="page"><div class="hdr"><div><div class="biz-name">' + sanitize(biz.name) + '</div><div class="biz-addr">' + sanitize(biz.address) + '</div><div class="biz-addr">Tel: ' + sanitize(biz.phone) + ' | ' + sanitize(biz.email) + '</div></div><div class="logo">' + sanitize(biz.prefix) + '</div></div><div class="ttl-box"><span class="ttl">INVOICE</span></div><div class="info-grid"><div class="info-box"><div class="info-box-title">Vendor Details</div><div class="info-row"><span class="info-lbl">Company</span><span class="info-val">' + sanitize(v ? v.company : "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Contact</span><span class="info-val">' + sanitize(v ? v.contactPerson : "—") + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(v ? v.phone : "—") + '</span></div><div class="info-row"><span class="info-lbl">Category</span><span class="info-val">' + sanitize(v ? v.category : "—") + '</span></div></div><div class="info-box"><div class="info-box-title">Payment Details</div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(pay.date) + '</span></div><div class="info-row"><span class="info-lbl">Method</span><span class="info-val">' + sanitize(pay.method) + '</span></div><div class="info-row"><span class="info-lbl">Transaction ID</span><span class="info-val">' + sanitize(pay.notes || "—") + '</span></div><div class="info-row"><span class="info-lbl">Business</span><span class="info-val">' + sanitize(biz.name) + '</span></div></div></div>';
-  
+
   if (v && v.purchases && v.purchases.length > 0) {
     html += '<div style="font-size:10pt;font-weight:700;color:#000;margin-bottom:2mm">Purchase Details</div><table class="tbl"><thead><tr><th style="width:6%;text-align:center">#</th><th>Description</th><th style="width:12%;text-align:center">Qty</th><th style="width:22%;text-align:right">Amount</th></tr></thead><tbody>' + purchasesRows + '</tbody></table>';
   }
-  
+
   html += '<div class="amount-section"><div class="amount-lbl">AMOUNT PAID</div><div class="amount-val">' + fmtPrice(pay.amount) + '</div></div><div class="sig-section"><div class="sig-box"><div class="sig-line"></div>Authorized Signature</div><div class="sig-box"><div class="sig-line"></div>Vendor Signature</div></div><div class="ftr">' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + ' | Thank you for your business</div></div></body></html>';
-  
+
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI.printReceipt(html, { pageSize: { width: 210000, height: 297000 }, printBackground: true });
   } else {
@@ -4964,6 +4854,10 @@ function openVendorModal(d) {
   setValue("#vendorAddress", d ? d.address : "");
   setValue("#vendorCategory", d ? d.category : "");
   setValue("#vendorStatus", d ? d.status : "Active");
+  qs("#vendorPurchasesContainer").innerHTML = "";
+  if (d && d.purchases) {
+    d.purchases.forEach(function(p) { addVendorPurchaseRow(p); });
+  }
   openModal("vendorModal");
 }
 
@@ -4972,6 +4866,40 @@ function saveVendor() {
   var contact = (qs("#vendorContactPerson")?.value || "").trim();
   var phone = (qs("#vendorPhone")?.value || "").trim();
   if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
+
+  var purchases = [];
+  var totalPurchases = 0;
+  qsa("#vendorPurchasesContainer > div").forEach(function(row) {
+    var inputs = row.querySelectorAll("input");
+    var desc = (inputs[0]?.value || "").trim();
+    var qty = parseInt(inputs[1]?.value) || 1;
+    var amt = parseFloat(inputs[2]?.value) || 0;
+    if (desc && amt > 0) {
+      purchases.push({ description: desc, qty: qty, amount: amt, date: fmtDate() });
+      totalPurchases += amt;
+    }
+  });
+
+  var editId = qs("#vendorEditId")?.value || "";
+  if (editId) {
+    var v = STATE.vendors.find(function(v) { return v.id === editId; });
+    if (v) {
+      v.company = company;
+      v.contactPerson = contact;
+      v.phone = phone;
+      v.email = (qs("#vendorEmail")?.value || "").trim();
+      v.address = (qs("#vendorAddress")?.value || "").trim();
+      v.category = qs("#vendorCategory")?.value || "General Supplier";
+      v.status = qs("#vendorStatus")?.value || "Active";
+    }
+    saveVendors();
+    closeModal("vendorModal");
+    renderVendorTable();
+    renderVendorKPIs();
+    toast("Vendor updated", "success");
+    return;
+  }
+
   var vendor = {
     id: uid(),
     company: company,
@@ -4982,14 +4910,15 @@ function saveVendor() {
     category: qs("#vendorCategory")?.value || "General Supplier",
     status: qs("#vendorStatus")?.value || "Active",
     dateAdded: fmtDate(),
-    totalPurchases: 0
+    purchases: purchases,
+    totalPurchases: totalPurchases
   };
   STATE.vendors.push(vendor);
   saveVendors();
   closeModal("vendorModal");
   renderVendorTable();
   renderVendorKPIs();
-  toast("Vendor added", "success");
+  toast("Vendor added with " + purchases.length + " purchases", "success");
 }
 
 function openPaymentModal(vendorId) {
@@ -5033,9 +4962,12 @@ function viewVendor(vid) {
   var paymentHistory = STATE.vendorPayments.filter(function(p) { return p.vendorId === vid; }).map(function(p) {
     return '<tr><td>' + sanitize(p.date) + '</td><td>' + fmtPrice(p.amount) + '</td><td>' + sanitize(p.method) + '</td><td>' + sanitize(p.notes || "—") + '</td><td><div class="table-actions"><button class="btn btn-sm btn-primary" onclick="printVendorPaymentReceiptById(\'' + p.id + '\')" style="background:#000;font-size:0.6rem;padding:2px 6px" title="80mm Receipt">Receipt</button><button class="btn btn-sm btn-outline" onclick="printVendorPaymentA4ById(\'' + p.id + '\')" style="font-size:0.6rem;padding:2px 6px" title="A4 Invoice">A4</button></div></td></tr>';
   }).join("") || '<tr><td colspan="5" style="text-align:center;padding:1rem;">No payments yet</td></tr>';
-  
-  var modalHTML = '<div class="modal-overlay" id="vendorViewModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> ' + sanitize(v.company) + '</h2><button class="modal-close" onclick="document.getElementById(\'vendorViewModal\').remove()"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="kpi-grid kpi-grid--3"><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Purchases</span><span class="kpi-value">' + fmtPrice(v.totalPurchases || 0) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value">' + fmtPrice(paid) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Balance</span><span class="kpi-value" style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + '">' + fmtPrice(balance) + '</span></div></div></div><div class="invoice-section-label">Payment History</div><table class="data-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Notes</th><th>Print</th></tr></thead><tbody>' + paymentHistory + '</tbody></table><button class="btn btn-primary" style="margin-top:1rem" onclick="openPaymentModal(\'' + v.id + '\');document.getElementById(\'vendorViewModal\').remove()">Add Payment</button></div></div></div>';
+
+  var existing = qs("#vendorViewModal");
+  if (existing) existing.remove();
+  var modalHTML = '<div class="modal-overlay" id="vendorViewModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> ' + sanitize(v.company) + '</h2><button class="modal-close" onclick="document.getElementById(\'vendorViewModal\').remove();document.body.style.overflow=\'\';"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="kpi-grid kpi-grid--3"><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Purchases</span><span class="kpi-value">' + fmtPrice(v.totalPurchases || 0) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value">' + fmtPrice(paid) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Balance</span><span class="kpi-value" style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + '">' + fmtPrice(balance) + '</span></div></div></div><div class="invoice-section-label">Payment History</div><table class="data-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Notes</th><th>Print</th></tr></thead><tbody>' + paymentHistory + '</tbody></table><button class="btn btn-primary" style="margin-top:1rem" onclick="openPaymentModal(\'' + v.id + '\');document.getElementById(\'vendorViewModal\').remove()">Add Payment</button></div></div></div>';
   document.body.insertAdjacentHTML("beforeend", modalHTML);
+  openModal("vendorViewModal");
 }
 
 function printVendorPaymentReceiptById(pid) {
@@ -5043,15 +4975,6 @@ function printVendorPaymentReceiptById(pid) {
   if (pay) printVendorPaymentReceipt(pay);
 }
 
-function printVendorPaymentA4ById(pid) {
-  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
-  if (pay) printVendorPaymentA4(pay);
-}
-
-function printVendorPaymentReceiptById(pid) {
-  var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
-  if (pay) printVendorPaymentReceipt(pay);
-}
 function printVendorPaymentA4ById(pid) {
   var pay = STATE.vendorPayments.find(function(p) { return p.id === pid; });
   if (pay) printVendorPaymentA4(pay);
@@ -5063,51 +4986,6 @@ function renderVendorKPIs() {
   var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
   var totalPurchases = vendors.reduce(function(s, v) { return s + (v.totalPurchases || 0); }, 0);
   var pending = Math.max(0, totalPurchases - totalPaid);
-  setText("#kpiTotalVendors", vendors.length);
-  setText("#kpiVendorPaid", fmtPrice(totalPaid));
-  setText("#kpiVendorPending", fmtPrice(pending));
-  setText("#kpiVendorMonth", fmtPrice(0));
-}
-
-
-function openPaymentModal() {
-  var sel = qs("#paymentVendor");
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Select Vendor</option>';
-  STATE.vendors.forEach(function(v) {
-    sel.innerHTML += '<option value="' + v.id + '">' + sanitize(v.company) + '</option>';
-  });
-  setValue("#paymentAmount", "");
-  setValue("#paymentNotes", "");
-  if (qs("#paymentDate")) qs("#paymentDate").value = toDateInputValue(new Date());
-  openModal("vendorPaymentModal");
-}
-
-function savePayment() {
-  var vid = qs("#paymentVendor")?.value;
-  var amt = parseFloat(qs("#paymentAmount")?.value) || 0;
-  if (!vid || !amt) { toast("Select vendor and enter amount", "error"); return; }
-  STATE.vendorPayments.push({
-    id: uid(),
-    vendorId: vid,
-    amount: amt,
-    date: qs("#paymentDate")?.value ? fmtDate(new Date(qs("#paymentDate").value)) : fmtDate(),
-    method: qs("#paymentMethod")?.value || "Cash",
-    notes: (qs("#paymentNotes")?.value || "").trim()
-  });
-  saveVendorPayments();
-  closeModal("vendorPaymentModal");
-  renderVendorTable();
-  renderVendorKPIs();
-  toast("Payment saved", "success");
-}
-
-function renderVendorKPIs() {
-  var vendors = STATE.vendors;
-  var payments = STATE.vendorPayments;
-  var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
-  var totalPurchases = vendors.reduce(function(s, v) { return s + (v.totalPurchases || 0); }, 0);
-  var pending = totalPurchases - totalPaid;
   setText("#kpiTotalVendors", vendors.length);
   setText("#kpiVendorPaid", fmtPrice(totalPaid));
   setText("#kpiVendorPending", fmtPrice(pending));
@@ -5144,87 +5022,33 @@ function addVendorPurchaseRow(data) {
   c.appendChild(r);
 }
 
-function openVendorModal(d) {
-  setValue("#vendorEditId", d ? d.id : "");
-  setValue("#vendorCompany", d ? d.company : "");
-  setValue("#vendorContactPerson", d ? d.contactPerson : "");
-  setValue("#vendorPhone", d ? d.phone : "");
-  setValue("#vendorEmail", d ? d.email : "");
-  setValue("#vendorAddress", d ? d.address : "");
-  setValue("#vendorCategory", d ? d.category : "");
-  setValue("#vendorStatus", d ? d.status : "Active");
-  qs("#vendorPurchasesContainer").innerHTML = "";
-  if (d && d.purchases) {
-    d.purchases.forEach(function(p) { addVendorPurchaseRow(p); });
-  }
-  openModal("vendorModal");
-}
-
-function saveVendor() {
-  var company = (qs("#vendorCompany")?.value || "").trim();
-  var contact = (qs("#vendorContactPerson")?.value || "").trim();
-  var phone = (qs("#vendorPhone")?.value || "").trim();
-  if (!company || !contact || !phone) { toast("Fill required fields", "error"); return; }
-  
-  var purchases = [];
-  var totalPurchases = 0;
-  qsa("#vendorPurchasesContainer > div").forEach(function(row) {
-    var inputs = row.querySelectorAll("input");
-    var desc = (inputs[0]?.value || "").trim();
-    var qty = parseInt(inputs[1]?.value) || 1;
-    var amt = parseFloat(inputs[2]?.value) || 0;
-    if (desc && amt > 0) {
-      purchases.push({ description: desc, qty: qty, amount: amt, date: fmtDate() });
-      totalPurchases += amt;
-    }
-  });
-  
-  var vendor = {
-    id: uid(),
-    company: company,
-    contactPerson: contact,
-    phone: phone,
-    email: (qs("#vendorEmail")?.value || "").trim(),
-    address: (qs("#vendorAddress")?.value || "").trim(),
-    category: qs("#vendorCategory")?.value || "General Supplier",
-    status: qs("#vendorStatus")?.value || "Active",
-    dateAdded: fmtDate(),
-    purchases: purchases,
-    totalPurchases: totalPurchases
-  };
-  STATE.vendors.push(vendor);
-  saveVendors();
-  closeModal("vendorModal");
-  renderVendorTable();
-  renderVendorKPIs();
-  toast("Vendor added with " + purchases.length + " purchases", "success");
-}
 function openPurchaseModal(vendorId) {
   var existing = qs("#purchaseModal");
   if (existing) existing.remove();
-  
+
   var sel = '<option value="">Select Vendor</option>';
   STATE.vendors.forEach(function(v) {
     var sel2 = v.id === vendorId ? " selected" : "";
     sel += '<option value="' + v.id + '"' + sel2 + '>' + sanitize(v.company) + '</option>';
   });
-  
- var h = '<div class="modal-overlay" id="purchaseModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">shopping_cart</span> Add Purchase</h2><button class="modal-close" onclick="document.getElementById(\'purchaseModal\').remove()"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Vendor <span class="required">*</span></label><select class="form-input" id="purchaseVendor">' + sel + '</select></div><div class="form-group"><label class="form-label">Description <span class="required">*</span></label><input type="text" class="form-input" id="purchaseDesc" placeholder="e.g. Engine Oil 20W-50" /></div><div class="form-row"><div class="form-group"><label class="form-label">Qty</label><input type="number" class="form-input" id="purchaseQty" value="1" min="1" /></div><div class="form-group"><label class="form-label">Amount <span class="required">*</span></label><input type="number" class="form-input" id="purchaseAmount" min="0" /></div></div><div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="purchaseDate" /></div></div><div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'purchaseModal\').remove()">Cancel</button><button class="btn btn-primary" onclick="saveVendorPurchase()">Save Purchase</button></div></div></div>';
-  
+
+  var h = '<div class="modal-overlay" id="purchaseModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">shopping_cart</span> Add Purchase</h2><button class="modal-close" onclick="document.getElementById(\'purchaseModal\').remove();document.body.style.overflow=\'\';"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Vendor <span class="required">*</span></label><select class="form-input" id="purchaseVendor">' + sel + '</select></div><div class="form-group"><label class="form-label">Description <span class="required">*</span></label><input type="text" class="form-input" id="purchaseDesc" placeholder="e.g. Engine Oil 20W-50" /></div><div class="form-row"><div class="form-group"><label class="form-label">Qty</label><input type="number" class="form-input" id="purchaseQty" value="1" min="1" /></div><div class="form-group"><label class="form-label">Amount <span class="required">*</span></label><input type="number" class="form-input" id="purchaseAmount" min="0" /></div></div><div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="purchaseDate" /></div></div><div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'purchaseModal\').remove();document.body.style.overflow=\'\';">Cancel</button><button class="btn btn-primary" id="savePurchaseBtn">Save Purchase</button></div></div></div>';
+
   document.body.insertAdjacentHTML("beforeend", h);
+  openModal("purchaseModal");
   if (qs("#purchaseDate")) qs("#purchaseDate").value = toDateInputValue(new Date());
-  
+
   qs("#savePurchaseBtn")?.addEventListener("click", function() {
     var vid = qs("#purchaseVendor")?.value;
     var desc = (qs("#purchaseDesc")?.value || "").trim();
     var qty = parseInt(qs("#purchaseQty")?.value) || 1;
     var amt = parseFloat(qs("#purchaseAmount")?.value) || 0;
     if (!vid || !desc || !amt) { toast("Fill required fields", "error"); return; }
-    
+
     var purchase = { id: uid(), vendorId: vid, description: desc, qty: qty, amount: amt, date: qs("#purchaseDate")?.value ? fmtDate(new Date(qs("#purchaseDate").value)) : fmtDate() };
     STATE.purchaseOrders.push(purchase);
     savePurchaseOrders();
-    
+
     var vendor = STATE.vendors.find(function(v) { return v.id === vid; });
     if (vendor) {
       vendor.totalPurchases = (vendor.totalPurchases || 0) + amt;
@@ -5232,44 +5056,19 @@ function openPurchaseModal(vendorId) {
       vendor.purchases.push(purchase);
       saveVendors();
     }
-    
-    document.getElementById("purchaseModal").remove();
+
+    closeModal("purchaseModal");
+    var pm = document.getElementById("purchaseModal");
+    if (pm) pm.remove();
     renderVendorTable();
     renderVendorKPIs();
     toast("Purchase added: " + fmtPrice(amt), "success");
   });
 }
-function saveVendorPurchase() {
-  var vid = qs("#purchaseVendor")?.value;
-  var desc = (qs("#purchaseDesc")?.value || "").trim();
-  var qty = parseInt(qs("#purchaseQty")?.value) || 1;
-  var amt = parseFloat(qs("#purchaseAmount")?.value) || 0;
-  if (!vid || !desc || !amt) { toast("Fill required fields", "error"); return; }
-  
-  var purchase = { id: uid(), vendorId: vid, description: desc, qty: qty, amount: amt, date: qs("#purchaseDate")?.value ? fmtDate(new Date(qs("#purchaseDate").value)) : fmtDate() };
-  STATE.purchaseOrders.push(purchase);
-  savePurchaseOrders();
-  
-  var vendor = STATE.vendors.find(function(v) { return v.id === vid; });
-  if (vendor) {
-    vendor.totalPurchases = (vendor.totalPurchases || 0) + amt;
-    if (!vendor.purchases) vendor.purchases = [];
-    vendor.purchases.push(purchase);
-    saveVendors();
-  }
-  
-  var modal = document.getElementById("purchaseModal");
-  if (modal) modal.remove();
-  renderVendorTable();
-  renderVendorKPIs();
-  toast("Purchase added: " + fmtPrice(amt), "success");
-}
-// ============================================================
-// TOKEN TOTAL — HARDENED OVERRIDE (paste at end of app.js)
-// Replaces all prior versions of these functions and adds
-// bulletproof event wiring + a MutationObserver safety net.
-// ============================================================
 
+// ============================================================
+// TOKEN TOTAL — HARDENED
+// ============================================================
 function updateTokenTotal() {
   var t = 0;
   qsa("#tokenServicesList > div").forEach(function (row) {
@@ -5309,7 +5108,6 @@ function updateCustomTokenTotal() {
   return grand;
 }
 
-// Master recompute — figures out which section is active and updates accordingly
 function recomputeTokenTotal() {
   var customSection = document.getElementById("customTokenServicesSection");
   var isCustom = customSection && customSection.style.display !== "none";
@@ -5416,7 +5214,6 @@ function addCustomServiceRow() {
       priceEl.value = "";
       nameEl.focus();
     } else if (this.value) {
-      // AUTO-FETCH price from pricing matrix using current vehicle type
       var vt = qs("#tokenVehicleType")?.value || "";
       var pr = vt ? getMatrixPrice(this.value, vt) : 0;
       priceEl.value = pr || "";
@@ -5470,48 +5267,32 @@ function addCustomProductRow() {
   });
 }
 
-// Vehicle type change re-syncs all existing service row prices
-qs("#tokenVehicleType")?.addEventListener("change", function () {
-  var vt = this.value;
-  qsa("#tokenServicesList .token-service-select").forEach(function (s) {
-    var sv = s.value;
-    var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
-    var priceInput = s.parentElement.querySelector(".token-service-price");
-    if (priceInput) priceInput.value = pr;
-  });
-  qsa("#customTokenServicesList .custom-svc-select").forEach(function (s) {
-    if (s.value && s.value !== "__custom__") {
-      var pr = vt ? getMatrixPrice(s.value, vt) : 0;
-      var priceInput = s.parentElement.querySelector(".custom-svc-price");
-      if (priceInput) priceInput.value = pr || "";
-    }
-  });
-  recomputeTokenTotal();
+document.addEventListener("change", function (e) {
+  if (e.target && e.target.id === "tokenVehicleType") {
+    var vt = e.target.value;
+    qsa("#tokenServicesList .token-service-select").forEach(function (s) {
+      var sv = s.value;
+      var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
+      var priceInput = s.parentElement.querySelector(".token-service-price");
+      if (priceInput) priceInput.value = pr;
+    });
+    qsa("#customTokenServicesList .custom-svc-select").forEach(function (s) {
+      if (s.value && s.value !== "__custom__") {
+        var pr = vt ? getMatrixPrice(s.value, vt) : 0;
+        var priceInput = s.parentElement.querySelector(".custom-svc-price");
+        if (priceInput) priceInput.value = pr || "";
+      }
+    });
+    recomputeTokenTotal();
+  }
 });
 
-// Discount field — delegated so it works no matter when the modal was opened
 document.addEventListener("input", function (e) {
   if (e.target && e.target.id === "tokenDiscount") {
     recomputeTokenTotal();
   }
 });
 
-// Safety net: watch the lists themselves for any DOM change and recompute.
-// This catches any edge case the above listeners might somehow miss.
-(function () {
-  var ids = ["tokenServicesList", "tokenProductsList", "customTokenServicesList", "customTokenProductsList"];
-  ids.forEach(function (id) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    var obs = new MutationObserver(function () {
-      recomputeTokenTotal();
-    });
-    obs.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
-  });
-})();
-
-// Diagnostic helper — run debugTokenTotal() in console to see exactly
-// what values are being read, if anything still looks wrong.
 function debugTokenTotal() {
   console.log("--- Service rows ---");
   qsa("#tokenServicesList > div").forEach(function (row) {
@@ -5531,10 +5312,68 @@ function debugTokenTotal() {
   console.log("Discount:", qs("#tokenDiscount")?.value);
   console.log("Computed grand total:", recomputeTokenTotal());
 }
+
+// ============================================================
+// UNIVERSAL BUTTON DELEGATION (safety net — works even if a
+// direct addEventListener above somehow fails to attach)
+// ============================================================
+document.addEventListener('click', function (e) {
+  var id = e.target.closest('button, a')?.id || '';
+  var actions = {
+    manageBrandsBtn: function () { openBrandsModal(); },
+    manageCategoriesBtn: function () { openCategoryModal(); },
+    addBrandBtn: function () { addBrand(); },
+    addCategoryBtn: function () { addCategory(); },
+    addExpenseBtn: function () { showExpenseForm(); },
+    saveExpenseBtn: function () { saveExpense(); },
+    cancelExpenseBtn: function () { hideExpenseForm(); },
+    markAllCompletedBtn: function () {
+      confirm('Mark all as completed?', function () {
+        STATE.reminders.forEach(function (r) { if (r.status !== 'completed') r.status = 'completed'; });
+        saveReminders(); renderReminderTable(); refreshDashboard();
+      });
+    },
+    exportJSONBtn: function () { exportJSON(); },
+    exportCSVBtn: function () { exportCSV(); },
+    exportPDFBtn: function () { exportPDF(); },
+    importDataBtn2: function () { importFile(); },
+    quickBackupBtn: function () { quickBackup(); },
+    quickRestoreBtn: function () { quickRestore(); },
+    confirmImportBtn: function () { confirmImport(); },
+    resetCountersBtn: function () {
+      confirm('Reset?', function () {
+        STATE.counters = { invoiceCounterWW: 1, invoiceCounterMB: 1 };
+        saveCounters();
+      }, 'Reset');
+    },
+    clearDataBtn: function () {
+      confirm('DELETE ALL?', function () {
+        Object.values(KEYS).forEach(function (k) { localStorage.removeItem(k); });
+        sessionStorage.removeItem('servicepro_logged_in');
+        sessionStorage.removeItem('servicepro_last_activity');
+        setTimeout(function () { location.reload(); }, 1500);
+      }, 'Clear All');
+    },
+  };
+  if (id && actions[id]) {
+    e.preventDefault();
+    actions[id]();
+  }
+});
+
+console.log('%c✅ app.js v6.3 loaded — modal fix active', 'color:green;font-weight:bold;');
+
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {
   setLoginBrandName();
   if (!checkLoginSession()) {
     initLogin();
   }
+  // Move all modals inside #app
+var app = document.getElementById("app");
+if (app) {
+  document.querySelectorAll(".modal-overlay").forEach(function(m) {
+    app.appendChild(m);
+  });
+}
 });

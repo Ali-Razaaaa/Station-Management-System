@@ -1234,16 +1234,26 @@
                 </div>
               </div>
             </div>
-            <div class="card" style="margin-top: 1.25rem">
+           <div class="card" style="margin-top: 1.25rem">
               <div class="card-header">
                 <h2 class="card-title">
                   <span class="material-icons">folder_open</span> Saved Invoices
                 </h2>
                 <div class="card-header-meta">
-                  <span class="badge badge--blue" id="savedInvoiceCount"
-                    >0</span
-                  >
+                  <span class="badge badge--blue" id="savedInvoiceCount">0</span>
                 </div>
+              </div>
+              <div style="display:flex;gap:8px;padding:10px 16px;flex-wrap:wrap">
+                <div class="search-box" style="width:200px">
+                  <span class="material-icons">search</span>
+                  <input type="text" placeholder="Search invoices..." id="savedInvoiceSearch" class="search-input" />
+                </div>
+                <select class="filter-select" id="savedInvoiceStatusFilter">
+                  <option value="">All Status</option>
+                  <option value="PAID">Paid</option>
+                  <option value="UNPAID">Unpaid</option>
+                </select>
+                <input type="date" class="filter-select" id="savedInvoiceDateFilter" style="width:140px" />
               </div>
               <div class="card-body p-0">
                 <table class="data-table" id="savedInvoiceTable">
