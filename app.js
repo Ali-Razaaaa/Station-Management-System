@@ -3410,12 +3410,21 @@ function renderInventoryTable() {
         v.id +
         '">+</button><button class="btn btn-sm btn-ghost" data-stock-out="' +
         v.id +
-        '">-</button><button class="btn-icon btn btn-danger-ghost" data-variant-delete="' +
+        '">-</button><button class="btn btn-sm btn-ghost" onclick="editInventoryProduct(\'' +
+        v.productId +
+        '\')" title="Edit"><span class="material-icons">edit</span></button><button class="btn-icon btn btn-danger-ghost" data-variant-delete="' +
         v.id +
         '"><span class="material-icons">delete</span></button></div></td></tr>'
       );
     })
     .join("");
+}
+
+function editInventoryProduct(productId) {
+  var p = STATE.inventory.find(function(p) { return p.id === productId; });
+  if (p) {
+    openProductModal(p);
+  }
 }
 function openBrandsModal() {
   renderBrandList();
