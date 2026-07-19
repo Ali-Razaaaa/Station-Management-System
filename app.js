@@ -1538,18 +1538,30 @@ function statusBadge(s) {
 function initTokens() {
   qs("#newTokenBtn")?.addEventListener("click", openNewTokenModal);
   qs("#newTokenBtn2")?.addEventListener("click", openNewTokenModal);
-  qs("#saveTokenBtn")?.addEventListener("click", saveToken);
+  qs("#customTokenBtn")?.addEventListener("click", openCustomTokenModal);
+  qs("#saveTokenBtn")?.addEventListener("click", function() {
+    var customSection = document.getElementById("customTokenServicesSection");
+    if (customSection && customSection.style.display !== "none") {
+      saveCustomToken();
+    } else {
+      saveToken();
+    }
+  });
   qs("#tokenSearch")?.addEventListener("input", renderTokenTable);
   qs("#tokenStatusFilter")?.addEventListener("change", renderTokenTable);
   qs("#tokenVehicleType")?.addEventListener("change", function() {
-  var vt = this.value;
-  qsa("#tokenServicesList .token-service-select").forEach(function(s) {
-    var sv = s.value;
-    var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
-    s.parentElement.querySelector(".token-service-price").value = pr;
+    var vt = this.value;
+    qsa("#tokenServicesList .token-service-select").forEach(function(s) {
+      var sv = s.value;
+      var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
+      s.parentElement.querySelector(".token-service-price").value = pr;
+    });
+    updateTokenTotal();
   });
-  updateTokenTotal();
-});
+  qs("#tokenDiscount")?.addEventListener("input", function() {
+    updateTokenTotal();
+    updateCustomTokenTotal();
+  });
   renderTokenTable();
 }
 function populateTokenServices() {
@@ -1587,63 +1599,10 @@ function updateTokenPrice() {
   );
   updateTokenTotal();
 }
-function addTokenProduct() {
-  var c = qs("#tokenProductsList");
-  if (!c) return;
-  var opts = getAllVariantsFlat().filter(function(v) { return v.stock > 0; }).map(function(v) {
-    return '<option value="' + v.id + '" data-price="' + v.sellingPrice + '" data-stock="' + v.stock + '">' + sanitize(v.fullName) + " | Stock: " + v.stock + " | " + fmtPrice(v.sellingPrice) + "</option>";
-  }).join("");
-  var r = document.createElement("div");
-  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-  r.innerHTML = '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' + opts + '</select><input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateTokenTotal();"><span class="material-icons">close</span></button>';
-  c.appendChild(r);
-  var s = r.querySelector(".token-product-select");
-  s.addEventListener("change", function() {
-    var o = this.options[this.selectedIndex];
-    r.querySelector(".token-product-price").value = parseFloat(o?.dataset?.price) || 0;
-    r.querySelector(".token-product-qty").max = parseInt(o?.dataset?.stock) || 0;
-    updateTokenTotal();
-  });
-  r.querySelector(".token-product-qty").addEventListener("input", updateTokenTotal);
-}
-function addTokenServiceRow(svcName, svcPrice) {
-  var c = qs("#tokenServicesList");
-  if (!c) return;
-  var opts = STATE.pricingServices.map(function(s) {
-    var sel = s.name === svcName ? " selected" : "";
-    return '<option value="' + s.name + '"' + sel + '>' + sanitize(s.name) + '</option>';
-  }).join("");
-  var r = document.createElement("div");
-  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-  r.innerHTML = '<select class="form-input token-service-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select service</option>' + opts + '</select><input type="number" class="form-input token-service-price" value="' + (svcPrice || 0) + '" readonly style="width:80px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateTokenTotal();"><span class="material-icons">close</span></button>';
-  c.appendChild(r);
-  
-  var vt = qs("#tokenVehicleType")?.value || "";
-  if (svcName && vt) {
-    var pr = getMatrixPrice(svcName, vt) || 0;
-    r.querySelector(".token-service-price").value = pr;
-  }
-  
-  r.querySelector(".token-service-select").addEventListener("change", function() {
-    var sv = this.value;
-    var vt = qs("#tokenVehicleType")?.value || "";
-    var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
-    r.querySelector(".token-service-price").value = pr;
-    updateTokenTotal();
-  });
-}
 
-function updateTokenTotal() {
-  var t = 0;
-  qsa("#tokenServicesList .token-service-select").forEach(function(s) {
-    t += parseFloat(s.parentElement.querySelector(".token-service-price")?.value) || 0;
-  });
-  qsa("#tokenProductsList .token-product-select").forEach(function(s, i) {
-    t += (parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 0) * (parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) || 0);
-  });
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
-  setText("#tokenGrandTotal", fmtPrice(Math.max(0, t - discount)));
-}
+
+
+
 function openNewTokenModal() {
   var bizSelect = qs("#tokenBusinessSelect");
   if (bizSelect) {
@@ -1673,10 +1632,22 @@ function openNewTokenModal() {
   setText("#tokenGrandTotal", "Rs. 0");
   qs("#tokenModal").dataset.editId = "";
   qs("#tokenModalTitle").innerHTML = '<span class="material-icons">token</span> Generate Token';
+  document.getElementById("tokenServicesSection").style.display = "";
+  document.getElementById("tokenProductsSection").style.display = "";
+  document.getElementById("customTokenServicesSection").style.display = "none";
+  document.getElementById("customTokenProductsSection").style.display = "none";
   openModal("tokenModal");
-  setTimeout(function() { qs("#tokenVehicleNo")?.focus(); }, 100);
+  setTimeout(function() {
+    qs("#tokenVehicleNo")?.focus();
+    var discEl = qs("#tokenDiscount");
+    if (discEl) {
+      discEl.oninput = function() { updateTokenTotal(); updateCustomTokenTotal(); };
+    }
+  }, 100);
 }
 function saveToken() {
+
+  updateTokenTotal();
   var editId = qs("#tokenModal")?.dataset?.editId || "";
   var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
   var vt = qs("#tokenVehicleType")?.value || "";
@@ -1703,7 +1674,9 @@ function saveToken() {
   });
   var fs = selectedServices.join(", ");
   var sp = totalServicePrice;
+  
   var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  
   
   var newProducts = []; var hasError = false;
   qsa("#tokenProductsList .token-product-select").forEach(function(s, i) {
@@ -1736,6 +1709,134 @@ function saveToken() {
     toast("Token " + newToken.number + " generated successfully", "success");
     setTimeout(function() { var tb = qs("#tokenModal"); if (tb) { var printBtn = document.createElement("button"); printBtn.className = "btn btn-primary"; printBtn.style.background = "#000"; printBtn.innerHTML = '<span class="material-icons">print</span> Print Token'; printBtn.onclick = function() { printTokenReceipt(newToken.id); this.remove(); }; var footer = tb.querySelector(".modal-footer"); if (footer) { footer.insertBefore(printBtn, footer.firstChild); } } }, 200);
   }
+}
+function openCustomTokenModal() {
+  var bizSelect = qs("#tokenBusinessSelect");
+  if (bizSelect) {
+    var businesses = getBusinesses(); var currentBiz = getCurrentBusiness();
+    bizSelect.innerHTML = '<option value="">Select Business</option>';
+    for (var i = 0; i < businesses.length; i++) {
+      var sel = businesses[i].id === currentBiz.id ? " selected" : "";
+      bizSelect.innerHTML += '<option value="' + businesses[i].id + '" data-prefix="' + businesses[i].prefix + '" data-name="' + sanitize(businesses[i].name) + '"' + sel + ">" + businesses[i].name + " (" + businesses[i].prefix + ")</option>";
+    }
+    bizSelect.onchange = function() {
+      var opt = this.options[this.selectedIndex];
+      if (opt && opt.value) {
+        var prefix = opt.getAttribute("data-prefix"); var today = new Date();
+        var ds = today.getFullYear() + "" + String(today.getMonth() + 1).padStart(2, "0") + String(today.getDate()).padStart(2, "0");
+        var bizTokens = STATE.tokens.filter(function(t) { return t.businessPrefix === prefix && t.number && t.number.startsWith(prefix + "-" + ds); });
+        setText("#autoTokenNumber", prefix + "-" + ds + "-" + String(bizTokens.length + 1).padStart(3, "0"));
+      }
+    };
+  }
+  setText("#autoTokenNumber", generateTokenNumber());
+  setValue("#tokenVehicleNo", ""); setValue("#tokenVehicleType", "");
+  setValue("#tokenOwnerName", ""); setValue("#tokenContactNumber", "");
+  populateVehicleTypes();
+  setValue("#tokenDiscount", "0");
+  qs("#customTokenServicesList").innerHTML = "";
+  qs("#customTokenProductsList").innerHTML = "";
+  setText("#tokenGrandTotal", "Rs. 0");
+  qs("#tokenModal").dataset.editId = "";
+  qs("#tokenModalTitle").innerHTML = '<span class="material-icons">edit_note</span> Custom Token';
+  document.getElementById("tokenServicesSection").style.display = "none";
+  document.getElementById("tokenProductsSection").style.display = "none";
+  document.getElementById("customTokenServicesSection").style.display = "";
+  document.getElementById("customTokenProductsSection").style.display = "";
+  openModal("tokenModal");
+  setTimeout(function() {
+    qs("#tokenVehicleNo")?.focus();
+    var discEl = qs("#tokenDiscount");
+    if (discEl) {
+      discEl.oninput = function() { updateTokenTotal(); updateCustomTokenTotal(); };
+    }
+  }, 100);
+}
+
+
+function customServiceChanged(el) {
+  var row = el.parentElement;
+  if (el.value === "__custom__") {
+    el.style.display = "none";
+    row.querySelector(".custom-svc-name").style.display = "";
+    row.querySelector(".custom-svc-name").focus();
+  }
+}
+
+
+function customProductChanged(el) {
+  var row = el.parentElement;
+  if (el.value === "__custom__") {
+    el.style.display = "none";
+    row.querySelector(".custom-prd-name").style.display = "";
+    row.querySelector(".custom-prd-name").focus();
+  }
+}
+
+
+
+function saveCustomToken() {
+  var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
+  var vt = qs("#tokenVehicleType")?.value || "";
+  var on = (qs("#tokenOwnerName")?.value || "").trim();
+  var cn = (qs("#tokenContactNumber")?.value || "").trim();
+  var bizSelect = qs("#tokenBusinessSelect"); var businesses = getBusinesses(); var biz;
+  if (bizSelect && bizSelect.value) { biz = businesses.find(function(b) { return b.id === bizSelect.value; }); }
+  if (!biz) { biz = getCurrentBusiness(); }
+  var prefix = biz.prefix;
+  if (!vn || !vt) { toast("Please fill vehicle details", "error"); return; }
+  var cv = validateContactNumber(cn);
+  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
+  
+  var customServices = [];
+  qsa("#customTokenServicesList > div").forEach(function(row) {
+    var sel = row.querySelector(".custom-svc-select");
+    var name = row.querySelector(".custom-svc-name");
+    var price = parseFloat(row.querySelector(".custom-svc-price")?.value) || 0;
+    var svcName = "";
+    if (sel && (sel.style.display === "none" || sel.value === "__custom__")) {
+      svcName = name ? (name.value || "").trim() : "";
+    } else if (sel) {
+      svcName = sel.value;
+    }
+    if (svcName && price > 0) customServices.push({ name: svcName, price: price });
+  });
+  
+  var customProducts = [];
+  qsa("#customTokenProductsList > div").forEach(function(row) {
+    var sel = row.querySelector(".custom-prd-select");
+    var name = row.querySelector(".custom-prd-name");
+    var qty = parseInt(row.querySelector(".custom-prd-qty")?.value) || 1;
+    var price = parseFloat(row.querySelector(".custom-prd-price")?.value) || 0;
+    var prdName = "";
+    if (sel && (sel.style.display === "none" || sel.value === "__custom__")) {
+      prdName = name ? (name.value || "").trim() : "";
+    } else if (sel) {
+      prdName = sel.value;
+    }
+    if (prdName && price > 0) customProducts.push({ fullName: prdName, qty: qty, price: price });
+  });
+  
+  var serviceNames = customServices.map(function(s) { return s.name; }).join(", ");
+  var totalServicePrice = customServices.reduce(function(t, s) { return t + s.price; }, 0);
+  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  
+  var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
+  if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
+  else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
+  
+  var newToken = {
+    id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(),
+    vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted,
+    service: serviceNames, servicePrice: totalServicePrice,
+    discount: discount, products: customProducts,
+    time: fmtTime(), status: "waiting",
+    businessPrefix: prefix, businessId: biz.id, businessName: biz.name,
+    isCustom: true
+  };
+  STATE.tokens.push(newToken); saveTokens(); saveCounters();
+  closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
+  toast("Custom Token " + newToken.number + " generated", "success");
 }
 function renderTokenTable() {
   var sr = (qs("#tokenSearch")?.value || "").toLowerCase();
@@ -5134,6 +5235,255 @@ function saveVendorPurchase() {
   renderVendorTable();
   renderVendorKPIs();
   toast("Purchase added: " + fmtPrice(amt), "success");
+}
+// ============================================================
+// TOKEN TOTAL — HARDENED OVERRIDE (paste at end of app.js)
+// Replaces all prior versions of these functions and adds
+// bulletproof event wiring + a MutationObserver safety net.
+// ============================================================
+
+function updateTokenTotal() {
+  var t = 0;
+  qsa("#tokenServicesList > div").forEach(function (row) {
+    var sel = row.querySelector(".token-service-select");
+    var priceInput = row.querySelector(".token-service-price");
+    if (sel && sel.value && priceInput) {
+      t += parseFloat(priceInput.value) || 0;
+    }
+  });
+  qsa("#tokenProductsList > div").forEach(function (row) {
+    var sel = row.querySelector(".token-product-select");
+    var qtyInput = row.querySelector(".token-product-qty");
+    var priceInput = row.querySelector(".token-product-price");
+    if (sel && sel.value && qtyInput && priceInput) {
+      t += (parseInt(qtyInput.value) || 0) * (parseFloat(priceInput.value) || 0);
+    }
+  });
+  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  var grand = Math.max(0, t - discount);
+  setText("#tokenGrandTotal", fmtPrice(grand));
+  return grand;
+}
+
+function updateCustomTokenTotal() {
+  var t = 0;
+  qsa("#customTokenServicesList > div").forEach(function (row) {
+    t += parseFloat(row.querySelector(".custom-svc-price")?.value) || 0;
+  });
+  qsa("#customTokenProductsList > div").forEach(function (row) {
+    t +=
+      (parseInt(row.querySelector(".custom-prd-qty")?.value) || 0) *
+      (parseFloat(row.querySelector(".custom-prd-price")?.value) || 0);
+  });
+  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  var grand = Math.max(0, t - discount);
+  setText("#tokenGrandTotal", fmtPrice(grand));
+  return grand;
+}
+
+// Master recompute — figures out which section is active and updates accordingly
+function recomputeTokenTotal() {
+  var customSection = document.getElementById("customTokenServicesSection");
+  var isCustom = customSection && customSection.style.display !== "none";
+  if (isCustom) {
+    updateCustomTokenTotal();
+  } else {
+    updateTokenTotal();
+  }
+}
+
+function addTokenServiceRow(svcName, svcPrice) {
+  var c = qs("#tokenServicesList");
+  if (!c) return;
+  var opts = STATE.pricingServices
+    .map(function (s) {
+      var sel = s.name === svcName ? " selected" : "";
+      return '<option value="' + s.name + '"' + sel + ">" + sanitize(s.name) + "</option>";
+    })
+    .join("");
+  var r = document.createElement("div");
+  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+  r.innerHTML =
+    '<select class="form-input token-service-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select service</option>' +
+    opts +
+    '</select><input type="number" class="form-input token-service-price" value="' +
+    (svcPrice || 0) +
+    '" readonly style="width:80px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+  c.appendChild(r);
+
+  var vt = qs("#tokenVehicleType")?.value || "";
+  if (svcName && vt) {
+    r.querySelector(".token-service-price").value = getMatrixPrice(svcName, vt) || 0;
+  }
+
+  r.querySelector(".token-service-select").addEventListener("change", function () {
+    var sv = this.value;
+    var vt2 = qs("#tokenVehicleType")?.value || "";
+    r.querySelector(".token-service-price").value = sv && vt2 ? getMatrixPrice(sv, vt2) : 0;
+    recomputeTokenTotal();
+  });
+  r.querySelector("button").addEventListener("click", function () {
+    r.remove();
+    recomputeTokenTotal();
+  });
+
+  recomputeTokenTotal();
+}
+
+function addTokenProduct() {
+  var c = qs("#tokenProductsList");
+  if (!c) return;
+  var opts = getAllVariantsFlat()
+    .filter(function (v) { return v.stock > 0; })
+    .map(function (v) {
+      return (
+        '<option value="' + v.id + '" data-price="' + v.sellingPrice + '" data-stock="' + v.stock + '">' +
+        sanitize(v.fullName) + " | Stock: " + v.stock + " | " + fmtPrice(v.sellingPrice) + "</option>"
+      );
+    })
+    .join("");
+  var r = document.createElement("div");
+  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+  r.innerHTML =
+    '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' +
+    opts +
+    '</select><input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+  c.appendChild(r);
+
+  var s = r.querySelector(".token-product-select");
+  s.addEventListener("change", function () {
+    var o = this.options[this.selectedIndex];
+    r.querySelector(".token-product-price").value = parseFloat(o?.dataset?.price) || 0;
+    r.querySelector(".token-product-qty").max = parseInt(o?.dataset?.stock) || 0;
+    recomputeTokenTotal();
+  });
+  r.querySelector(".token-product-qty").addEventListener("input", recomputeTokenTotal);
+  r.querySelector("button").addEventListener("click", function () {
+    r.remove();
+    recomputeTokenTotal();
+  });
+
+  recomputeTokenTotal();
+}
+
+function addCustomServiceRow() {
+  var c = qs("#customTokenServicesList");
+  if (!c) return;
+  var opts = STATE.pricingServices
+    .map(function (s) { return '<option value="' + s.name + '">' + sanitize(s.name) + "</option>"; })
+    .join("");
+  var r = document.createElement("div");
+  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+  r.innerHTML =
+    '<select class="form-input custom-svc-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' +
+    opts +
+    '<option value="__custom__">Custom Service</option></select><input type="text" class="form-input custom-svc-name" placeholder="Service name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" /><input type="number" class="form-input custom-svc-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+  c.appendChild(r);
+
+  r.querySelector(".custom-svc-select").addEventListener("change", function () {
+    if (this.value === "__custom__") {
+      this.style.display = "none";
+      r.querySelector(".custom-svc-name").style.display = "";
+      r.querySelector(".custom-svc-name").focus();
+    }
+    recomputeTokenTotal();
+  });
+  r.querySelector(".custom-svc-price").addEventListener("input", recomputeTokenTotal);
+  r.querySelector("button").addEventListener("click", function () {
+    r.remove();
+    recomputeTokenTotal();
+  });
+}
+
+function addCustomProductRow() {
+  var c = qs("#customTokenProductsList");
+  if (!c) return;
+  var opts = getAllVariantsFlat()
+    .filter(function (v) { return v.stock > 0; })
+    .map(function (v) {
+      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '">' + sanitize(v.fullName) + "</option>";
+    })
+    .join("");
+  var r = document.createElement("div");
+  r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
+  r.innerHTML =
+    '<select class="form-input custom-prd-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' +
+    opts +
+    '<option value="__custom__">Custom Product</option></select><input type="text" class="form-input custom-prd-name" placeholder="Product name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" /><input type="number" class="form-input custom-prd-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input custom-prd-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+  c.appendChild(r);
+
+  r.querySelector(".custom-prd-select").addEventListener("change", function () {
+    if (this.value === "__custom__") {
+      this.style.display = "none";
+      r.querySelector(".custom-prd-name").style.display = "";
+      r.querySelector(".custom-prd-name").focus();
+    }
+    var o = this.options[this.selectedIndex];
+    var pr = parseFloat(o?.dataset?.price) || 0;
+    if (pr) r.querySelector(".custom-prd-price").value = pr;
+    recomputeTokenTotal();
+  });
+  r.querySelector(".custom-prd-qty").addEventListener("input", recomputeTokenTotal);
+  r.querySelector(".custom-prd-price").addEventListener("input", recomputeTokenTotal);
+  r.querySelector("button").addEventListener("click", function () {
+    r.remove();
+    recomputeTokenTotal();
+  });
+}
+
+// Vehicle type change re-syncs all existing service row prices
+qs("#tokenVehicleType")?.addEventListener("change", function () {
+  var vt = this.value;
+  qsa("#tokenServicesList .token-service-select").forEach(function (s) {
+    var sv = s.value;
+    var pr = sv && vt ? getMatrixPrice(sv, vt) : 0;
+    var priceInput = s.parentElement.querySelector(".token-service-price");
+    if (priceInput) priceInput.value = pr;
+  });
+  recomputeTokenTotal();
+});
+
+// Discount field — delegated so it works no matter when the modal was opened
+document.addEventListener("input", function (e) {
+  if (e.target && e.target.id === "tokenDiscount") {
+    recomputeTokenTotal();
+  }
+});
+
+// Safety net: watch the lists themselves for any DOM change and recompute.
+// This catches any edge case the above listeners might somehow miss.
+(function () {
+  var ids = ["tokenServicesList", "tokenProductsList", "customTokenServicesList", "customTokenProductsList"];
+  ids.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var obs = new MutationObserver(function () {
+      recomputeTokenTotal();
+    });
+    obs.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
+  });
+})();
+
+// Diagnostic helper — run debugTokenTotal() in console to see exactly
+// what values are being read, if anything still looks wrong.
+function debugTokenTotal() {
+  console.log("--- Service rows ---");
+  qsa("#tokenServicesList > div").forEach(function (row) {
+    console.log({
+      service: row.querySelector(".token-service-select")?.value,
+      price: row.querySelector(".token-service-price")?.value,
+    });
+  });
+  console.log("--- Product rows ---");
+  qsa("#tokenProductsList > div").forEach(function (row) {
+    console.log({
+      variant: row.querySelector(".token-product-select")?.value,
+      qty: row.querySelector(".token-product-qty")?.value,
+      price: row.querySelector(".token-product-price")?.value,
+    });
+  });
+  console.log("Discount:", qs("#tokenDiscount")?.value);
+  console.log("Computed grand total:", recomputeTokenTotal());
 }
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {

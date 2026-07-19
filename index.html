@@ -445,7 +445,7 @@
           </section>
 
           <!-- TOKENS -->
-          <section class="module hidden" id="module-tokens">
+         <section class="module hidden" id="module-tokens">
             <div class="module-toolbar">
               <div class="toolbar-left">
                 <div class="search-box">
@@ -465,6 +465,9 @@
                 </select>
               </div>
               <div class="toolbar-right">
+                <button class="btn btn-outline" id="customTokenBtn" style="margin-right:8px">
+                  <span class="material-icons">edit_note</span> Custom Token
+                </button>
                 <button class="btn btn-primary" id="newTokenBtn">
                   <span class="material-icons">add</span> Generate Token
                 </button>
@@ -2157,7 +2160,7 @@
         </div>
       </div>
     </div>
-   <div class="modal-overlay hidden" id="tokenModal">
+  <div class="modal-overlay hidden" id="tokenModal">
       <div class="modal">
         <div class="modal-header">
           <h2 class="modal-title" id="tokenModalTitle">
@@ -2247,33 +2250,43 @@
               >
             </div>
           </div>
-          <div class="invoice-section-label" style="margin-top: 1rem">
-            <span class="material-icons">build</span> Services
+
+          <div id="tokenServicesSection">
+            <div class="invoice-section-label" style="margin-top: 1rem">
+              <span class="material-icons">build</span> Services
+            </div>
+            <div id="tokenServicesList"></div>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="addTokenServiceRow()">
+              <span class="material-icons">add</span> Add Service
+            </button>
           </div>
-          <div id="tokenServicesList"></div>
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            onclick="addTokenServiceRow()"
-          >
-            <span class="material-icons">add</span> Add Service
-          </button>
-          <div class="invoice-section-label" style="margin-top: 1rem">
-            <span class="material-icons">inventory_2</span> Products
+
+          <div id="tokenProductsSection">
+            <div class="invoice-section-label" style="margin-top: 1rem">
+              <span class="material-icons">inventory_2</span> Products
+            </div>
+            <div id="tokenProductsList"></div>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="addTokenProduct()">
+              <span class="material-icons">add</span> Add Product
+            </button>
           </div>
-          <div id="tokenProductsList"></div>
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            onclick="addTokenProduct()"
-          >
-            <span class="material-icons">add</span> Add Product
-          </button>
-          <div class="form-group" style="margin-top:0.5rem">
-            <label class="form-label">Discount (Rs.)</label>
-            <input type="number" class="form-input" id="tokenDiscount" placeholder="0" min="0" value="0" onchange="updateTokenTotal()" />
+
+          <div id="customTokenServicesSection" style="display:none">
+            <div class="invoice-section-label" style="margin-top:1rem"><span class="material-icons">build</span> Services (Custom)</div>
+            <div id="customTokenServicesList"></div>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="addCustomServiceRow()"><span class="material-icons">add</span> Add Service</button>
           </div>
-          <div
+
+          <div id="customTokenProductsSection" style="display:none">
+            <div class="invoice-section-label" style="margin-top:1rem"><span class="material-icons">inventory_2</span> Products (Custom)</div>
+            <div id="customTokenProductsList"></div>
+            <button class="btn btn-ghost btn-sm" type="button" onclick="addCustomProductRow()"><span class="material-icons">add</span> Add Product</button>
+          </div>
+
+         <div class="form-group" style="margin-top:0.5rem">
+  <label class="form-label">Discount (Rs.)</label>
+<input type="text" class="form-input" id="tokenDiscount" placeholder="0" value="0" />
+ <div
             style="
               display: flex;
               justify-content: space-between;
