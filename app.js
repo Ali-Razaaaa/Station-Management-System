@@ -1444,6 +1444,7 @@ function getTotalRevenue() {
         tk.products.forEach(function (p) {
           t += p.price * p.qty;
         });
+      if (tk.discount) t -= tk.discount;
     }
   });
   STATE.productSales.forEach(function (sale) {
@@ -3251,15 +3252,15 @@ function addVariantRow(data) {
     sanitize((data && data.grade) || "") +
     '" placeholder="e.g. 20W-50" /></div><div class="variant-field"><label>Size</label><input type="text" class="form-input variant-size" value="' +
     sanitize((data && data.size) || "") +
-    '" placeholder="e.g. 3L" /></div><div class="variant-field"><label>Purchase Price</label><input type="number" class="form-input variant-purchase-price" value="' +
+    '" placeholder="e.g. 3L" /></div><div class="variant-field"><label>Purchase Price</label><input type="text" class="form-input variant-purchase-price" value="' +
     ((data && data.purchasePrice) || "") +
-    '" min="0" /></div><div class="variant-field"><label>Selling Price *</label><input type="number" class="form-input variant-selling-price" value="' +
+    '" /></div><div class="variant-field"><label>Selling Price *</label><input type="text" class="form-input variant-selling-price" value="' +
     ((data && data.sellingPrice) || "") +
-    '" min="0" /></div><div class="variant-field"><label>Stock *</label><input type="number" class="form-input variant-stock" value="' +
+    '" /></div><div class="variant-field"><label>Stock *</label><input type="text" class="form-input variant-stock" value="' +
     ((data && data.stock) || "") +
-    '" min="0" /></div><div class="variant-field"><label>Min Stock</label><input type="number" class="form-input variant-min-stock" value="' +
+    '" /></div><div class="variant-field"><label>Min Stock</label><input type="text" class="form-input variant-min-stock" value="' +
     ((data && data.minStock) || "5") +
-    '" min="0" /></div><div class="variant-field"><label>SKU</label><input type="text" class="form-input variant-sku" value="' +
+    '" /></div><div class="variant-field"><label>SKU</label><input type="text" class="form-input variant-sku" value="' +
     sanitize((data && data.sku) || "") +
     '" placeholder="Auto" /></div></div>';
   c.appendChild(card);
@@ -3294,8 +3295,8 @@ function saveProduct() {
       m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
       g = card.querySelector(".variant-grade")?.value?.trim() || "",
       s = card.querySelector(".variant-size")?.value?.trim() || "",
-      pp = parseFloat(card.querySelector(".variant-purchase-price")?.value) || 0,
-      sp = parseFloat(card.querySelector(".variant-selling-price")?.value) || 0,
+      pp = Number(card.querySelector(".variant-purchase-price")?.value) || 0,
+      sp = Number(card.querySelector(".variant-selling-price")?.value) || 0,
       st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
       ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
     var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
@@ -3304,50 +3305,6 @@ function saveProduct() {
     variants.push({ id: uid(), brand: b, model: m, grade: g, size: s, sku: sku, purchasePrice: pp, sellingPrice: sp, stock: st, minStock: ms });
   });
   if (hasError || !variants.length) return;
-  if (ei) {
-    var p = STATE.inventory.find(function (p) { return p.id === ei; });
-    if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
-  } else {
-    STATE.inventory.push({ id: uid(), productType: pt, category: cat, variants: variants });
-  }
-  saveInventory();
-  closeModal("productModal");
-  renderInventoryTable();
-  updateInventoryKPI();
-  refreshDashboard();
-}
-function saveProduct() {
-  var ei = qs("#productEditId")?.value || "";
-  var pt = (qs("#productName")?.value || "").trim();
-  var catId = qs("#productCategory")?.value || "misc";
-var catObj = STATE.categories.find(function(c) { return c.id === catId; });
-var cat = catObj ? catObj.name : "Miscellaneous";
-  if (!pt) return;
-  var variants = [];
-  var hasError = false;
-  qsa("#variantsContainer .variant-card").forEach(function (card, idx) {
-    var b = card.querySelector(".variant-brand")?.value || "General",
-      m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
-      g = card.querySelector(".variant-grade")?.value?.trim() || "",
-      s = card.querySelector(".variant-size")?.value?.trim() || "",
-      pp = parseFloat(card.querySelector(".variant-purchase-price")?.value) || 0,
-      sp = parseFloat(card.querySelector(".variant-selling-price")?.value) || 0,
-      st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
-      ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
-    var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
-    if (!sp) {
-      toast("Variant #" + (idx + 1) + ": Enter price", "error");
-      hasError = true;
-      return;
-    }
-    if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
-    variants.push({
-      id: uid(), brand: b, model: m, grade: g, size: s, sku: sku,
-      purchasePrice: pp, sellingPrice: sp, stock: st, minStock: ms,
-    });
-  });
-  if (hasError || !variants.length) return;
-
   if (ei) {
     var p = STATE.inventory.find(function (p) { return p.id === ei; });
     if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
@@ -3382,9 +3339,8 @@ function openStockModal(vid, tp) {
 }
 function saveStock() {
   var vid = qs("#stockProductId")?.value || "",
-    qt = parseInt(qs("#stockQty")?.value) || 0,
-    tp =
-      document.querySelector('input[name="stockType"]:checked')?.value || "in";
+    qt = Number(qs("#stockQty")?.value) || 0,
+    tp = document.querySelector('input[name="stockType"]:checked')?.value || "in";
   if (!vid || !qt) return;
   var f = findVariantById(vid);
   if (!f) return;
@@ -3392,7 +3348,7 @@ function saveStock() {
     toast("Only " + f.variant.stock + " available", "error");
     return;
   }
-  f.variant.stock = tp === "in" ? f.variant.stock + qt : f.variant.stock - qt;
+  f.variant.stock = tp === "in" ? Number(f.variant.stock) + qt : Number(f.variant.stock) - qt;
   saveInventory();
   closeModal("stockModal");
   renderInventoryTable();
@@ -3643,6 +3599,13 @@ function renderReports() {
     });
   }
 
+  var rptType = qs("#rptType")?.value || "all";
+  if (rptType === "revenue") {
+    rows = rows.filter(function(r) { return r.type === "Revenue"; });
+  } else if (rptType === "expenses") {
+    rows = rows.filter(function(r) { return r.type === "Expense"; });
+  }
+
   rows.sort(function (a, b) { return b.dateObj - a.dateObj; });
   var tb = qs("#reportTableBody");
   if (tb) tb.innerHTML = rows.length ? rows.map(function (r) { return "<tr><td>" + sanitize(r.date) + "</td><td>" + r.type + "</td><td>" + sanitize(r.cat) + "</td><td>" + sanitize(r.desc) + '</td><td style="text-align:right;font-weight:700;">' + (r.bal === "credit" ? "+" : "-") + " " + fmtPrice(r.amt) + "</td></tr>"; }).join("") : '<tr><td colspan="5">No transactions</td></tr>';
@@ -3673,7 +3636,7 @@ function hideExpenseForm() {
 function saveExpense() {
   var tl = (qs("#expenseTitle")?.value || "").trim(),
     ct = qs("#expenseCategory")?.value || "",
-    am = parseFloat(qs("#expenseAmount")?.value) || 0;
+    am = Number(qs("#expenseAmount")?.value) || 0;
   if (!tl || !ct || !am) return;
   STATE.expenses.push({
     id: uid(),
@@ -5324,9 +5287,6 @@ document.addEventListener('click', function (e) {
     manageCategoriesBtn: function () { openCategoryModal(); },
     addBrandBtn: function () { addBrand(); },
     addCategoryBtn: function () { addCategory(); },
-    addExpenseBtn: function () { showExpenseForm(); },
-    saveExpenseBtn: function () { saveExpense(); },
-    cancelExpenseBtn: function () { hideExpenseForm(); },
     markAllCompletedBtn: function () {
       confirm('Mark all as completed?', function () {
         STATE.reminders.forEach(function (r) { if (r.status !== 'completed') r.status = 'completed'; });
