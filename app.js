@@ -1,10 +1,4 @@
-/**
- * Wheel Works Service Station — Enterprise Management System V6.3
- * DUAL BUSINESS SUPPORT: Wheel Works & Meta Built
- * FIX APPLIED: openModal()/closeModal() now properly track and close
- * stray overlays so modals can never stack and block clicks across
- * the entire app (this was the root cause of "no buttons work").
- */
+
 "use strict";
 
 // ============================================================
@@ -1582,10 +1576,24 @@ function statusBadge(s) {
 
 // ==================== TOKEN MANAGEMENT ====================
 function initTokens() {
-  qs("#newTokenBtn")?.addEventListener("click", openNewTokenModal);
-  qs("#newTokenBtn2")?.addEventListener("click", openNewTokenModal);
-  qs("#customTokenBtn")?.addEventListener("click", openCustomTokenModal);
-  qs("#saveTokenBtn")?.addEventListener("click", function() {
+  qs("#newTokenBtn")?.addEventListener("click", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openNewTokenModal();
+  });
+  qs("#newTokenBtn2")?.addEventListener("click", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openNewTokenModal();
+  });
+  qs("#customTokenBtn")?.addEventListener("click", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openCustomTokenModal();
+  });
+  qs("#saveTokenBtn")?.addEventListener("click", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
     var customSection = document.getElementById("customTokenServicesSection");
     if (customSection && customSection.style.display !== "none") {
       saveCustomToken();
@@ -1596,7 +1604,54 @@ function initTokens() {
   qs("#tokenSearch")?.addEventListener("input", renderTokenTable);
   qs("#tokenStatusFilter")?.addEventListener("change", renderTokenTable);
 
+  var phoneField = qs("#tokenContactNumber");
+  if (phoneField) {
+    phoneField.addEventListener("input", function() {
+      var query = this.value.trim();
+      var container = qs("#customerSuggestions");
+      if (!container) return;
+      if (query.length < 3) { container.style.display = "none"; return; }
+      var queryClean = query.replace(/[\s\-\+]/g, "");
+      var matches = STATE.vehicles.filter(function(v) {
+        if (!v.contact) return false;
+        var contactClean = v.contact.replace(/[\s\-\+]/g, "");
+        return contactClean.includes(queryClean);
+      });
+      if (!matches.length) { container.style.display = "none"; return; }
+      container.style.display = "block";
+      container.innerHTML = matches.map(function(v) {
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="selectCustomer(\'' + v.vehicleNo + '\')" onmouseover="this.style.background=\'var(--surface-active)\'" onmouseout="this.style.background=\'var(--surface)\'">' +
+          '<span class="material-icons" style="color:var(--primary);font-size:22px">person</span>' +
+          '<div style="flex:1"><div style="font-weight:600;font-size:0.8rem">' + sanitize(v.owner) + '</div>' +
+          '<div style="display:flex;gap:8px;font-size:0.68rem;color:var(--text-muted);margin-top:2px"><span style="display:flex;align-items:center;gap:2px"><span class="material-icons" style="font-size:14px">call</span>' + sanitize(formatContactDisplay(v.contact)) + '</span><span style="display:flex;align-items:center;gap:2px"><span class="material-icons" style="font-size:14px">directions_car</span>' + sanitize(v.vehicleNo) + ' (' + sanitize(v.type) + ')</span></div></div>' +
+          '</div>';
+      }).join("");
+    });
+  }
+
   renderTokenTable();
+}
+
+function selectCustomer(vehicleNo) {
+  var v = STATE.vehicles.find(function(v) { return v.vehicleNo === vehicleNo; });
+  if (!v) return;
+  setValue("#tokenVehicleNo", v.vehicleNo);
+  setValue("#tokenVehicleType", v.type);
+  setValue("#tokenOwnerName", v.owner);
+  setValue("#tokenContactNumber", v.contact);
+  var container = qs("#customerSuggestions");
+  if (container) container.style.display = "none";
+}
+
+function selectCustomer(vehicleNo) {
+  var v = STATE.vehicles.find(function(v) { return v.vehicleNo === vehicleNo; });
+  if (!v) return;
+  setValue("#tokenVehicleNo", v.vehicleNo);
+  setValue("#tokenVehicleType", v.type);
+  setValue("#tokenOwnerName", v.owner);
+  setValue("#tokenContactNumber", v.contact);
+  var container = qs("#customerSuggestions");
+  if (container) container.style.display = "none";
 }
 function populateTokenServices() {
   var sel = qs("#tokenServiceType");
@@ -1739,6 +1794,9 @@ function customProductChanged(el) {
 }
 
 function saveToken() {
+  if (saveToken.running) return;
+  saveToken.running = true;
+  
   updateTokenTotal();
   var editId = qs("#tokenModal")?.dataset?.editId || "";
   var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
@@ -1751,10 +1809,10 @@ function saveToken() {
   var prefix = biz.prefix;
 
   var hasServices = qsa("#tokenServicesList .token-service-select").some(function(s) { return s.value; });
-  if (!vn || !vt || !hasServices) { toast("Please fill all required fields", "error"); return; }
+  if (!vn || !vt || !hasServices) { toast("Please fill all required fields", "error"); saveToken.running = false; return; }
 
   var cv = validateContactNumber(cn);
-  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
+  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); saveToken.running = false; return; }
 
   var selectedServices = []; var totalServicePrice = 0;
   qsa("#tokenServicesList .token-service-select").forEach(function(s) {
@@ -1778,10 +1836,10 @@ function saveToken() {
     var p = parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) || f.variant.sellingPrice;
     newProducts.push({ variantId: f.variant.id, fullName: f.fullName, qty: q, price: p });
   });
-  if (hasError) return;
+  if (hasError) { saveToken.running = false; return; }
 
   if (editId) {
-    var t = STATE.tokens.find(function(t) { return t.id === editId; }); if (!t) return;
+    var t = STATE.tokens.find(function(t) { return t.id === editId; }); if (!t) { saveToken.running = false; return; }
     if (t.products) t.products.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; });
     newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
     t.vehicleNo = vn; t.vehicleType = vt; t.ownerName = on; t.contactNumber = cv.formatted;
@@ -1798,8 +1856,8 @@ function saveToken() {
     STATE.tokens.push(newToken); saveTokens(); saveInventory(); saveCounters();
     closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
     toast("Token " + newToken.number + " generated successfully", "success");
-    setTimeout(function() { var tb = qs("#tokenModal"); if (tb) { var printBtn = document.createElement("button"); printBtn.className = "btn btn-primary"; printBtn.style.background = "#000"; printBtn.innerHTML = '<span class="material-icons">print</span> Print Token'; printBtn.onclick = function() { printTokenReceipt(newToken.id); this.remove(); }; var footer = tb.querySelector(".modal-footer"); if (footer) { footer.insertBefore(printBtn, footer.firstChild); } } }, 200);
   }
+  saveToken.running = false;
 }
 
 function saveCustomToken() {
@@ -2179,7 +2237,13 @@ function initBilling() {
   });
   qs("#savedInvoiceSearch")?.addEventListener("input", renderSavedInvoices);
   qs("#savedInvoiceStatusFilter")?.addEventListener("change", renderSavedInvoices);
-  qs("#savedInvoiceDateFilter")?.addEventListener("change", renderSavedInvoices);
+  qs("#savedInvoiceDateFrom")?.addEventListener("change", renderSavedInvoices);
+  qs("#savedInvoiceDateTo")?.addEventListener("change", renderSavedInvoices);
+  qs("#clearInvoiceDateFilter")?.addEventListener("click", function() {
+    setValue("#savedInvoiceDateFrom", "");
+    setValue("#savedInvoiceDateTo", "");
+    renderSavedInvoices();
+  });
   renderSavedInvoices();
 }
 function autoFillFromToken(tn) {
@@ -2504,12 +2568,29 @@ function renderSavedInvoices() {
   
   var sr = (qs("#savedInvoiceSearch")?.value || "").toLowerCase();
   var sf = qs("#savedInvoiceStatusFilter")?.value || "";
-  var df = qs("#savedInvoiceDateFilter")?.value || "";
+  var dfFrom = qs("#savedInvoiceDateFrom")?.value || "";
+  var dfTo = qs("#savedInvoiceDateTo")?.value || "";
   
   var filtered = STATE.invoices.filter(function(inv) {
+    var dateMatch = true;
+    if (dfFrom || dfTo) {
+      var invDate = parseDate(inv.date);
+      if (!invDate) return false;
+      invDate.setHours(0,0,0,0);
+      if (dfFrom) {
+        var fromDate = new Date(dfFrom);
+        fromDate.setHours(0,0,0,0);
+        if (invDate < fromDate) dateMatch = false;
+      }
+      if (dfTo) {
+        var toDate = new Date(dfTo);
+        toDate.setHours(23,59,59);
+        if (invDate > toDate) dateMatch = false;
+      }
+    }
     return (!sr || inv.number.toLowerCase().includes(sr) || inv.customer.toLowerCase().includes(sr) || (inv.vehicle||"").toLowerCase().includes(sr) || (inv.token||"").toLowerCase().includes(sr)) &&
            (!sf || inv.status === sf) &&
-           (!df || inv.date === fmtDate(new Date(df)));
+           dateMatch;
   });
   
   var countBadge = qs("#savedInvoiceCount");
