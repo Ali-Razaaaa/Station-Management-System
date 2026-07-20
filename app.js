@@ -1642,17 +1642,6 @@ function selectCustomer(vehicleNo) {
   var container = qs("#customerSuggestions");
   if (container) container.style.display = "none";
 }
-
-function selectCustomer(vehicleNo) {
-  var v = STATE.vehicles.find(function(v) { return v.vehicleNo === vehicleNo; });
-  if (!v) return;
-  setValue("#tokenVehicleNo", v.vehicleNo);
-  setValue("#tokenVehicleType", v.type);
-  setValue("#tokenOwnerName", v.owner);
-  setValue("#tokenContactNumber", v.contact);
-  var container = qs("#customerSuggestions");
-  if (container) container.style.display = "none";
-}
 function populateTokenServices() {
   var sel = qs("#tokenServiceType");
   if (!sel) return;
@@ -2046,9 +2035,36 @@ function openInvoiceForToken(id) {
   navigateTo("billing");
   setTimeout(function () {
     setValue("#invoiceToken", t.number);
-    autoFillFromToken(t.number);
+    autoFillFromTokenObject(t);  
     updateInvoicePreview();
   }, 150);
+}
+function autoFillFromTokenObject(t) {
+  if (!t) return;
+  setValue("#invoiceVehicle", t.vehicleNo);
+  setValue("#invoiceCustomer", t.ownerName || "");
+  qs("#invoiceCustomer").dataset.contact = t.contactNumber || "";
+  qs("#invoiceServicesContainer").innerHTML = "";
+  qs("#invoiceProductsContainer").innerHTML = "";
+
+  if (t.service) {
+    var services = t.service.split(", ");
+    services.forEach(function(svc) {
+      if (svc) addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
+    });
+  }
+
+  if (t.products)
+    t.products.forEach(function (p) {
+      addInvoiceProductRow(p.fullName, p.price, p.qty);
+    });
+
+  if (t.discount) setValue("#invoiceDiscount", t.discount);
+  else setValue("#invoiceDiscount", "0");
+
+  updateInvoicePreview();
+  setValue("#cashReceived", "");
+  setText("#changeReturned", "Rs. 0");
 }
 function openEditTokenModal(tid) {
   var t = STATE.tokens.find(function (t) {
