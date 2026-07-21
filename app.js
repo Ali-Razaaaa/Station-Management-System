@@ -1,4 +1,3 @@
-
 "use strict";
 
 // ============================================================
@@ -1903,6 +1902,7 @@ function saveCustomToken() {
     id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(),
     vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted,
     service: serviceNames, servicePrice: totalServicePrice,
+    serviceBreakdown: customServices,
     discount: discount, products: customProducts,
     time: fmtTime(), status: "waiting",
     businessPrefix: prefix, businessId: biz.id, businessName: biz.name,
@@ -2048,15 +2048,38 @@ function autoFillFromTokenObject(t) {
   qs("#invoiceProductsContainer").innerHTML = "";
 
   if (t.service) {
-    var services = t.service.split(", ");
-    services.forEach(function(svc) {
-      if (svc) addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
-    });
+    if (t.serviceBreakdown && t.serviceBreakdown.length) {
+      t.serviceBreakdown.forEach(function(sb) {
+        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === sb.name; });
+        if (isCustom) addCustomInvoiceServiceRow(sb.name, sb.price);
+        else addInvoiceServiceRow(sb.name, sb.price);
+      });
+    } else {
+      var services = t.service.split(", ").filter(function(s) { return s; });
+      var knownTotal = 0;
+      var customNames = [];
+      services.forEach(function(svc) {
+        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === svc; });
+        if (isCustom) customNames.push(svc);
+        else knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
+      });
+      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
+      var customShare = customNames.length ? remaining / customNames.length : 0;
+      services.forEach(function(svc) {
+        var isCustom = customNames.indexOf(svc) !== -1;
+        if (isCustom) {
+          addCustomInvoiceServiceRow(svc, customShare);
+        } else {
+          addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
+        }
+      });
+    }
   }
 
   if (t.products)
     t.products.forEach(function (p) {
-      addInvoiceProductRow(p.fullName, p.price, p.qty);
+      if (!p.variantId) addCustomInvoiceProductRow(p.fullName, p.price, p.qty);
+      else addInvoiceProductRow(p.fullName, p.price, p.qty);
     });
 
   if (t.discount) setValue("#invoiceDiscount", t.discount);
@@ -2278,15 +2301,38 @@ function autoFillFromToken(tn) {
   qs("#invoiceProductsContainer").innerHTML = "";
 
   if (t.service) {
-    var services = t.service.split(", ");
-    services.forEach(function(svc) {
-      if (svc) addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
-    });
+    if (t.serviceBreakdown && t.serviceBreakdown.length) {
+      t.serviceBreakdown.forEach(function(sb) {
+        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === sb.name; });
+        if (isCustom) addCustomInvoiceServiceRow(sb.name, sb.price);
+        else addInvoiceServiceRow(sb.name, sb.price);
+      });
+    } else {
+      var services = t.service.split(", ").filter(function(s) { return s; });
+      var knownTotal = 0;
+      var customNames = [];
+      services.forEach(function(svc) {
+        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === svc; });
+        if (isCustom) customNames.push(svc);
+        else knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
+      });
+      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
+      var customShare = customNames.length ? remaining / customNames.length : 0;
+      services.forEach(function(svc) {
+        var isCustom = customNames.indexOf(svc) !== -1;
+        if (isCustom) {
+          addCustomInvoiceServiceRow(svc, customShare);
+        } else {
+          addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
+        }
+      });
+    }
   }
 
   if (t.products)
     t.products.forEach(function (p) {
-      addInvoiceProductRow(p.fullName, p.price, p.qty);
+      if (!p.variantId) addCustomInvoiceProductRow(p.fullName, p.price, p.qty);
+      else addInvoiceProductRow(p.fullName, p.price, p.qty);
     });
 
   if (t.discount) setValue("#invoiceDiscount", t.discount);
@@ -2375,6 +2421,63 @@ function addInvoiceProductRow(nm, pr, qt) {
       r.querySelector(".invoice-prd-price").value = this.value || 0;
       updateInvoicePreview();
     },
+  );
+  r.querySelector(".invoice-prd-qty")?.addEventListener(
+    "input",
+    updateInvoicePreview,
+  );
+}
+function addCustomInvoiceServiceRow(nm, pr) {
+  nm = nm || "";
+  pr = pr || 0;
+  var r = document.createElement("div");
+  r.className = "invoice-line-row";
+  r.style.background = "#fef9c3";
+  r.innerHTML =
+    '<div class="form-group"><select class="form-input invoice-svc-select" style="display:none"><option value="' +
+    sanitize(nm) +
+    '" selected>' +
+    sanitize(nm) +
+    '</option></select><input type="text" class="form-input" value="' +
+    sanitize(nm) +
+    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-svc-price" value="' +
+    pr +
+    '"></div><div class="form-group"><input type="number" class="form-input invoice-svc-qty" value="1" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
+  qs("#invoiceServicesContainer")?.appendChild(r);
+  r.querySelector(".invoice-svc-price")?.addEventListener(
+    "input",
+    updateInvoicePreview,
+  );
+  r.querySelector(".invoice-svc-qty")?.addEventListener(
+    "input",
+    updateInvoicePreview,
+  );
+}
+function addCustomInvoiceProductRow(nm, pr, qt) {
+  nm = nm || "";
+  pr = pr || 0;
+  qt = qt || 1;
+  var r = document.createElement("div");
+  r.className = "invoice-line-row";
+  r.style.background = "#fef9c3";
+  r.innerHTML =
+    '<div class="form-group"><select class="form-input invoice-prd-select" style="display:none"><option value="' +
+    pr +
+    '" data-fullname="' +
+    sanitize(nm) +
+    '" selected>' +
+    sanitize(nm) +
+    '</option></select><input type="text" class="form-input" value="' +
+    sanitize(nm) +
+    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-prd-price" value="' +
+    pr +
+    '"></div><div class="form-group"><input type="number" class="form-input invoice-prd-qty" value="' +
+    qt +
+    '" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
+  qs("#invoiceProductsContainer")?.appendChild(r);
+  r.querySelector(".invoice-prd-price")?.addEventListener(
+    "input",
+    updateInvoicePreview,
   );
   r.querySelector(".invoice-prd-qty")?.addEventListener(
     "input",
