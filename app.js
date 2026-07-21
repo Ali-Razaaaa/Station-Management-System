@@ -1802,37 +1802,66 @@ function saveToken() {
   var vt = qs("#tokenVehicleType")?.value || "";
   var on = (qs("#tokenOwnerName")?.value || "").trim();
   var cn = (qs("#tokenContactNumber")?.value || "").trim();
-  var bizSelect = qs("#tokenBusinessSelect"); var businesses = getBusinesses(); var biz;
-  if (bizSelect && bizSelect.value) { biz = businesses.find(function(b) { return b.id === bizSelect.value; }); }
+  var bizSelect = qs("#tokenBusinessSelect"); 
+  var businesses = getBusinesses(); 
+  var biz;
+  if (bizSelect && bizSelect.value) { 
+    biz = businesses.find(function(b) { return b.id === bizSelect.value; }); 
+  }
   if (!biz) { biz = getCurrentBusiness(); }
   var prefix = biz.prefix;
 
   var hasServices = qsa("#tokenServicesList .token-service-select").some(function(s) { return s.value; });
-  if (!vn || !vt || !hasServices) { toast("Please fill all required fields", "error"); saveToken.running = false; return; }
+  if (!vn || !vt || !hasServices) { 
+    toast("Please fill all required fields", "error"); 
+    saveToken.running = false; 
+    return; 
+  }
 
   var cv = validateContactNumber(cn);
-  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); saveToken.running = false; return; }
+  if (!cv.valid) { 
+    toast(cv.message, "error"); 
+    qs("#tokenContactNumber")?.focus(); 
+    saveToken.running = false; 
+    return; 
+  }
 
-  var selectedServices = []; var totalServicePrice = 0;
-  qsa("#tokenServicesList .token-service-select").forEach(function(s) {
+  var selectedServices = []; 
+  var totalServicePrice = 0;
+  qsa("#tokenServicesList .token-service-select").forEach(function(s, idx) {
     var sv = s.value;
     if (sv) {
-      var pr = parseFloat(s.parentElement.querySelector(".token-service-price")?.value) || getMatrixPrice(sv, vt) || 0;
-      selectedServices.push(sv); totalServicePrice += pr;
+      var priceInput = s.parentElement.querySelector(".token-service-price");
+      var rawPrice = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+      var pr = isNaN(rawPrice) ? 0 : rawPrice;
+      selectedServices.push(sv); 
+      totalServicePrice += pr;
+      console.log("[Save Token Svc " + idx + "]", sv, "price:", pr);
     }
   });
   var fs = selectedServices.join(", ");
   var sp = totalServicePrice;
 
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  var discountRaw = qs("#tokenDiscount")?.value || "0";
+  var discount = parseFloat(discountRaw) || 0;
+  if (isNaN(discount)) discount = 0;
 
-  var newProducts = []; var hasError = false;
+  var newProducts = []; 
+  var hasError = false;
   qsa("#tokenProductsList .token-product-select").forEach(function(s, i) {
-    var vid = s.value; if (!vid) return;
-    var f = findVariantById(vid); if (!f) return;
+    var vid = s.value; 
+    if (!vid) return;
+    var f = findVariantById(vid); 
+    if (!f) return;
     var q = parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 1;
-    if (q > f.variant.stock) { toast("Only " + f.variant.stock + " units available for " + f.fullName, "error"); hasError = true; return; }
-    var p = parseFloat(qsa("#tokenProductsList .token-product-price")[i]?.value) || f.variant.sellingPrice;
+    if (q > f.variant.stock) { 
+      toast("Only " + f.variant.stock + " units available for " + f.fullName, "error"); 
+      hasError = true; 
+      return; 
+    }
+    var priceInput = qsa("#tokenProductsList .token-product-price")[i];
+    var rawPrice = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+    var p = isNaN(rawPrice) ? f.variant.sellingPrice : rawPrice;
     newProducts.push({ variantId: f.variant.id, fullName: f.fullName, qty: q, price: p });
   });
   if (hasError) { saveToken.running = false; return; }
@@ -1878,60 +1907,97 @@ function saveCustomToken() {
   var vt = qs("#tokenVehicleType")?.value || "";
   var on = (qs("#tokenOwnerName")?.value || "").trim();
   var cn = (qs("#tokenContactNumber")?.value || "").trim();
-  var bizSelect = qs("#tokenBusinessSelect"); var businesses = getBusinesses(); var biz;
-  if (bizSelect && bizSelect.value) { biz = businesses.find(function(b) { return b.id === bizSelect.value; }); }
+  var bizSelect = qs("#tokenBusinessSelect"); 
+  var businesses = getBusinesses(); 
+  var biz;
+  if (bizSelect && bizSelect.value) { 
+    biz = businesses.find(function(b) { return b.id === bizSelect.value; }); 
+  }
   if (!biz) { biz = getCurrentBusiness(); }
   var prefix = biz.prefix;
+  
   if (!vn || !vt) { toast("Please fill vehicle details", "error"); return; }
   var cv = validateContactNumber(cn);
   if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
 
   var customServices = [];
-  qsa("#customTokenServicesList > div").forEach(function(row) {
+  qsa("#customTokenServicesList > div").forEach(function(row, idx) {
     var sel = row.querySelector(".custom-svc-select");
     var name = row.querySelector(".custom-svc-name");
-    var price = parseFloat(row.querySelector(".custom-svc-price")?.value) || 0;
+    var priceInput = row.querySelector(".custom-svc-price");
+    
+    // ✅ FIX: Use valueAsNumber first, then parseFloat
+    var rawPrice = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+    var price = isNaN(rawPrice) ? 0 : rawPrice;
+    
     var svcName = "";
     if (sel && (sel.style.display === "none" || sel.value === "__custom__")) {
       svcName = name ? (name.value || "").trim() : "";
     } else if (sel) {
       svcName = sel.value;
     }
-    if (svcName && price > 0) customServices.push({ name: svcName, price: price });
+    
+    // ✅ FIX: Allow price >= 0 (not just > 0). Only require name.
+    if (svcName) {
+      customServices.push({ name: svcName, price: price });
+      console.log("[Save Custom Svc " + idx + "]", svcName, "price:", price);
+    }
   });
 
   var customProducts = [];
-  qsa("#customTokenProductsList > div").forEach(function(row) {
+  qsa("#customTokenProductsList > div").forEach(function(row, idx) {
     var sel = row.querySelector(".custom-prd-select");
     var name = row.querySelector(".custom-prd-name");
-    var qty = parseInt(row.querySelector(".custom-prd-qty")?.value) || 1;
-    var price = parseFloat(row.querySelector(".custom-prd-price")?.value) || 0;
+    var qtyInput = row.querySelector(".custom-prd-qty");
+    var priceInput = row.querySelector(".custom-prd-price");
+    
+    var qty = qtyInput ? (parseInt(qtyInput.value) || 1) : 1;
+    var rawPrice = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+    var price = isNaN(rawPrice) ? 0 : rawPrice;
+    
     var prdName = "";
     if (sel && (sel.style.display === "none" || sel.value === "__custom__")) {
       prdName = name ? (name.value || "").trim() : "";
     } else if (sel) {
       prdName = sel.value;
     }
-    if (prdName && price > 0) customProducts.push({ fullName: prdName, qty: qty, price: price });
+    
+    // ✅ FIX: Allow price >= 0. Only require name.
+    if (prdName) {
+      customProducts.push({ fullName: prdName, qty: qty, price: price });
+      console.log("[Save Custom Prd " + idx + "]", prdName, "qty:", qty, "price:", price);
+    }
   });
+
+  if (customServices.length === 0 && customProducts.length === 0) {
+    toast("Please add at least one service or product", "error");
+    return;
+  }
 
   var serviceNames = customServices.map(function(s) { return s.name; }).join(", ");
   var totalServicePrice = customServices.reduce(function(t, s) { return t + s.price; }, 0);
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  var discountRaw = qs("#tokenDiscount")?.value || "0";
+  var discount = parseFloat(discountRaw) || 0;
+  if (isNaN(discount)) discount = 0;
 
   var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
-  if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
-  else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
+  if (!ex) { 
+    STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); 
+    saveVehicles(); 
+  } else { 
+    ex.visits = (ex.visits || 0) + 1; 
+    ex.lastService = fmtDate(); 
+    if (cv.formatted) ex.contact = cv.formatted; 
+    saveVehicles(); 
+  }
 
-  // ⬇️ Kimi's exact fix: unique token number
   var tokenNumber = (qs("#autoTokenNumber")?.textContent || "").trim();
   if (!tokenNumber) tokenNumber = generateTokenNumber();
   if (STATE.tokens.some(function(tk){ return tk.number === tokenNumber; })) tokenNumber = generateTokenNumber();
-  // ⬆️ End fix
 
   var newToken = {
     id: uid(),
-    number: tokenNumber,               // ✅ fixed
+    number: tokenNumber,
     vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted,
     service: serviceNames, servicePrice: totalServicePrice,
     serviceBreakdown: customServices,
@@ -1940,8 +2006,12 @@ function saveCustomToken() {
     businessPrefix: prefix, businessId: biz.id, businessName: biz.name,
     isCustom: true
   };
-  STATE.tokens.push(newToken); saveTokens(); saveCounters();
-  closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
+  STATE.tokens.push(newToken); 
+  saveTokens(); 
+  saveCounters();
+  closeModal("tokenModal"); 
+  renderTokenTable(); 
+  refreshDashboard();
   toast("Custom Token " + newToken.number + " generated", "success");
 }
 function renderTokenTable() {
@@ -5266,39 +5336,105 @@ function openPurchaseModal(vendorId) {
 // ============================================================
 function updateTokenTotal() {
   var t = 0;
-  qsa("#tokenServicesList > div").forEach(function (row) {
+  
+  qsa("#tokenServicesList > div").forEach(function (row, idx) {
     var sel = row.querySelector(".token-service-select");
     var priceInput = row.querySelector(".token-service-price");
     if (sel && sel.value && priceInput) {
-      t += parseFloat(priceInput.value) || 0;
+      var rawVal = priceInput.valueAsNumber || parseFloat(priceInput.value);
+      var val = isNaN(rawVal) ? 0 : rawVal;
+      t += val;
+      console.log("[Token Svc Row " + idx + "]", sel.value, "price:", val);
     }
   });
-  qsa("#tokenProductsList > div").forEach(function (row) {
+  
+  qsa("#tokenProductsList > div").forEach(function (row, idx) {
     var sel = row.querySelector(".token-product-select");
     var qtyInput = row.querySelector(".token-product-qty");
     var priceInput = row.querySelector(".token-product-price");
     if (sel && sel.value && qtyInput && priceInput) {
-      t += (parseInt(qtyInput.value) || 0) * (parseFloat(priceInput.value) || 0);
+      var rawQty = parseInt(qtyInput.value);
+      var qty = isNaN(rawQty) ? 0 : rawQty;
+      
+      var rawPrice = priceInput.valueAsNumber || parseFloat(priceInput.value);
+      var price = isNaN(rawPrice) ? 0 : rawPrice;
+      
+      t += qty * price;
+      console.log("[Token Prd Row " + idx + "]", "qty:", qty, "price:", price, "subtotal:", qty * price);
     }
   });
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  
+  var discountRaw = qs("#tokenDiscount")?.value || "0";
+  var discount = parseFloat(discountRaw) || 0;
+  if (isNaN(discount)) discount = 0;
+  
   var grand = Math.max(0, t - discount);
+  console.log("[Token Total] Services+Products:", t, "Discount:", discount, "Grand:", grand);
   setText("#tokenGrandTotal", fmtPrice(grand));
   return grand;
 }
-
 function updateCustomTokenTotal() {
   var t = 0;
-  qsa("#customTokenServicesList > div").forEach(function (row) {
-    t += parseFloat(row.querySelector(".custom-svc-price")?.value) || 0;
+  
+  qsa("#customTokenServicesList > div").forEach(function (row, idx) {
+    var sel = row.querySelector(".custom-svc-select");
+    var name = row.querySelector(".custom-svc-name");
+    var priceInput = row.querySelector(".custom-svc-price");
+    
+    // ✅ FIX: Only count if service is actually selected
+    var hasService = false;
+    if (sel && sel.value && sel.value !== "__custom__") {
+      hasService = true;
+    } else if (sel && sel.value === "__custom__" && name && name.style.display !== "none" && name.value.trim()) {
+      hasService = true;
+    }
+    
+    if (!hasService) {
+      console.log("[Custom Svc Row " + idx + "]", "SKIPPED — no service selected");
+      return;
+    }
+    
+    var rawVal = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+    var val = isNaN(rawVal) ? 0 : rawVal;
+    t += val;
+    console.log("[Custom Svc Row " + idx + "]", "price:", val);
   });
-  qsa("#customTokenProductsList > div").forEach(function (row) {
-    t +=
-      (parseInt(row.querySelector(".custom-prd-qty")?.value) || 0) *
-      (parseFloat(row.querySelector(".custom-prd-price")?.value) || 0);
+  
+  qsa("#customTokenProductsList > div").forEach(function (row, idx) {
+    var sel = row.querySelector(".custom-prd-select");
+    var name = row.querySelector(".custom-prd-name");
+    var qtyInput = row.querySelector(".custom-prd-qty");
+    var priceInput = row.querySelector(".custom-prd-price");
+    
+    // ✅ FIX: Only count if product is actually selected
+    var hasProduct = false;
+    if (sel && sel.value && sel.value !== "__custom__") {
+      hasProduct = true;
+    } else if (sel && sel.value === "__custom__" && name && name.style.display !== "none" && name.value.trim()) {
+      hasProduct = true;
+    }
+    
+    if (!hasProduct) {
+      console.log("[Custom Prd Row " + idx + "]", "SKIPPED — no product selected");
+      return;
+    }
+    
+    var rawQty = qtyInput ? parseInt(qtyInput.value) : NaN;
+    var qty = isNaN(rawQty) ? 0 : rawQty;
+    
+    var rawPrice = priceInput ? (priceInput.valueAsNumber || parseFloat(priceInput.value)) : NaN;
+    var price = isNaN(rawPrice) ? 0 : rawPrice;
+    
+    t += qty * price;
+    console.log("[Custom Prd Row " + idx + "]", "qty:", qty, "price:", price, "subtotal:", qty * price);
   });
-  var discount = parseFloat(qs("#tokenDiscount")?.value) || 0;
+  
+  var discountRaw = qs("#tokenDiscount")?.value || "0";
+  var discount = parseFloat(discountRaw) || 0;
+  if (isNaN(discount)) discount = 0;
+  
   var grand = Math.max(0, t - discount);
+  console.log("[Custom Total] Subtotal:", t, "Discount:", discount, "Grand:", grand);
   setText("#tokenGrandTotal", fmtPrice(grand));
   return grand;
 }
@@ -5394,7 +5530,12 @@ function addCustomServiceRow() {
   }).join("");
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
-  r.innerHTML = '<select class="form-input custom-svc-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' + opts + '<option value="__custom__">Custom Service</option></select><input type="text" class="form-input custom-svc-name" placeholder="Service name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" /><input type="number" class="form-input custom-svc-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+  r.innerHTML = 
+    '<select class="form-input custom-svc-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' + opts + 
+    '<option value="__custom__">Custom Service</option></select>' +
+    '<input type="text" class="form-input custom-svc-name" placeholder="Service name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" />' +
+    '<input type="number" step="any" class="form-input custom-svc-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
+    '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
   var selectEl = r.querySelector(".custom-svc-select");
@@ -5411,15 +5552,34 @@ function addCustomServiceRow() {
     } else if (this.value) {
       var vt = qs("#tokenVehicleType")?.value || "";
       var pr = vt ? getMatrixPrice(this.value, vt) : 0;
-      priceEl.value = pr || "";
+      // ✅ FIX: Direct assignment, no || ""
+      priceEl.value = pr;
+      if (pr === 0 && vt) {
+        priceEl.style.background = "#fee2e2";
+        priceEl.title = "⚠ No matrix price for: " + this.value + " × " + vt;
+      } else {
+        priceEl.style.background = "";
+        priceEl.title = "";
+      }
       nameEl.style.display = "none";
       nameEl.value = "";
     } else {
       priceEl.value = "";
+      priceEl.style.background = "";
+      priceEl.title = "";
     }
     recomputeTokenTotal();
   });
-  priceEl.addEventListener("input", recomputeTokenTotal);
+  
+  priceEl.addEventListener("input", function() {
+    console.log("[Custom Price Input]", this.value, "parsed:", this.valueAsNumber);
+    recomputeTokenTotal();
+  });
+  priceEl.addEventListener("change", function() {
+    console.log("[Custom Price Change]", this.value, "parsed:", this.valueAsNumber);
+    recomputeTokenTotal();
+  });
+  
   r.querySelector("button").addEventListener("click", function () {
     r.remove();
     recomputeTokenTotal();
@@ -5429,39 +5589,58 @@ function addCustomServiceRow() {
 function addCustomProductRow() {
   var c = qs("#customTokenProductsList");
   if (!c) return;
+  
   var opts = getAllVariantsFlat()
-    .filter(function (v) { return v.stock > 0; })
     .map(function (v) {
-      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '">' + sanitize(v.fullName) + "</option>";
+      var stockLabel = v.stock <= 0 ? " (OUT OF STOCK)" : " | Stock: " + v.stock;
+      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '">' +
+        sanitize(v.fullName) + stockLabel + " | " + fmtPrice(v.sellingPrice) + "</option>";
     })
     .join("");
+    
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
   r.innerHTML =
     '<select class="form-input custom-prd-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' +
     opts +
-    '<option value="__custom__">Custom Product</option></select><input type="text" class="form-input custom-prd-name" placeholder="Product name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" /><input type="number" class="form-input custom-prd-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input custom-prd-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+    '<option value="__custom__">Custom Product</option></select>' +
+    '<input type="text" class="form-input custom-prd-name" placeholder="Product name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" />' +
+    '<input type="number" class="form-input custom-prd-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" />' +
+    '<input type="number" step="any" class="form-input custom-prd-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
+    '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
-  r.querySelector(".custom-prd-select").addEventListener("change", function () {
+  var selectEl = r.querySelector(".custom-prd-select");
+  var nameEl = r.querySelector(".custom-prd-name");
+  var qtyInput = r.querySelector(".custom-prd-qty");
+  var priceEl = r.querySelector(".custom-prd-price");
+
+  selectEl.addEventListener("change", function () {
     if (this.value === "__custom__") {
       this.style.display = "none";
-      r.querySelector(".custom-prd-name").style.display = "";
-      r.querySelector(".custom-prd-name").focus();
+      nameEl.style.display = "";
+      nameEl.value = "";
+      priceEl.value = "";
+      nameEl.focus();
+    } else {
+      var o = this.options[this.selectedIndex];
+      var pr = parseFloat(o?.dataset?.price) || 0;
+      priceEl.value = pr;  // ✅ Direct, no || ""
+      nameEl.style.display = "none";
+      nameEl.value = "";
     }
-    var o = this.options[this.selectedIndex];
-    var pr = parseFloat(o?.dataset?.price) || 0;
-    if (pr) r.querySelector(".custom-prd-price").value = pr;
     recomputeTokenTotal();
   });
-  r.querySelector(".custom-prd-qty").addEventListener("input", recomputeTokenTotal);
-  r.querySelector(".custom-prd-price").addEventListener("input", recomputeTokenTotal);
+  
+  qtyInput.addEventListener("input", recomputeTokenTotal);
+  priceEl.addEventListener("input", recomputeTokenTotal);
+  priceEl.addEventListener("change", recomputeTokenTotal);
+  
   r.querySelector("button").addEventListener("click", function () {
     r.remove();
     recomputeTokenTotal();
   });
 }
-
 document.addEventListener("change", function (e) {
   if (e.target && e.target.id === "tokenVehicleType") {
     var vt = e.target.value;
@@ -5475,7 +5654,7 @@ document.addEventListener("change", function (e) {
       if (s.value && s.value !== "__custom__") {
         var pr = vt ? getMatrixPrice(s.value, vt) : 0;
         var priceInput = s.parentElement.querySelector(".custom-svc-price");
-        if (priceInput) priceInput.value = pr || "";
+        if (priceInput) priceInput.value = pr;  
       }
     });
     recomputeTokenTotal();
