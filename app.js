@@ -1923,8 +1923,15 @@ function saveCustomToken() {
   if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
   else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
 
+  // ⬇️ Kimi's exact fix: unique token number
+  var tokenNumber = (qs("#autoTokenNumber")?.textContent || "").trim();
+  if (!tokenNumber) tokenNumber = generateTokenNumber();
+  if (STATE.tokens.some(function(tk){ return tk.number === tokenNumber; })) tokenNumber = generateTokenNumber();
+  // ⬆️ End fix
+
   var newToken = {
-    id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(),
+    id: uid(),
+    number: tokenNumber,               // ✅ fixed
     vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted,
     service: serviceNames, servicePrice: totalServicePrice,
     serviceBreakdown: customServices,
