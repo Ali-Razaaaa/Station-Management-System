@@ -141,16 +141,27 @@ function generateTokenNumber() {
     String(today.getMonth() + 1).padStart(2, "0") +
     String(today.getDate()).padStart(2, "0");
   var prefix = getCurrentBusinessPrefix();
-  var bizTokens = STATE.tokens.filter(function (t) {
-    return (
-      t.businessPrefix === prefix &&
-      t.number &&
-      t.number.startsWith(prefix + "-" + ds)
-    );
-  });
-  return (
-    prefix + "-" + ds + "-" + String(bizTokens.length + 1).padStart(3, "0")
-  );
+
+  // Check against existing token numbers instead of relying on array length,
+  // so a deleted token or a race between tabs can't produce a duplicate number.
+  var existingNumbers = [];
+  for (var i = 0; i < STATE.tokens.length; i++) {
+    if (
+      STATE.tokens[i].number &&
+      STATE.tokens[i].number.startsWith(prefix + "-" + ds)
+    ) {
+      existingNumbers.push(STATE.tokens[i].number);
+    }
+  }
+
+  var counter = 1;
+  var newNumber;
+  do {
+    newNumber = prefix + "-" + ds + "-" + String(counter).padStart(3, "0");
+    counter++;
+  } while (existingNumbers.indexOf(newNumber) !== -1);
+
+  return newNumber;
 }
 
 function migrateAllInventory() {
@@ -1840,7 +1851,21 @@ function saveToken() {
     var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
     if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
     else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
-    var newToken = { id: uid(), number: qs("#autoTokenNumber")?.textContent || generateTokenNumber(), vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, time: fmtTime(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
+
+    // Final duplicate-safety check: if another tab/session generated a token
+    // with the same number in the meantime, keep regenerating until unique.
+    var proposedNumber = qs("#autoTokenNumber")?.textContent || generateTokenNumber();
+    var maxRetries = 10;
+    var retries = 0;
+    while (retries < maxRetries) {
+      var exists = STATE.tokens.some(function(tk) { return tk.number === proposedNumber; });
+      if (!exists) break;
+      proposedNumber = generateTokenNumber();
+      retries++;
+    }
+    setText("#autoTokenNumber", proposedNumber);
+
+    var newToken = { id: uid(), number: proposedNumber, vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, time: fmtTime(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
     STATE.tokens.push(newToken); saveTokens(); saveInventory(); saveCounters();
     closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
     toast("Token " + newToken.number + " generated successfully", "success");
