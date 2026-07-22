@@ -287,6 +287,7 @@ var STATE = {
   sessionStart: new Date(),
   lastProductSaleInvoiceId: null,
   pendingImport: null,
+  lowStockFilterActive: false,  
 };
 
 function persist(k, d) {
@@ -3569,15 +3570,29 @@ function initInventory() {
   });
   qs("#saveStockBtn")?.addEventListener("click", saveStock);
   qs("#inventorySearch")?.addEventListener("input", renderInventoryTable);
-  qs("#inventoryCategoryFilter")?.addEventListener(
-    "change",
-    renderInventoryTable,
-  );
+  qs("#inventoryCategoryFilter")?.addEventListener("change", renderInventoryTable);
   qs("#inventoryBrandFilter")?.addEventListener("change", renderInventoryTable);
   qs("#manageBrandsBtn")?.addEventListener("click", openBrandsModal);
   qs("#addBrandBtn")?.addEventListener("click", addBrand);
   qs("#manageCategoriesBtn")?.addEventListener("click", openCategoryModal);
   qs("#addCategoryBtn")?.addEventListener("click", addCategory);
+
+  // ✅ Low Stock toggle button
+  qs("#lowStockFilterBtn")?.addEventListener("click", function() {
+    STATE.lowStockFilterActive = !STATE.lowStockFilterActive;
+    this.classList.toggle("active", STATE.lowStockFilterActive);
+    if (STATE.lowStockFilterActive) {
+      this.style.background = "var(--danger)";
+      this.style.color = "#fff";
+      this.style.borderColor = "var(--danger)";
+    } else {
+      this.style.background = "";
+      this.style.color = "";
+      this.style.borderColor = "";
+    }
+    renderInventoryTable();
+  });
+
   populateBrandDropdowns();
   populateCategoryDropdowns();
   renderInventoryTable();
@@ -3738,6 +3753,7 @@ function renderInventoryTable() {
   var sr = (qs("#inventorySearch")?.value || "").toLowerCase(),
     cf = qs("#inventoryCategoryFilter")?.value || "",
     bf = qs("#inventoryBrandFilter")?.value || "";
+
   var all = getAllVariantsFlat().filter(function (v) {
     return (
       (!sr ||
@@ -3747,14 +3763,25 @@ function renderInventoryTable() {
       (!bf || v.brand === bf)
     );
   });
+
+  // ✅ Low Stock Filter – sirf kam stock wale dikhao jab button active ho
+  if (STATE.lowStockFilterActive) {
+    all = all.filter(function(v) {
+      return v.stock < v.minStock;
+    });
+  }
+
   var tb = qs("#inventoryTableBody");
   if (!tb) return;
+
   updateInventoryKPI();
   qs("#productCountBadge").textContent = all.length + " variants";
+
   if (!all.length) {
     tb.innerHTML = '<tr><td colspan="9">No variants</td></tr>';
     return;
   }
+
   tb.innerHTML = all
     .map(function (v) {
       var lo = v.stock < v.minStock;

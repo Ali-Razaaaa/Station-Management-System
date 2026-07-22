@@ -706,101 +706,101 @@
           </section>
           <!-- INVENTORY -->
           <section class="module hidden" id="module-inventory">
-            <div class="kpi-grid kpi-grid--3">
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--blue">
-                  <span class="material-icons">inventory_2</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Total Variants</span
-                  ><span class="kpi-value" id="invTotalProducts">0</span>
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--red">
-                  <span class="material-icons">warning</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Low Stock</span
-                  ><span class="kpi-value" id="invLowStock">0</span>
-                </div>
-              </div>
-              <div class="kpi-card">
-                <div class="kpi-icon kpi-icon--green">
-                  <span class="material-icons">account_balance_wallet</span>
-                </div>
-                <div class="kpi-body">
-                  <span class="kpi-label">Inventory Value</span
-                  ><span class="kpi-value" id="invValue">Rs. 0</span>
-                </div>
-              </div>
-            </div>
-            <div class="module-toolbar">
-              <div class="toolbar-left">
-                <div class="search-box">
-                  <span class="material-icons">search</span
-                  ><input
-                    type="text"
-                    placeholder="Search..."
-                    id="inventorySearch"
-                    class="search-input"
-                  />
-                </div>
-                <select class="filter-select" id="inventoryCategoryFilter">
-                  <option value="">All Categories</option></select
-                ><select class="filter-select" id="inventoryBrandFilter">
-                  <option value="">All Brands</option>
-                </select>
-              </div>
-              <div class="toolbar-right">
-                <button class="btn btn-outline" id="manageBrandsBtn">
-                  <span class="material-icons">sell</span> Brands</button
-                ><button class="btn btn-outline" id="manageCategoriesBtn">
-                  <span class="material-icons">category</span>
-                  Categories</button
-                ><button class="btn btn-outline" id="stockOutBtn">
-                  <span class="material-icons">remove_circle_outline</span>
-                  Stock Out</button
-                ><button class="btn btn-outline" id="stockInBtn">
-                  <span class="material-icons">add_circle_outline</span> Stock
-                  In</button
-                ><button class="btn btn-primary" id="addProductBtn">
-                  <span class="material-icons">add</span> Add Product
-                </button>
-              </div>
-            </div>
-            <div class="card">
-              <div class="card-header">
-                <h2 class="card-title">
-                  <span class="material-icons">inventory_2</span> Product
-                  Inventory
-                </h2>
-                <div class="card-header-meta">
-                  <span class="badge badge--blue" id="productCountBadge"
-                    >0 variants</span
-                  >
-                </div>
-              </div>
-              <div class="card-body p-0">
-                <table class="data-table" id="inventoryTable">
-                  <thead>
-                    <tr>
-                      <th>Product / Variant</th>
-                      <th>SKU</th>
-                      <th>Category</th>
-                      <th>Stock</th>
-                      <th>Min</th>
-                      <th>Cost</th>
-                      <th>Price</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody id="inventoryTableBody"></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
+  <div class="kpi-grid kpi-grid--3">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--blue">
+        <span class="material-icons">inventory_2</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Total Variants</span>
+        <span class="kpi-value" id="invTotalProducts">0</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--red">
+        <span class="material-icons">warning</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Low Stock</span>
+        <span class="kpi-value" id="invLowStock">0</span>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--green">
+        <span class="material-icons">account_balance_wallet</span>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-label">Inventory Value</span>
+        <span class="kpi-value" id="invValue">Rs. 0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="module-toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <span class="material-icons">search</span>
+        <input type="text" placeholder="Search..." id="inventorySearch" class="search-input" />
+      </div>
+      <select class="filter-select" id="inventoryCategoryFilter">
+        <option value="">All Categories</option>
+      </select>
+      <select class="filter-select" id="inventoryBrandFilter">
+        <option value="">All Brands</option>
+      </select>
+      <!-- ✅ Low Stock Button added here -->
+      <button id="lowStockFilterBtn" class="btn btn-sm btn-outline" style="margin-left:8px;">
+        <span class="material-icons" style="font-size:16px;">warning</span> Low Stock
+      </button>
+    </div>
+    <div class="toolbar-right">
+      <button class="btn btn-outline" id="manageBrandsBtn">
+        <span class="material-icons">sell</span> Brands
+      </button>
+      <button class="btn btn-outline" id="manageCategoriesBtn">
+        <span class="material-icons">category</span> Categories
+      </button>
+      <button class="btn btn-outline" id="stockOutBtn">
+        <span class="material-icons">remove_circle_outline</span> Stock Out
+      </button>
+      <button class="btn btn-outline" id="stockInBtn">
+        <span class="material-icons">add_circle_outline</span> Stock In
+      </button>
+      <button class="btn btn-primary" id="addProductBtn">
+        <span class="material-icons">add</span> Add Product
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        <span class="material-icons">inventory_2</span> Product Inventory
+      </h2>
+      <div class="card-header-meta">
+        <span class="badge badge--blue" id="productCountBadge">0 variants</span>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <table class="data-table" id="inventoryTable">
+        <thead>
+          <tr>
+            <th>Product / Variant</th>
+            <th>SKU</th>
+            <th>Category</th>
+            <th>Stock</th>
+            <th>Min</th>
+            <th>Cost</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
           <!-- REMINDERS -->
           <section class="module hidden" id="module-reminders">
@@ -1781,7 +1781,7 @@
                     Clear All Data
                   </button>
                   <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);text-align:center;font-size:0.75rem;color:var(--text-muted)">
-                    Version 1.1.16
+                    Version 1.1.17
                   </div>
                 </div>
               </div>
