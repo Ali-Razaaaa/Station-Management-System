@@ -2798,6 +2798,7 @@ function renderSavedInvoices() {
   var dfFrom = qs("#savedInvoiceDateFrom")?.value || "";
   var dfTo = qs("#savedInvoiceDateTo")?.value || "";
   
+  // Step 1: Filter
   var filtered = STATE.invoices.filter(function(inv) {
     var dateMatch = true;
     if (dfFrom || dfTo) {
@@ -2820,23 +2821,36 @@ function renderSavedInvoices() {
            dateMatch;
   });
   
-  // ⬇️ NEW: Sort newest first (descending by date, then by time)
-  filtered.sort(function(a, b) {
-    var dateA = parseDate(a.date) || new Date(0);
-    var dateB = parseDate(b.date) || new Date(0);
-    if (dateB - dateA !== 0) return dateB - dateA;
-    // Same date → compare time strings descending
-    return (b.time || "").localeCompare(a.time || "");
+  // Step 2: STABLE sort – newest first
+  // We assign each item its original index (position in STATE.invoices) as a tiebreaker.
+  // This guarantees that if dates are identical (or invalid), the newest insertion wins.
+  var indexed = filtered.map(function(inv, idx) {
+    return { inv: inv, originalIndex: STATE.invoices.indexOf(inv) };
   });
   
-  var countBadge = qs("#savedInvoiceCount");
-  if (countBadge) countBadge.textContent = filtered.length;
+  indexed.sort(function(a, b) {
+    var dateA = parseDate(a.inv.date) || new Date(0);
+    var dateB = parseDate(b.inv.date) || new Date(0);
+    // Primary: date descending
+    if (dateB - dateA !== 0) return dateB - dateA;
+    // Secondary: time descending (if same date)
+    var timeComp = (b.inv.time || "").localeCompare(a.inv.time || "");
+    if (timeComp !== 0) return timeComp;
+    // Tertiary: original index descending (higher index = newer insertion)
+    return b.originalIndex - a.originalIndex;
+  });
   
-  if (!filtered.length) {
+  // Extract sorted invoices
+  var sorted = indexed.map(function(item) { return item.inv; });
+  
+  var countBadge = qs("#savedInvoiceCount");
+  if (countBadge) countBadge.textContent = sorted.length;
+  
+  if (!sorted.length) {
     tb.innerHTML = '<tr><td colspan="8">No invoices found</td></tr>';
     return;
   }
-  tb.innerHTML = filtered
+  tb.innerHTML = sorted
     .map(function (inv) {
       return (
         '<tr><td style="font-weight:700;color:var(--primary);">' +
