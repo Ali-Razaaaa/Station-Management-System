@@ -3087,7 +3087,13 @@ function generateThermalCustomerCopy(token, businessName, address, phone, date, 
   var discount = token.discount || 0;
   var totalAmount = 0;
 
-  if (token.service) {
+  // Services – first check for custom breakdown
+  if (token.serviceBreakdown && token.serviceBreakdown.length) {
+    token.serviceBreakdown.forEach(function(sb) {
+      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(sb.name) + '</span><span class="svc-price">' + fmtPrice(sb.price) + '</span></div>';
+      totalAmount += sb.price;
+    });
+  } else if (token.service) {
     var services = token.service.split(", ");
     services.forEach(function(svc) {
       if (svc) {
@@ -3097,6 +3103,8 @@ function generateThermalCustomerCopy(token, businessName, address, phone, date, 
       }
     });
   }
+
+  // Products
   if (token.products && token.products.length > 0) {
     token.products.forEach(function(p) {
       itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
@@ -3113,7 +3121,13 @@ function generateThermalCashierCopy(token, businessName, address, phone, date, t
   var discount = token.discount || 0;
   var totalAmount = 0;
 
-  if (token.service) {
+  // Services – custom breakdown first
+  if (token.serviceBreakdown && token.serviceBreakdown.length) {
+    token.serviceBreakdown.forEach(function(sb) {
+      itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(sb.name) + '</span><span class="svc-price">' + fmtPrice(sb.price) + '</span></div>';
+      totalAmount += sb.price;
+    });
+  } else if (token.service) {
     var services = token.service.split(", ");
     services.forEach(function(svc) {
       if (svc) {
@@ -3123,6 +3137,8 @@ function generateThermalCashierCopy(token, businessName, address, phone, date, t
       }
     });
   }
+
+  // Products
   if (token.products && token.products.length > 0) {
     token.products.forEach(function(p) {
       itemsHTML += '<div class="svc-row"><span class="svc-dot">•</span><span>' + sanitize(p.fullName) + ' x' + p.qty + '</span><span class="svc-price">' + fmtPrice(p.price * p.qty) + '</span></div>';
