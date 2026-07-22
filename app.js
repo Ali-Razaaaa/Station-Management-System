@@ -799,12 +799,18 @@ function renderReminderTable() {
       r.service.toLowerCase().includes(sr);
     return ms && (!sf || r.status === sf);
   });
+
+  // ✅ Newest first: sort by serviceDate descending, then by dueDate descending
   fl.sort(function (a, b) {
-    return (
-      (parseDate(a.dueDate) || new Date()) -
-      (parseDate(b.dueDate) || new Date())
-    );
+    var dateA = parseDate(a.serviceDate) || new Date(0);
+    var dateB = parseDate(b.serviceDate) || new Date(0);
+    if (dateB - dateA !== 0) return dateB - dateA;
+    // same serviceDate → sort by dueDate descending
+    var dueA = parseDate(a.dueDate) || new Date(0);
+    var dueB = parseDate(b.dueDate) || new Date(0);
+    return dueB - dueA;
   });
+
   var tb = qs("#reminderTableBody");
   if (!tb) return;
   var bg = qs("#reminderCountBadge");
@@ -2814,6 +2820,15 @@ function renderSavedInvoices() {
            dateMatch;
   });
   
+  // ⬇️ NEW: Sort newest first (descending by date, then by time)
+  filtered.sort(function(a, b) {
+    var dateA = parseDate(a.date) || new Date(0);
+    var dateB = parseDate(b.date) || new Date(0);
+    if (dateB - dateA !== 0) return dateB - dateA;
+    // Same date → compare time strings descending
+    return (b.time || "").localeCompare(a.time || "");
+  });
+  
   var countBadge = qs("#savedInvoiceCount");
   if (countBadge) countBadge.textContent = filtered.length;
   
@@ -3479,6 +3494,20 @@ function renderVehicleTable() {
       (v.type || "").toLowerCase().includes(sr)
     );
   });
+
+  // ✅ Sort by lastService date descending (most recent first)
+  fl.sort(function (a, b) {
+    var dateA = parseDate(a.lastService);
+    var dateB = parseDate(b.lastService);
+    // If both have valid dates, sort descending
+    if (dateA && dateB) return dateB - dateA;
+    // If only one has a date, that one comes first
+    if (dateA && !dateB) return -1;
+    if (!dateA && dateB) return 1;
+    // Both no dates → keep original order (by insertion, newest first)
+    return 0;
+  });
+
   var tb = qs("#vehicleTableBody");
   if (!tb) return;
   var badge = qs("#vehicleCountBadge");
@@ -3975,9 +4004,15 @@ function renderExpenses() {
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
 
+  // ✅ Newest first: sort by date descending, then by time descending
   var fl = STATE.expenses.sort(function (a, b) {
-    return (parseDate(b.date) || 0) - (parseDate(a.date) || 0);
+    var dateA = parseDate(a.date) || new Date(0);
+    var dateB = parseDate(b.date) || new Date(0);
+    if (dateB - dateA !== 0) return dateB - dateA;
+    // same date → compare time (latest first)
+    return (b.time || "").localeCompare(a.time || "");
   });
+
   var countBadge = qs("#expenseCountBadge");
   if (countBadge) countBadge.textContent = fl.length;
   var tb = qs("#expenseTableBody");
