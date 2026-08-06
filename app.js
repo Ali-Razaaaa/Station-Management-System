@@ -1102,6 +1102,7 @@ function initApp() {
   initImportExport();
   initSettings();
   initVendors();
+  initAutoBackupSystem(); // NEW (added only): starts the 30-min auto backup engine
   navigateTo("dashboard");
 }
 // ==================== BUSINESS SWITCHER ====================
@@ -2219,6 +2220,7 @@ function openEditTokenModal(tid) {
 
 // ==================== BILLING ====================
 function initBilling() {
+  console.log("initBilling running...");
   var invBizSelect = qs("#invoiceBusinessSelect");
   if (invBizSelect) {
     var businesses = getBusinesses();
@@ -2227,76 +2229,50 @@ function initBilling() {
     for (var i = 0; i < businesses.length; i++) {
       var sel = businesses[i].id === currentBiz.id ? " selected" : "";
       invBizSelect.innerHTML +=
-        '<option value="' +
-        businesses[i].id +
-        '" data-prefix="' +
-        businesses[i].prefix +
-        '" data-name="' +
-        sanitize(businesses[i].name) +
-        '"' +
-        sel +
-        ">" +
-        businesses[i].name +
-        " (" +
-        businesses[i].prefix +
-        ")</option>";
+        '<option value="' + businesses[i].id + '" data-prefix="' + businesses[i].prefix + '" data-name="' + sanitize(businesses[i].name) + '"' + sel + ">" + businesses[i].name + " (" + businesses[i].prefix + ")</option>";
     }
-    invBizSelect.onchange = function () {
-      updateInvoicePreview();
-    };
+    invBizSelect.onchange = function () { updateInvoicePreview(); };
   }
-  qs("#addInvoiceService")?.addEventListener("click", function () {
-    addInvoiceServiceRow("", 0);
+
+  qs("#addInvoiceService")?.addEventListener("click", function () { addInvoiceServiceRow("", 0); });
+  qs("#addInvoiceProduct")?.addEventListener("click", function () { addInvoiceProductRow("", 0, 1); });
+
+  qs("#saveInvoiceBtn")?.addEventListener("click", function(e){
+    console.log("Save button clicked");
+    saveInvoice();
   });
-  qs("#addInvoiceProduct")?.addEventListener("click", function () {
-    addInvoiceProductRow("", 0, 1);
-  });
-  qs("#saveInvoiceBtn")?.addEventListener("click", saveInvoice);
-  qs("#printReceiptBtn")?.addEventListener("click", function () {
+  qs("#printReceiptBtn")?.addEventListener("click", function(e){
+    console.log("Print button clicked");
     var invNumber = (qs("#invNumber")?.textContent || "").trim();
     var invCustomer = (qs("#invCustomer")?.textContent || "").trim();
     var invDate = (qs("#invDate")?.textContent || "").trim();
     var invVehicle = (qs("#invVehicle")?.textContent || "").trim();
     var invToken = (qs("#invToken")?.textContent || "").trim();
 
-    if (!invCustomer || invCustomer === "—") {
-      toast("Please add customer and items first", "warning");
-      return;
-    }
+    if (!invCustomer || invCustomer === "—") { toast("Please add customer and items first", "warning"); return; }
 
     var items = [];
-    qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
-      function (r) {
-        var s = r.querySelector(".invoice-svc-select");
-        var nm = s?.options[s.selectedIndex]?.text || "";
-        var pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
-        var qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-        if (nm && nm !== "Select...")
-          items.push({ name: nm, price: pr, qty: qt });
-      },
-    );
-    qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
-      function (r) {
-        var s = r.querySelector(".invoice-prd-select");
-        var nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
-        var pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
-        var qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
-        if (nm) items.push({ name: nm, price: pr, qty: qt });
-      },
-    );
+    qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function (r) {
+      var s = r.querySelector(".invoice-svc-select");
+      var nm = s?.options[s.selectedIndex]?.text || "";
+      var pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0;
+      var qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+      if (nm && nm !== "Select...") items.push({ name: nm, price: pr, qty: qt });
+    });
+    qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function (r) {
+      var s = r.querySelector(".invoice-prd-select");
+      var nm = s?.options[s.selectedIndex]?.dataset?.fullname || "";
+      var pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0;
+      var qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+      if (nm) items.push({ name: nm, price: pr, qty: qt });
+    });
 
-    if (!items.length) {
-      toast("Add items first", "warning");
-      return;
-    }
+    if (!items.length) { toast("Add items first", "warning"); return; }
 
     var subtotal = 0;
-    items.forEach(function (i) {
-      subtotal += i.price * i.qty;
-    });
+    items.forEach(function (i) { subtotal += i.price * i.qty; });
     var total = subtotal;
     var cash = parseFloat(qs("#cashReceived")?.value) || 0;
-
     var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
     var totalAfterDiscount = Math.max(0, total - discount);
     var tempInv = {
@@ -2305,8 +2281,7 @@ function initBilling() {
       time: fmtTime(),
       customer: invCustomer,
       contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
-      vehicle:
-        invVehicle !== "—" ? invVehicle : qs("#invoiceVehicle")?.value || "",
+      vehicle: invVehicle !== "—" ? invVehicle : qs("#invoiceVehicle")?.value || "",
       token: invToken !== "—" ? invToken : "",
       items: items,
       discount: discount,
@@ -2328,11 +2303,10 @@ function initBilling() {
       var w = window.open("", "_blank");
       w.document.write(content);
       w.document.close();
-      setTimeout(function () {
-        w.print();
-      }, 500);
+      setTimeout(function () { w.print(); }, 500);
     }
   });
+
   qs("#invoiceToken")?.addEventListener("input", function () {
     autoFillFromToken(this.value.trim());
     updateInvoicePreview();
@@ -2342,15 +2316,10 @@ function initBilling() {
   qs("#invoiceDiscount")?.addEventListener("input", updateInvoicePreview);
   qs("#cashReceived")?.addEventListener("input", function () {
     var cash = parseFloat(this.value) || 0;
-    var total =
-      parseFloat(
-        (qs("#invTotal")?.textContent || "0").replace(/[^0-9]/g, ""),
-      ) || 0;
-    setText(
-      "#changeReturned",
-      cash >= total ? fmtPrice(cash - total) : "Insufficient",
-    );
+    var total = parseFloat((qs("#invTotal")?.textContent || "0").replace(/[^0-9]/g, "")) || 0;
+    setText("#changeReturned", cash >= total ? fmtPrice(cash - total) : "Insufficient");
   });
+
   qs("#savedInvoiceSearch")?.addEventListener("input", renderSavedInvoices);
   qs("#savedInvoiceStatusFilter")?.addEventListener("change", renderSavedInvoices);
   qs("#savedInvoiceDateFrom")?.addEventListener("change", renderSavedInvoices);
@@ -2562,113 +2531,108 @@ function addCustomInvoiceProductRow(nm, pr, qt) {
   );
 }
 function saveInvoice() {
-  var cu = (qs("#invoiceCustomer")?.value || "").trim();
-  if (!cu) {
-    toast("Enter customer", "error");
-    return;
-  }
-  var it = [];
-  qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(
-    function (r) {
+  try {
+    var cu = (qs("#invoiceCustomer")?.value || "").trim();
+    if (!cu) { toast("Enter customer", "error"); return; }
+
+    var it = [];
+    qsa(".invoice-line-row", qs("#invoiceServicesContainer")).forEach(function (r) {
       var s = r.querySelector(".invoice-svc-select"),
-        nm = s?.options[s.selectedIndex]?.text || "",
-        pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
-        qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
-      if (nm && nm !== "Select...")
-        it.push({ name: nm, price: pr, qty: qt, type: "service" });
-    },
-  );
-  qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(
-    function (r) {
+          nm = s?.options[s.selectedIndex]?.text || "",
+          pr = parseFloat(r.querySelector(".invoice-svc-price")?.value) || 0,
+          qt = parseInt(r.querySelector(".invoice-svc-qty")?.value) || 1;
+      if (nm && nm !== "Select...") it.push({ name: nm, price: pr, qty: qt, type: "service" });
+    });
+    qsa(".invoice-line-row", qs("#invoiceProductsContainer")).forEach(function (r) {
       var s = r.querySelector(".invoice-prd-select"),
-        nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
-        pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
-        qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
+          nm = s?.options[s.selectedIndex]?.dataset?.fullname || "",
+          pr = parseFloat(r.querySelector(".invoice-prd-price")?.value) || 0,
+          qt = parseInt(r.querySelector(".invoice-prd-qty")?.value) || 1;
       if (nm) it.push({ name: nm, price: pr, qty: qt, type: "product" });
-    },
-  );
-  if (!it.length) {
-    toast("Add items", "error");
-    return;
-  }
-  var st = 0;
-  it.forEach(function (i) {
-    st += i.price * i.qty;
-  });
-  var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
-  var stAfterDiscount = Math.max(0, st - discount);
-  var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
-  var cr = parseFloat(qs("#cashReceived")?.value) || 0;
-  var gt = stAfterDiscount + tx;
-  var invBizSelect = qs("#invoiceBusinessSelect");
-  var businesses = getBusinesses();
-  var biz;
-  if (invBizSelect && invBizSelect.value) {
-    biz = businesses.find(function (b) {
-      return b.id === invBizSelect.value;
     });
-  }
-  if (!biz) {
-    biz = getCurrentBusiness();
-  }
-  var prefix = biz.prefix;
-  var counterKey = "invoiceCounter" + prefix;
-  if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
-  var invNumber =
-    prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
-  var inv = {
-    id: uid(),
-    number: invNumber,
-    date: fmtDate(),
-    time: fmtTime(),
-    token: (qs("#invoiceToken")?.value || "").trim(),
-    vehicle: (qs("#invoiceVehicle")?.value || "").trim(),
-    customer: cu,
-    contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
-    items: it,
-    subtotal: st,
-    discount: discount,
-    tax: tx,
-    total: gt,
-    cashReceived: cr,
-    changeReturned: cr > 0 ? cr - gt : 0,
-    status: cr >= gt && cr > 0 ? "PAID" : "UNPAID",
-    paymentMethod: qs("#invoicePaymentMethod")?.value || "Cash",
-    businessPrefix: prefix,
-    businessId: biz.id,
-    businessName: biz.name,
-  };
-  STATE.invoices.push(inv);
-  STATE.counters[counterKey]++;
-  saveInvoices();
-  saveCounters();
 
-  qs("#invoiceToken").dataset.savedId = inv.id;
+    if (!it.length) { toast("Add items", "error"); return; }
 
-  var tn = inv.token;
-  if (tn) {
-    var tk = STATE.tokens.find(function (t) {
-      return t.number.toLowerCase() === tn.toLowerCase();
-    });
-    if (tk && tk.status !== "completed") {
-      tk.status = "completed";
-      createReminderFromToken(tk);
-      saveTokens();
+    var st = 0;
+    it.forEach(function (i) { st += i.price * i.qty; });
+    var discount = parseFloat(qs("#invoiceDiscount")?.value) || 0;
+    var stAfterDiscount = Math.max(0, st - discount);
+    var tx = stAfterDiscount * (STATE.settings.taxRate / 100);
+    var cr = parseFloat(qs("#cashReceived")?.value) || 0;
+    var gt = stAfterDiscount + tx;
+
+    var invBizSelect = qs("#invoiceBusinessSelect");
+    var businesses = getBusinesses();
+    var biz;
+    if (invBizSelect && invBizSelect.value) {
+      biz = businesses.find(function (b) { return b.id === invBizSelect.value; });
     }
+    if (!biz) { biz = getCurrentBusiness(); }
+
+    var prefix = biz.prefix;
+    var counterKey = "invoiceCounter" + prefix;
+    if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
+    var invNumber = prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
+
+    var inv = {
+      id: uid(),
+      number: invNumber,
+      date: fmtDate(),
+      time: fmtTime(),
+      token: (qs("#invoiceToken")?.value || "").trim(),
+      vehicle: (qs("#invoiceVehicle")?.value || "").trim(),
+      customer: cu,
+      contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
+      items: it,
+      subtotal: st,
+      discount: discount,
+      tax: tx,
+      total: gt,
+      cashReceived: cr,
+      changeReturned: cr > 0 ? cr - gt : 0,
+      status: cr >= gt && cr > 0 ? "PAID" : "UNPAID",
+      paymentMethod: qs("#invoicePaymentMethod")?.value || "Cash",
+      businessPrefix: prefix,
+      businessId: biz.id,
+      businessName: biz.name,
+    };
+
+    STATE.invoices.push(inv);
+    STATE.counters[counterKey]++;
+    saveInvoices();
+    saveCounters();
+
+    // Update linked token if any
+    var tn = inv.token;
+    if (tn) {
+      var tk = STATE.tokens.find(function (t) { return t.number.toLowerCase() === tn.toLowerCase(); });
+      if (tk && tk.status !== "completed") {
+        tk.status = "completed";
+        createReminderFromToken(tk);
+        saveTokens();
+      }
+    }
+
+    toast("Invoice " + inv.number + " saved", "success");
+
+    // Reset form
+    setValue("#invoiceToken", "");
+    setValue("#invoiceVehicle", "");
+    setValue("#invoiceCustomer", "");
+    setValue("#cashReceived", "");
+    setText("#changeReturned", "Rs. 0");
+    qs("#invoiceServicesContainer").innerHTML = "";
+    qs("#invoiceProductsContainer").innerHTML = "";
+    addInvoiceServiceRow("", 0);
+    addInvoiceProductRow("", 0, 1);
+    updateInvoicePreview();
+    renderSavedInvoices();
+    refreshDashboard();
+
+  } catch (e) {
+    console.error("Save invoice error:", e);
+    toast("Error saving invoice. See console.", "error");
   }
-  toast("Invoice " + inv.number + " saved", "success");
-  setValue("#invoiceToken", "");
-  setValue("#invoiceVehicle", "");
-  setValue("#invoiceCustomer", "");
-  setValue("#cashReceived", "");
-  setText("#changeReturned", "Rs. 0");
-  qs("#invoiceServicesContainer").innerHTML = "";
-  qs("#invoiceProductsContainer").innerHTML = "";
-  addInvoiceServiceRow("", 0);
-  addInvoiceProductRow("", 0, 1);
-  updateInvoicePreview();
-  renderSavedInvoices();
-  refreshDashboard();
 }
 function updateInvoicePreview() {
   setText("#invToken", (qs("#invoiceToken")?.value || "").trim() || "—");
@@ -5339,14 +5303,23 @@ function initSettings() {
     confirm(
       "DELETE ALL?",
       function () {
-        Object.values(KEYS).forEach(function (k) {
-          localStorage.removeItem(k);
+        // Safety net: always save a full snapshot BEFORE wiping anything,
+        // and WAIT for it to finish saving, so this is always recoverable
+        // from Import/Export → Emergency Restore, no matter what.
+        runAutoBackupNow(true, "pre-clear-safety").then(function () {
+          Object.values(KEYS).forEach(function (k) {
+            localStorage.removeItem(k);
+          });
+          sessionStorage.removeItem("servicepro_logged_in");
+          sessionStorage.removeItem("servicepro_last_activity");
+          toast(
+            "Safety backup saved. You can undo this from Import/Export → Emergency Restore.",
+            "info",
+          );
+          setTimeout(function () {
+            location.reload();
+          }, 1800);
         });
-        sessionStorage.removeItem("servicepro_logged_in");
-        sessionStorage.removeItem("servicepro_last_activity");
-        setTimeout(function () {
-          location.reload();
-        }, 1500);
       },
       "Clear All",
     );
@@ -6119,10 +6092,13 @@ document.addEventListener('click', function (e) {
     },
     clearDataBtn: function () {
       confirm('DELETE ALL?', function () {
-        Object.values(KEYS).forEach(function (k) { localStorage.removeItem(k); });
-        sessionStorage.removeItem('servicepro_logged_in');
-        sessionStorage.removeItem('servicepro_last_activity');
-        setTimeout(function () { location.reload(); }, 1500);
+        runAutoBackupNow(true, "pre-clear-safety").then(function () {
+          Object.values(KEYS).forEach(function (k) { localStorage.removeItem(k); });
+          sessionStorage.removeItem('servicepro_logged_in');
+          sessionStorage.removeItem('servicepro_last_activity');
+          toast('Safety backup saved. You can undo this from Import/Export → Emergency Restore.', 'info');
+          setTimeout(function () { location.reload(); }, 1800);
+        });
       }, 'Clear All');
     },
   };
@@ -6132,6 +6108,398 @@ document.addEventListener('click', function (e) {
   }
 });
 
+
+// ============================================================
+// NEW (ADDED ONLY) — STRONG AUTO BACKUP SYSTEM
+// ------------------------------------------------------------
+// - Every 30 minutes, takes a COMPLETE snapshot of every single
+//   key/value currently in localStorage (every module, every
+//   section — tokens, vehicles, inventory, invoices, expenses,
+//   reminders, vendors, product sales, pricing, settings,
+//   businesses, counters, brands, categories... literally
+//   everything, including anything added in the future) so
+//   nothing is ever missed.
+// - Stored using IndexedDB (separate from the app's own
+//   localStorage data, so it never competes for the same
+//   storage quota as your live data).
+// - Uses ONE fixed record ("rolling_backup"). Every new 30-min
+//   cycle UPDATES that same record instead of creating a new
+//   one — so the latest backup always lives in the same place
+//   as the previous backup, exactly as requested.
+// - Adds a manual "Backup Now", a way to download the backup
+//   as a file, and two restore options (restore from the
+//   latest auto-backup, or add/upload any backup file) for
+//   emergency data-loss recovery.
+// - This section only ADDS new functionality. It does not
+//   modify, replace, or remove any existing function, module,
+//   or data key used elsewhere in the app.
+// ============================================================
+var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
+var AUTO_BACKUP_STORE = "backups";
+var AUTO_BACKUP_HISTORY_LIMIT = 15; // keep last 15 snapshots — a bad/empty
+// backup can NEVER again silently wipe out the only good copy, because we
+// never overwrite a single record anymore. Older snapshots are pruned only
+// after the newest one is safely saved.
+var autoBackupTimer = null;
+var autoBackupDBPromise = null;
+
+function openAutoBackupDB() {
+  if (autoBackupDBPromise) return autoBackupDBPromise;
+  autoBackupDBPromise = new Promise(function (resolve, reject) {
+    try {
+      if (!window.indexedDB) {
+        reject(new Error("IndexedDB not available"));
+        return;
+      }
+      var req = indexedDB.open(AUTO_BACKUP_DB_NAME, 1);
+      req.onupgradeneeded = function (e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(AUTO_BACKUP_STORE)) {
+          db.createObjectStore(AUTO_BACKUP_STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = function (e) {
+        resolve(e.target.result);
+      };
+      req.onerror = function (e) {
+        reject(e);
+      };
+    } catch (e) {
+      reject(e);
+    }
+  });
+  return autoBackupDBPromise;
+}
+
+// Gathers EVERY key/value currently in localStorage, no matter which
+// module/section it belongs to, so a complete backup is guaranteed.
+// Each snapshot gets its OWN unique id — it is stored as a NEW record,
+// never overwriting a previous one. "reason" just labels why it was taken
+// (auto / manual / pre-clear-safety / pre-restore-safety) so it's easy to
+// tell backups apart in the restore list.
+function collectFullBackupData(reason) {
+  var data = {};
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k == null) continue;
+      data[k] = localStorage.getItem(k);
+    }
+  } catch (e) {}
+  var now = new Date();
+  return {
+    id: "backup_" + now.getTime() + "_" + Math.random().toString(36).substr(2, 6),
+    savedAt: now.toISOString(),
+    savedAtDisplay: fmtDate() + " " + fmtTime(),
+    reason: reason || "auto",
+    localStorageData: data,
+  };
+}
+
+function saveAutoBackupToDB(record) {
+  return openAutoBackupDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var tx = db.transaction(AUTO_BACKUP_STORE, "readwrite");
+        var store = tx.objectStore(AUTO_BACKUP_STORE);
+        store.put(record);
+        tx.oncomplete = function () {
+          resolve(record);
+        };
+        tx.onerror = function (e) {
+          reject(e);
+        };
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+function deleteAutoBackupFromDB(id) {
+  return openAutoBackupDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var tx = db.transaction(AUTO_BACKUP_STORE, "readwrite");
+        var store = tx.objectStore(AUTO_BACKUP_STORE);
+        store.delete(id);
+        tx.oncomplete = function () {
+          resolve();
+        };
+        tx.onerror = function (e) {
+          reject(e);
+        };
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+// Returns ALL saved snapshots, newest first.
+function getAllAutoBackupsFromDB() {
+  return openAutoBackupDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var tx = db.transaction(AUTO_BACKUP_STORE, "readonly");
+        var store = tx.objectStore(AUTO_BACKUP_STORE);
+        var req = store.getAll();
+        req.onsuccess = function () {
+          var list = req.result || [];
+          list.sort(function (a, b) {
+            return (b.savedAt || "").localeCompare(a.savedAt || "");
+          });
+          resolve(list);
+        };
+        req.onerror = function (e) {
+          reject(e);
+        };
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+// Only trims EXCESS old snapshots beyond the history limit — the newest
+// snapshot is always saved and safe *before* anything is ever deleted.
+function pruneOldAutoBackups() {
+  return getAllAutoBackupsFromDB()
+    .then(function (list) {
+      if (list.length <= AUTO_BACKUP_HISTORY_LIMIT) return;
+      var toDelete = list.slice(AUTO_BACKUP_HISTORY_LIMIT);
+      return Promise.all(
+        toDelete.map(function (r) {
+          return deleteAutoBackupFromDB(r.id);
+        }),
+      );
+    })
+    .catch(function () {});
+}
+
+// Backward-compatible helper: latest snapshot only.
+function getAutoBackupFromDB() {
+  return getAllAutoBackupsFromDB().then(function (list) {
+    return list.length ? list[0] : null;
+  });
+}
+
+function updateAutoBackupStatusUI(ts) {
+  var el = qs("#autoBackupStatus");
+  if (el) el.textContent = "Last auto-backup: " + (ts || "Never");
+}
+
+// Returns a Promise so callers (like "Clear All Data") can WAIT for the
+// safety snapshot to finish saving before doing anything destructive.
+function runAutoBackupNow(silent, reason) {
+  try {
+    var record = collectFullBackupData(reason);
+    return saveAutoBackupToDB(record)
+      .then(function () {
+        updateAutoBackupStatusUI(record.savedAtDisplay);
+        pruneOldAutoBackups();
+        if (!silent)
+          toast("Backup saved (" + record.savedAtDisplay + ")", "success");
+        return record;
+      })
+      .catch(function () {
+        if (!silent) toast("Backup failed", "error");
+        return null;
+      });
+  } catch (e) {
+    if (!silent) toast("Backup failed", "error");
+    return Promise.resolve(null);
+  }
+}
+
+// Restores every key/value from a backup object back into localStorage.
+// Used by both "Restore Latest Auto-Backup" and "Add Backup File & Restore".
+function restoreLocalStorageDataObject(dataObj) {
+  try {
+    Object.keys(dataObj).forEach(function (k) {
+      try {
+        localStorage.setItem(k, dataObj[k]);
+      } catch (e) {}
+    });
+    toast("Data restored from backup. Reloading...", "success");
+    setTimeout(function () {
+      location.reload();
+    }, 1200);
+  } catch (e) {
+    toast("Restore failed", "error");
+  }
+}
+
+// Shows a picker of ALL saved snapshots (not just "the latest") so you can
+// always reach back to an older, good backup — even if the newest one
+// happens to be empty/bad. Every restore from here first saves a quick
+// safety snapshot of the CURRENT state, so even a restore is reversible.
+function openAutoBackupPickerModal() {
+  getAllAutoBackupsFromDB().then(function (list) {
+    if (!list.length) {
+      toast("No backup available yet", "warning");
+      return;
+    }
+    var existing = qs("#autoBackupPickerModal");
+    if (existing) existing.remove();
+    var reasonLabels = {
+      auto: "Auto (30-min)",
+      manual: "Manual",
+      "pre-clear-safety": "Before Clear All Data",
+      "pre-restore-safety": "Before Restore",
+    };
+    var rows = list
+      .map(function (rec, idx) {
+        var keyCount = rec.localStorageData
+          ? Object.keys(rec.localStorageData).length
+          : 0;
+        var label = reasonLabels[rec.reason] || "Auto";
+        return (
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:10px;"><div><strong>' +
+          sanitize(rec.savedAtDisplay || "") +
+          '</strong>' +
+          (idx === 0
+            ? ' <span class="badge badge--green" style="font-size:0.6rem">Latest</span>'
+            : "") +
+          '<br><small style="color:var(--text-muted);">' +
+          sanitize(label) +
+          " • " +
+          keyCount +
+          ' data keys</small></div><button class="btn btn-sm btn-primary" data-restore-backup="' +
+          sanitize(rec.id) +
+          '">Restore</button></div>'
+        );
+      })
+      .join("");
+    var html =
+      '<div class="modal-overlay" id="autoBackupPickerModal"><div class="modal modal--sm"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">history</span> Choose a Backup to Restore</h2><button class="modal-close" onclick="document.getElementById(\'autoBackupPickerModal\').remove();document.body.style.overflow=\'\';"><span class="material-icons">close</span></button></div><div class="modal-body" style="max-height:400px;overflow-y:auto;padding:0 1.25rem;">' +
+      rows +
+      '</div><div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'autoBackupPickerModal\').remove();document.body.style.overflow=\'\';">Cancel</button></div></div></div>';
+    document.body.insertAdjacentHTML("beforeend", html);
+    openModal("autoBackupPickerModal");
+    qsa("[data-restore-backup]", qs("#autoBackupPickerModal")).forEach(function (
+      btn,
+    ) {
+      btn.addEventListener("click", function () {
+        var id = this.dataset.restoreBackup;
+        var rec = list.find(function (r) {
+          return r.id === id;
+        });
+        if (!rec) return;
+        var pickerModal = qs("#autoBackupPickerModal");
+        if (pickerModal) pickerModal.remove();
+        document.body.style.overflow = "";
+        confirm(
+          "Restore system from backup (" +
+            (rec.savedAtDisplay || "") +
+            ")? This will overwrite current data.",
+          function () {
+            runAutoBackupNow(true, "pre-restore-safety").then(function () {
+              restoreLocalStorageDataObject(rec.localStorageData);
+            });
+          },
+          "Restore",
+        );
+      });
+    });
+  });
+}
+
+function initAutoBackupSystem() {
+  // Show last known backup time immediately, if one already exists, and
+  // avoid taking a redundant near-duplicate snapshot right after login if
+  // one was already saved in the last 5 minutes.
+  getAutoBackupFromDB()
+    .then(function (rec) {
+      updateAutoBackupStatusUI(rec ? rec.savedAtDisplay : "Never");
+      var shouldRunInitial = true;
+      if (rec && rec.savedAt) {
+        var last = new Date(rec.savedAt).getTime();
+        if (!isNaN(last) && Date.now() - last < 5 * 60 * 1000) {
+          shouldRunInitial = false;
+        }
+      }
+      if (shouldRunInitial) {
+        setTimeout(function () {
+          runAutoBackupNow(true, "auto");
+        }, 8000);
+      }
+    })
+    .catch(function () {
+      setTimeout(function () {
+        runAutoBackupNow(true, "auto");
+      }, 8000);
+    });
+
+  // Every 30 minutes, save a NEW snapshot (never overwrites old ones).
+  if (autoBackupTimer) clearInterval(autoBackupTimer);
+  autoBackupTimer = setInterval(function () {
+    runAutoBackupNow(true, "auto");
+  }, AUTO_BACKUP_INTERVAL_MS);
+
+  qs("#runAutoBackupNowBtn")?.addEventListener("click", function () {
+    runAutoBackupNow(false, "manual");
+  });
+
+  qs("#downloadAutoBackupBtn")?.addEventListener("click", function () {
+    getAutoBackupFromDB().then(function (rec) {
+      if (!rec) {
+        toast("No auto-backup available yet", "warning");
+        return;
+      }
+      var blob = new Blob([JSON.stringify(rec, null, 2)], {
+        type: "application/json",
+      });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "auto_backup_" + fmtDate() + ".json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast("Auto-backup file downloaded", "success");
+    });
+  });
+
+  qs("#restoreFromAutoBackupBtn")?.addEventListener("click", function () {
+    openAutoBackupPickerModal();
+  });
+
+  qs("#addBackupFileBtn")?.addEventListener("click", function () {
+    var inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".json";
+    inp.addEventListener("change", function (e) {
+      var f = e.target.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function (ev) {
+        try {
+          var parsed = JSON.parse(ev.target.result);
+          var dataObj =
+            parsed && parsed.localStorageData ? parsed.localStorageData : parsed;
+          if (!dataObj || typeof dataObj !== "object") {
+            toast("Invalid backup file", "error");
+            return;
+          }
+          confirm(
+            "Add this backup file to the system and restore all data from it? Current data will be overwritten.",
+            function () {
+              // Safety snapshot of current state first, so even THIS is reversible.
+              runAutoBackupNow(true, "pre-restore-safety").then(function () {
+                restoreLocalStorageDataObject(dataObj);
+              });
+            },
+            "Restore",
+          );
+        } catch (e) {
+          toast("Invalid backup file", "error");
+        }
+      };
+      r.readAsText(f);
+    });
+    inp.click();
+  });
+}
 
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {

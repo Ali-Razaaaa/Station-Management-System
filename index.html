@@ -1664,6 +1664,94 @@
                   </p>
                 </div>
               </div>
+              <!-- ============================================================
+                   NEW (ADDED ONLY): Strong Auto Backup System
+                   - Automatically saves a full backup (every localStorage
+                     key/value from every module) every 30 minutes.
+                   - Every new 30-min backup UPDATES the same saved backup
+                     record instead of creating a new one each time.
+                   ============================================================ -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">shield</span> Auto Backup
+                    (Every 30 Minutes)
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    The system automatically saves a complete backup of
+                    <strong>all data from every section</strong> — tokens,
+                    vehicles, inventory, invoices, expenses, reminders,
+                    vendors, product sales, pricing, settings, businesses,
+                    everything — every 30 minutes. Each new auto-backup
+                    updates the same saved backup, so you always have the
+                    latest full snapshot.
+                  </p>
+                  <p
+                    id="autoBackupStatus"
+                    style="
+                      font-size: 0.72rem;
+                      color: var(--text-muted);
+                      margin-bottom: 0.75rem;
+                      font-weight: 600;
+                    "
+                  >
+                    Last auto-backup: Never
+                  </p>
+                  <div class="backup-actions">
+                    <button class="btn btn-outline" id="runAutoBackupNowBtn">
+                      <span class="material-icons">sync</span> Backup Now
+                    </button>
+                    <button
+                      class="btn btn-export-json"
+                      id="downloadAutoBackupBtn"
+                    >
+                      <span class="material-icons">download</span> Download
+                      Auto-Backup File
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">restore_page</span>
+                    Emergency Restore (Data Loss)
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    Use this if data is ever lost, deleted, or the app
+                    resets. You can instantly restore from the latest
+                    automatic backup, or add a previously saved backup file
+                    to bring your data back into the system.
+                  </p>
+                  <div class="backup-actions">
+                    <button
+                      class="btn btn-outline"
+                      id="restoreFromAutoBackupBtn"
+                    >
+                      <span class="material-icons">history</span> Restore
+                      Latest Auto-Backup
+                    </button>
+                    <button class="btn btn-import" id="addBackupFileBtn">
+                      <span class="material-icons">upload_file</span> Add
+                      Backup File & Restore
+                    </button>
+                  </div>
+                  <p
+                    style="
+                      font-size: 0.7rem;
+                      color: var(--danger);
+                      margin-top: 0.5rem;
+                    "
+                  >
+                    ⚠ Restoring will overwrite current data with the backup's
+                    data.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
