@@ -6137,7 +6137,7 @@ document.addEventListener('click', function (e) {
 var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
 var AUTO_BACKUP_STORE = "backups";
-var AUTO_BACKUP_HISTORY_LIMIT = 15; // keep last 15 snapshots — a bad/empty
+var AUTO_BACKUP_HISTORY_LIMIT = 1500; // keep last 15 snapshots — a bad/empty
 // backup can NEVER again silently wipe out the only good copy, because we
 // never overwrite a single record anymore. Older snapshots are pruned only
 // after the newest one is safely saved.
