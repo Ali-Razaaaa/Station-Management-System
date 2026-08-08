@@ -1713,6 +1713,55 @@
                   </div>
                 </div>
               </div>
+              <!-- ============================================================
+                   NEW (ADDED ONLY): Google Drive direct backup folder.
+                   Every 30-min auto-backup also gets written straight to
+                   this folder (as one fixed, overwritten file), so if
+                   Google Drive Desktop is syncing that folder, the backup
+                   reaches the cloud automatically with no manual click.
+                   ============================================================ -->
+              <div class="card">
+                <div class="card-header">
+                  <h2 class="card-title">
+                    <span class="material-icons">cloud_sync</span> Google
+                    Drive Backup Folder
+                  </h2>
+                </div>
+                <div class="card-body">
+                  <p class="settings-desc">
+                    Select your Google Drive Desktop sync folder once. Every
+                    30-minute auto-backup will then also be written directly
+                    into that folder (as a single file that keeps getting
+                    updated), and Google Drive will upload it to the cloud
+                    on its own — no further clicks needed.
+                  </p>
+                  <p
+                    id="driveFolderPath"
+                    style="
+                      font-size: 0.72rem;
+                      color: var(--text-muted);
+                      margin-bottom: 0.35rem;
+                      font-weight: 600;
+                    "
+                  >
+                    Not set
+                  </p>
+                  <p
+                    id="driveBackupStatus"
+                    style="
+                      font-size: 0.72rem;
+                      color: var(--text-muted);
+                      margin-bottom: 0.75rem;
+                    "
+                  ></p>
+                  <div class="backup-actions">
+                    <button class="btn btn-primary" id="selectDriveFolderBtn">
+                      <span class="material-icons">folder</span> Set Google
+                      Drive Backup Folder
+                    </button>
+                  </div>
+                </div>
+              </div>
               <div class="card">
                 <div class="card-header">
                   <h2 class="card-title">

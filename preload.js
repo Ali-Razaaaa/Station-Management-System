@@ -7,4 +7,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getPrinters: function () {
     return ipcRenderer.invoke("get-printers");
   },
+
+  // NEW (added only) — Google Drive backup folder support
+  selectBackupFolder: function () {
+    return ipcRenderer.invoke("select-backup-folder");
+  },
+  getBackupFolder: function () {
+    return ipcRenderer.invoke("get-backup-folder");
+  },
+  saveBackupFile: function (jsonString, filename) {
+    return ipcRenderer.invoke("save-backup-file", jsonString, filename);
+  },
 });

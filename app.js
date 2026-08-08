@@ -287,7 +287,8 @@ var STATE = {
   sessionStart: new Date(),
   lastProductSaleInvoiceId: null,
   pendingImport: null,
-  lowStockFilterActive: false,  
+  lowStockFilterActive: false,
+  appInitialized: false, // NEW: guards initApp() one-time setup (see initApp)
 };
 
 function persist(k, d) {
@@ -981,128 +982,149 @@ function initApp() {
   closeAllModals();
   updateLastActivity();
   setText("#currentDate", fmtDate());
-  updateSessionTime();
-  setInterval(updateSessionTime, 60000);
   updateAllBrandNames();
-  setupModalClosers();
-  initBusinessSwitcher();
-  var mb = qs("#mobileMenuBtn"),
-    sb = qs("#sidebarCloseBtn"),
-    s = qs("#sidebar"),
-    bd = qs("#sidebarBackdrop");
-  function openSidebar() {
-    if (!s || !bd) return;
-    s.classList.add("mobile-open");
-    bd.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-  }
-  function closeSidebar() {
-    if (!s || !bd) return;
-    s.classList.remove("mobile-open");
-    bd.classList.add("hidden");
-    document.body.style.overflow = "";
-  }
-  if (mb) mb.addEventListener("click", openSidebar);
-  if (sb) sb.addEventListener("click", closeSidebar);
-  if (bd) bd.addEventListener("click", closeSidebar);
-  qs("#sidebarToggle")?.addEventListener("click", function () {
-    var sb2 = qs("#sidebar"),
-      mw = qs("#mainWrapper");
-    if (!sb2 || !mw) return;
-    sb2.classList.toggle("collapsed");
-    mw.classList.toggle("sidebar-collapsed");
-  });
-  qsa(".nav-link").forEach(function (l) {
-    l.addEventListener("click", function (e) {
-      e.preventDefault();
-      if (l.dataset.module) navigateTo(l.dataset.module);
-      if (window.innerWidth <= 768) closeSidebar();
-    });
-  });
-  qs("#logoutBtn")?.addEventListener("click", function () {
-    confirm(
-      "Are you sure you want to sign out?",
-      function () {
-        logoutSession();
-      },
-      "Sign Out",
-    );
-  });
-  qs("#confirmActionBtn")?.addEventListener("click", function () {
-    if (STATE.confirmCallback) {
-      STATE.confirmCallback();
-      STATE.confirmCallback = null;
+
+  // ============================================================
+  // FIX (duplicate business name box + duplicate tokens):
+  // initApp() runs every time someone logs in — including repeat
+  // logins after a manual logout or a session timeout, without a
+  // full page reload. Everything below this guard attaches
+  // addEventListener() calls and builds one-time UI (like the
+  // business switcher box in the topbar). Previously these ran on
+  // EVERY login, so after logging in 3 times, #saveTokenBtn had 3
+  // click listeners stacked on it (1 click => 3 tokens saved), and
+  // initBusinessSwitcher() had inserted its box into the topbar 3
+  // times (3 duplicate business names shown). Wrapping this whole
+  // block in "if (!STATE.appInitialized)" makes it run exactly once
+  // per page load, no matter how many times login/logout happens.
+  // Nothing inside was removed or altered — only guarded.
+  // ============================================================
+  if (!STATE.appInitialized) {
+    STATE.appInitialized = true;
+
+    updateSessionTime();
+    setInterval(updateSessionTime, 60000);
+    setupModalClosers();
+    initBusinessSwitcher();
+    var mb = qs("#mobileMenuBtn"),
+      sb = qs("#sidebarCloseBtn"),
+      s = qs("#sidebar"),
+      bd = qs("#sidebarBackdrop");
+    function openSidebar() {
+      if (!s || !bd) return;
+      s.classList.add("mobile-open");
+      bd.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
     }
-    closeModal("confirmModal");
-  });
-  document.addEventListener("click", function (e) {
-    var ab = e.target.closest("[data-action]");
-    if (ab) { handleQuickAction(ab.dataset.action); return; }
-    var nb = e.target.closest("[data-nav]");
-    if (nb) { navigateTo(nb.dataset.nav); return; }
-    var wa = e.target.closest("[data-wa]");
-    if (wa) { var r = STATE.reminders.find(function (r) { return r.id === wa.dataset.wa; }); if (r) openWhatsApp(r.phone, r.customerName, r.vehicleNo, r.service, r.serviceDate); return; }
-    var cr = e.target.closest("[data-cr]");
-    if (cr) { var r = STATE.reminders.find(function (r) { return r.id === cr.dataset.cr; }); if (r) { r.status = "completed"; saveReminders(); renderReminderTable(); refreshDashboard(); } return; }
-    var dr = e.target.closest("[data-dr]");
-    if (dr) { confirm("Delete reminder?", function () { STATE.reminders = STATE.reminders.filter(function (r) { return r.id !== dr.dataset.dr; }); saveReminders(); renderReminderTable(); refreshDashboard(); }); return; }
-    var tpr = e.target.closest("[data-token-print]");
-    if (tpr) { printTokenReceipt(tpr.dataset.tokenPrint); return; }
-    var tp = e.target.closest("[data-token-progress]");
-    if (tp) { updateTokenStatus(tp.dataset.tokenProgress, "in-progress"); return; }
-    var tc = e.target.closest("[data-token-complete]");
-    if (tc) { var t = STATE.tokens.find(function (t) { return t.id === tc.dataset.tokenComplete; }); if (t) { t.status = "completed"; saveTokens(); createReminderFromToken(t); renderTokenTable(); refreshDashboard(); } return; }
-    var ti = e.target.closest("[data-token-invoice]");
-    if (ti) { openInvoiceForToken(ti.dataset.tokenInvoice); return; }
-    var te = e.target.closest("[data-token-edit]");
-    if (te) { openEditTokenModal(te.dataset.tokenEdit); return; }
-    var td = e.target.closest("[data-token-delete]");
-    if (td) { confirm("Remove token?", function () { var t = STATE.tokens.find(function (t) { return t.id === td.dataset.tokenDelete; }); if (t && t.products) { t.products.forEach(function (p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; }); saveInventory(); } STATE.tokens = STATE.tokens.filter(function (t) { return t.id !== td.dataset.tokenDelete; }); saveTokens(); renderTokenTable(); refreshDashboard(); }); return; }
-    var ve = e.target.closest("[data-vehicle-edit]");
-    if (ve) { var v = STATE.vehicles.find(function (v) { return v.id === ve.dataset.vehicleEdit; }); if (v) openNewVehicleModal(v); return; }
-    var vd = e.target.closest("[data-vehicle-delete]");
-    if (vd) { confirm("Delete vehicle?", function () { STATE.vehicles = STATE.vehicles.filter(function (v) { return v.id !== vd.dataset.vehicleDelete; }); saveVehicles(); renderVehicleTable(); }); return; }
-    var si = e.target.closest("[data-stock-in]");
-    if (si) { openStockModal(si.dataset.stockIn, "in"); return; }
-    var so = e.target.closest("[data-stock-out]");
-    if (so) { openStockModal(so.dataset.stockOut, "out"); return; }
-    var vdd = e.target.closest("[data-variant-delete]");
-    if (vdd) { confirm("Delete variant?", function () { STATE.inventory.forEach(function (p) { p.variants = (p.variants || []).filter(function (v) { return v.id !== vdd.dataset.variantDelete; }); }); STATE.inventory = STATE.inventory.filter(function (p) { return (p.variants || []).length > 0; }); saveInventory(); renderInventoryTable(); updateInventoryKPI(); refreshDashboard(); }); return; }
-    var vi = e.target.closest("[data-view-invoice]");
-    if (vi) { viewInvoice(vi.dataset.viewInvoice); return; }
-    var pi = e.target.closest("[data-print-receipt]");
-    if (pi) { printSavedReceipt(pi.dataset.printReceipt); return; }
-    var pa4 = e.target.closest("[data-print-a4]");
-    if (pa4) { printA4Invoice(pa4.dataset.printA4); return; }
-    var di = e.target.closest("[data-delete-invoice]");
-    if (di) { confirm("Delete invoice?", function () { STATE.invoices = STATE.invoices.filter(function (i) { return i.id !== di.dataset.deleteInvoice; }); saveInvoices(); renderSavedInvoices(); }); return; }
-    var ed = e.target.closest("[data-expense-del]");
-    if (ed) { confirm("Delete?", function () { STATE.expenses = STATE.expenses.filter(function (ex) { return ex.id !== ed.dataset.expenseDel; }); saveExpenses(); renderExpenses(); refreshDashboard(); }); return; }
-    var bd2 = e.target.closest("[data-brand-delete]");
-    if (bd2) { var id = bd2.dataset.brandDelete; if (getAllVariantsFlat().some(function (v) { return v.brand === (STATE.brands.find(function (b) { return b.id === id; }) || {}).name; })) { toast("Brand in use", "warning"); return; } STATE.brands = STATE.brands.filter(function (b) { return b.id !== id; }); saveBrands(); populateBrandDropdowns(); renderBrandList(); return; }
-    var cd = e.target.closest("[data-cat-delete]");
-    if (cd) { var id = cd.dataset.catDelete; if (STATE.inventory.some(function (p) { return p.category === id; })) { toast("Category in use", "warning"); return; } STATE.categories = STATE.categories.filter(function (c) { return c.id !== id; }); saveCategories(); populateCategoryDropdowns(); renderCategoryList(); return; }
-    var vtd = e.target.closest("[data-vtype-delete]");
-    if (vtd) { STATE.pricingVehicles = STATE.pricingVehicles.filter(function (v) { return v.id !== vtd.dataset.vtypeDelete; }); savePricingVehicles(); renderVehicleTypeList(); renderPricingMatrix(); return; }
-    var psd = e.target.closest("[data-psvc-delete]");
-    if (psd) { STATE.pricingServices = STATE.pricingServices.filter(function (s) { return s.id !== psd.dataset.psvcDelete; }); savePricingServices(); renderPricingServiceList(); renderPricingMatrix(); return; }
-    var bed = e.target.closest("[data-biz-edit]");
-    if (bed) { openBusinessEditModal(bed.dataset.bizEdit); return; }
-  });
-  initDashboard();
-  initTokens();
-  initVehicles();
-  initInventory();
-  initBilling();
-  initReports();
-  initExpenses();
-  initServices();
-  initProductSales();
-  initReminders();
-  initImportExport();
-  initSettings();
-  initVendors();
-  initAutoBackupSystem(); // NEW (added only): starts the 30-min auto backup engine
+    function closeSidebar() {
+      if (!s || !bd) return;
+      s.classList.remove("mobile-open");
+      bd.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+    if (mb) mb.addEventListener("click", openSidebar);
+    if (sb) sb.addEventListener("click", closeSidebar);
+    if (bd) bd.addEventListener("click", closeSidebar);
+    qs("#sidebarToggle")?.addEventListener("click", function () {
+      var sb2 = qs("#sidebar"),
+        mw = qs("#mainWrapper");
+      if (!sb2 || !mw) return;
+      sb2.classList.toggle("collapsed");
+      mw.classList.toggle("sidebar-collapsed");
+    });
+    qsa(".nav-link").forEach(function (l) {
+      l.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (l.dataset.module) navigateTo(l.dataset.module);
+        if (window.innerWidth <= 768) closeSidebar();
+      });
+    });
+    qs("#logoutBtn")?.addEventListener("click", function () {
+      confirm(
+        "Are you sure you want to sign out?",
+        function () {
+          logoutSession();
+        },
+        "Sign Out",
+      );
+    });
+    qs("#confirmActionBtn")?.addEventListener("click", function () {
+      if (STATE.confirmCallback) {
+        STATE.confirmCallback();
+        STATE.confirmCallback = null;
+      }
+      closeModal("confirmModal");
+    });
+    document.addEventListener("click", function (e) {
+      var ab = e.target.closest("[data-action]");
+      if (ab) { handleQuickAction(ab.dataset.action); return; }
+      var nb = e.target.closest("[data-nav]");
+      if (nb) { navigateTo(nb.dataset.nav); return; }
+      var wa = e.target.closest("[data-wa]");
+      if (wa) { var r = STATE.reminders.find(function (r) { return r.id === wa.dataset.wa; }); if (r) openWhatsApp(r.phone, r.customerName, r.vehicleNo, r.service, r.serviceDate); return; }
+      var cr = e.target.closest("[data-cr]");
+      if (cr) { var r = STATE.reminders.find(function (r) { return r.id === cr.dataset.cr; }); if (r) { r.status = "completed"; saveReminders(); renderReminderTable(); refreshDashboard(); } return; }
+      var dr = e.target.closest("[data-dr]");
+      if (dr) { confirm("Delete reminder?", function () { STATE.reminders = STATE.reminders.filter(function (r) { return r.id !== dr.dataset.dr; }); saveReminders(); renderReminderTable(); refreshDashboard(); }); return; }
+      var tpr = e.target.closest("[data-token-print]");
+      if (tpr) { printTokenReceipt(tpr.dataset.tokenPrint); return; }
+      var tp = e.target.closest("[data-token-progress]");
+      if (tp) { updateTokenStatus(tp.dataset.tokenProgress, "in-progress"); return; }
+      var tc = e.target.closest("[data-token-complete]");
+      if (tc) { var t = STATE.tokens.find(function (t) { return t.id === tc.dataset.tokenComplete; }); if (t) { t.status = "completed"; saveTokens(); createReminderFromToken(t); renderTokenTable(); refreshDashboard(); } return; }
+      var ti = e.target.closest("[data-token-invoice]");
+      if (ti) { openInvoiceForToken(ti.dataset.tokenInvoice); return; }
+      var te = e.target.closest("[data-token-edit]");
+      if (te) { openEditTokenModal(te.dataset.tokenEdit); return; }
+      var td = e.target.closest("[data-token-delete]");
+      if (td) { confirm("Remove token?", function () { var t = STATE.tokens.find(function (t) { return t.id === td.dataset.tokenDelete; }); if (t && t.products) { t.products.forEach(function (p) { var f = findVariantById(p.variantId); if (f) f.variant.stock += p.qty; }); saveInventory(); } STATE.tokens = STATE.tokens.filter(function (t) { return t.id !== td.dataset.tokenDelete; }); saveTokens(); renderTokenTable(); refreshDashboard(); }); return; }
+      var ve = e.target.closest("[data-vehicle-edit]");
+      if (ve) { var v = STATE.vehicles.find(function (v) { return v.id === ve.dataset.vehicleEdit; }); if (v) openNewVehicleModal(v); return; }
+      var vd = e.target.closest("[data-vehicle-delete]");
+      if (vd) { confirm("Delete vehicle?", function () { STATE.vehicles = STATE.vehicles.filter(function (v) { return v.id !== vd.dataset.vehicleDelete; }); saveVehicles(); renderVehicleTable(); }); return; }
+      var si = e.target.closest("[data-stock-in]");
+      if (si) { openStockModal(si.dataset.stockIn, "in"); return; }
+      var so = e.target.closest("[data-stock-out]");
+      if (so) { openStockModal(so.dataset.stockOut, "out"); return; }
+      var vdd = e.target.closest("[data-variant-delete]");
+      if (vdd) { confirm("Delete variant?", function () { STATE.inventory.forEach(function (p) { p.variants = (p.variants || []).filter(function (v) { return v.id !== vdd.dataset.variantDelete; }); }); STATE.inventory = STATE.inventory.filter(function (p) { return (p.variants || []).length > 0; }); saveInventory(); renderInventoryTable(); updateInventoryKPI(); refreshDashboard(); }); return; }
+      var vi = e.target.closest("[data-view-invoice]");
+      if (vi) { viewInvoice(vi.dataset.viewInvoice); return; }
+      var pi = e.target.closest("[data-print-receipt]");
+      if (pi) { printSavedReceipt(pi.dataset.printReceipt); return; }
+      var pa4 = e.target.closest("[data-print-a4]");
+      if (pa4) { printA4Invoice(pa4.dataset.printA4); return; }
+      var di = e.target.closest("[data-delete-invoice]");
+      if (di) { confirm("Delete invoice?", function () { STATE.invoices = STATE.invoices.filter(function (i) { return i.id !== di.dataset.deleteInvoice; }); saveInvoices(); renderSavedInvoices(); }); return; }
+      var ed = e.target.closest("[data-expense-del]");
+      if (ed) { confirm("Delete?", function () { STATE.expenses = STATE.expenses.filter(function (ex) { return ex.id !== ed.dataset.expenseDel; }); saveExpenses(); renderExpenses(); refreshDashboard(); }); return; }
+      var bd2 = e.target.closest("[data-brand-delete]");
+      if (bd2) { var id = bd2.dataset.brandDelete; if (getAllVariantsFlat().some(function (v) { return v.brand === (STATE.brands.find(function (b) { return b.id === id; }) || {}).name; })) { toast("Brand in use", "warning"); return; } STATE.brands = STATE.brands.filter(function (b) { return b.id !== id; }); saveBrands(); populateBrandDropdowns(); renderBrandList(); return; }
+      var cd = e.target.closest("[data-cat-delete]");
+      if (cd) { var id = cd.dataset.catDelete; if (STATE.inventory.some(function (p) { return p.category === id; })) { toast("Category in use", "warning"); return; } STATE.categories = STATE.categories.filter(function (c) { return c.id !== id; }); saveCategories(); populateCategoryDropdowns(); renderCategoryList(); return; }
+      var vtd = e.target.closest("[data-vtype-delete]");
+      if (vtd) { STATE.pricingVehicles = STATE.pricingVehicles.filter(function (v) { return v.id !== vtd.dataset.vtypeDelete; }); savePricingVehicles(); renderVehicleTypeList(); renderPricingMatrix(); return; }
+      var psd = e.target.closest("[data-psvc-delete]");
+      if (psd) { STATE.pricingServices = STATE.pricingServices.filter(function (s) { return s.id !== psd.dataset.psvcDelete; }); savePricingServices(); renderPricingServiceList(); renderPricingMatrix(); return; }
+      var bed = e.target.closest("[data-biz-edit]");
+      if (bed) { openBusinessEditModal(bed.dataset.bizEdit); return; }
+    });
+    initDashboard();
+    initTokens();
+    initVehicles();
+    initInventory();
+    initBilling();
+    initReports();
+    initExpenses();
+    initServices();
+    initProductSales();
+    initReminders();
+    initImportExport();
+    initSettings();
+    initVendors();
+    initAutoBackupSystem(); // NEW (added only): starts the 30-min auto backup engine
+  }
+
   navigateTo("dashboard");
 }
 // ==================== BUSINESS SWITCHER ====================
@@ -4666,6 +4688,7 @@ function getModuleData(mod) {
   if (mod === "expenses") return STATE.expenses;
   if (mod === "reminders") return STATE.reminders;
   if (mod === "productSales") return STATE.productSales;
+  if (mod === "pricingMatrix") return STATE.pricingMatrix; // FIX: was missing, single-module export returned {}
   return {};
 }
 function exportJSON() {
@@ -4679,65 +4702,115 @@ function exportJSON() {
   URL.revokeObjectURL(a.href);
   toast("Exported JSON", "success");
 }
+// ============================================================
+// FIXED (strengthened) — exportCSV now covers EVERY module, not
+// just inventory + tokens. Also uses a proper esc() that never
+// prints "undefined"/"null" as text. Nothing about the calling
+// convention changed — exportCSV(mo) still works exactly the
+// same way from every existing button.
+// ============================================================
 function exportCSV(mo) {
   var m = mo || qs("#exportModule")?.value || "all";
   var csv = "";
   var esc = function (v) {
-    return '"' + String(v || "").replace(/"/g, '""') + '"';
+    return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
   };
+
   if (m === "all" || m === "inventory") {
     csv +=
       "Product Type,Brand,Model,Grade,Size,SKU,Purchase Price,Selling Price,Stock,Min Stock\n";
     getAllVariantsFlat().forEach(function (v) {
       csv +=
-        esc(v.productType) +
-        "," +
-        esc(v.brand) +
-        "," +
-        esc(v.model) +
-        "," +
-        esc(v.grade) +
-        "," +
-        esc(v.size) +
-        "," +
-        esc(v.sku) +
-        "," +
-        v.purchasePrice +
-        "," +
-        v.sellingPrice +
-        "," +
-        v.stock +
-        "," +
-        v.minStock +
-        "\n";
+        esc(v.productType) + "," + esc(v.brand) + "," + esc(v.model) + "," +
+        esc(v.grade) + "," + esc(v.size) + "," + esc(v.sku) + "," +
+        v.purchasePrice + "," + v.sellingPrice + "," + v.stock + "," + v.minStock + "\n";
     });
   }
   if (m === "all" || m === "tokens") {
     if (csv) csv += "\n";
     csv +=
-      "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time,Business\n";
+      "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time,Business Prefix,Business Name\n";
     STATE.tokens.forEach(function (t) {
       csv +=
-        esc(t.number) +
-        "," +
-        esc(t.vehicleNo) +
-        "," +
-        esc(t.vehicleType) +
-        "," +
-        esc(t.ownerName) +
-        "," +
-        esc(t.contactNumber) +
-        "," +
-        esc(t.service) +
-        "," +
-        t.status +
-        "," +
-        t.time +
-        "," +
-        esc(t.businessName || "") +
-        "\n";
+        esc(t.number) + "," + esc(t.vehicleNo) + "," + esc(t.vehicleType) + "," +
+        esc(t.ownerName) + "," + esc(t.contactNumber) + "," + esc(t.service) + "," +
+        esc(t.status) + "," + esc(t.time) + "," + esc(t.businessPrefix || "") + "," +
+        esc(t.businessName || "") + "\n";
     });
   }
+  if (m === "all" || m === "vehicles") {
+    if (csv) csv += "\n";
+    csv += "Vehicle No,Owner,Contact,Type,Visits,Last Service\n";
+    STATE.vehicles.forEach(function (v) {
+      csv +=
+        esc(v.vehicleNo) + "," + esc(v.owner) + "," + esc(v.contact) + "," +
+        esc(v.type) + "," + (v.visits || 0) + "," + esc(v.lastService || "") + "\n";
+    });
+  }
+  if (m === "all" || m === "expenses") {
+    if (csv) csv += "\n";
+    csv += "Title,Category,Amount,Date,Time\n";
+    STATE.expenses.forEach(function (e) {
+      csv +=
+        esc(e.title) + "," + esc(e.category) + "," + (e.amount || 0) + "," +
+        esc(e.date) + "," + esc(e.time) + "\n";
+    });
+  }
+  if (m === "all" || m === "reminders") {
+    if (csv) csv += "\n";
+    csv +=
+      "Token ID,Customer,Phone,Vehicle,Vehicle Type,Service,Service Date,Due Date,Days,Status\n";
+    STATE.reminders.forEach(function (r) {
+      csv +=
+        esc(r.tokenId) + "," + esc(r.customerName) + "," + esc(r.phone) + "," +
+        esc(r.vehicleNo) + "," + esc(r.vehicleType) + "," + esc(r.service) + "," +
+        esc(r.serviceDate) + "," + esc(r.dueDate) + "," + (r.reminderDays || 30) + "," +
+        esc(r.status) + "\n";
+    });
+  }
+  if (m === "all" || m === "invoices") {
+    if (csv) csv += "\n";
+    csv +=
+      "Invoice #,Date,Time,Token,Vehicle,Customer,Contact,Items Summary,Subtotal,Discount,Tax,Total,Cash Received,Change,Status,Business Prefix,Business Name\n";
+    STATE.invoices.forEach(function (inv) {
+      var itemsSummary = (inv.items || [])
+        .map(function (it) { return it.name + " x" + it.qty; })
+        .join(" | ");
+      csv +=
+        esc(inv.number) + "," + esc(inv.date) + "," + esc(inv.time) + "," +
+        esc(inv.token || "") + "," + esc(inv.vehicle || "") + "," + esc(inv.customer) + "," +
+        esc(inv.contactNumber || "") + "," + esc(itemsSummary) + "," +
+        (inv.subtotal || 0) + "," + (inv.discount || 0) + "," + (inv.tax || 0) + "," +
+        (inv.total || 0) + "," + (inv.cashReceived || 0) + "," + (inv.changeReturned || 0) + "," +
+        esc(inv.status) + "," + esc(inv.businessPrefix || "") + "," + esc(inv.businessName || "") + "\n";
+    });
+  }
+  if (m === "all" || m === "productSales") {
+    if (csv) csv += "\n";
+    csv += "Date,Time,Customer,Vehicle,Items Summary,Discount,Total\n";
+    STATE.productSales.forEach(function (s) {
+      var itemsSummary = (s.items || [])
+        .map(function (it) { return it.fullName + " x" + it.qty; })
+        .join(" | ");
+      csv +=
+        esc(s.date) + "," + esc(s.time) + "," + esc(s.customer) + "," +
+        esc(s.vehicleNo || "") + "," + esc(itemsSummary) + "," + (s.discount || 0) + "," +
+        (s.total || 0) + "\n";
+    });
+  }
+  if (m === "all" || m === "pricingMatrix") {
+    if (csv) csv += "\n";
+    csv += "key,price\n";
+    Object.keys(STATE.pricingMatrix).forEach(function (k) {
+      csv += esc(k) + "," + STATE.pricingMatrix[k] + "\n";
+    });
+  }
+
+  if (!csv) {
+    toast("No data to export for this module", "warning");
+    return;
+  }
+
   var b = new Blob([csv], { type: "text/csv" });
   var a = document.createElement("a");
   a.href = URL.createObjectURL(b);
@@ -4876,6 +4949,47 @@ function quickRestore() {
   });
   inp.click();
 }
+// ============================================================
+// NEW (ADDED ONLY) — quote-aware CSV line parser. The previous
+// parser did a plain line.split(","), which breaks any field
+// that itself contains a comma (e.g. an address like
+// "Main Road, City", or a token's Service list like
+// "Full Body Wash, Wax"). This parser respects quoted fields
+// and escaped quotes ("") so CSV import round-trips correctly
+// with the values exportCSV() produces.
+// ============================================================
+function parseCSVLine(line) {
+  var result = [],
+    cur = "",
+    inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        result.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
 function importFile() {
   var m = qs("#importModule")?.value || "inventory";
   var fmt = qs("#importFormat")?.value || "json";
@@ -4897,21 +5011,24 @@ function importFile() {
           }
           if (!Array.isArray(d)) d = d[m] || d.inventory || [];
         } else {
-          var lines = ev.target.result.split("\n").filter(function (l) {
+          // FIXED: quote-aware CSV parsing (handles commas inside fields,
+          // e.g. addresses or multi-service lists) instead of a naive split(",")
+          var rawLines = ev.target.result.split(/\r?\n/).filter(function (l) {
             return l.trim();
           });
-          if (lines.length < 2) return;
-          var headers = lines[0].split(",").map(function (h) {
-            return h.trim().replace(/"/g, "");
+          if (rawLines.length < 2) {
+            toast("CSV file has no data rows", "warning");
+            return;
+          }
+          var headers = parseCSVLine(rawLines[0]).map(function (h) {
+            return h.trim();
           });
           d = [];
-          for (var i = 1; i < lines.length; i++) {
-            var vals = lines[i].split(",").map(function (v) {
-              return v.trim().replace(/"/g, "");
-            });
+          for (var i = 1; i < rawLines.length; i++) {
+            var vals = parseCSVLine(rawLines[i]);
             var obj = {};
             headers.forEach(function (h, idx) {
-              obj[h] = vals[idx] || "";
+              obj[h] = (vals[idx] || "").trim();
             });
             d.push(obj);
           }
@@ -5134,6 +5251,7 @@ function confirmImport() {
         contactNumber: item["Contact"] || item.contactNumber || "",
         items: item.items || [],
         subtotal: parseFloat(item["Subtotal"] || item.subtotal || 0),
+        discount: parseFloat(item["Discount"] || item.discount || 0),
         tax: parseFloat(item["Tax"] || item.tax || 0),
         total: parseFloat(item["Total"] || item.total || 0),
         cashReceived: parseFloat(
@@ -5186,6 +5304,7 @@ function confirmImport() {
         customer: item["Customer"] || item.customer || "",
         vehicleNo: item["Vehicle"] || item.vehicleNo || "",
         items: item.items || [],
+        discount: parseFloat(item["Discount"] || item.discount || 0),
         total: parseFloat(item["Total"] || item.total || 0),
         date: item["Date"] || item.date || fmtDate(),
         time: item["Time"] || item.time || fmtTime(),
@@ -5196,7 +5315,10 @@ function confirmImport() {
   if (m === "pricingMatrix") {
     if (Array.isArray(d)) {
       d.forEach(function (item) {
-        if (item.key && item.price) STATE.pricingMatrix[item.key] = item.price;
+        // FIXED: CSV/JSON values arrive as strings — must parseFloat before
+        // storing, otherwise price comparisons (price > 0) elsewhere break.
+        var pr = parseFloat(item.price);
+        if (item.key && !isNaN(pr) && pr > 0) STATE.pricingMatrix[item.key] = pr;
       });
     } else {
       Object.assign(STATE.pricingMatrix, d);
@@ -6061,54 +6183,19 @@ function debugTokenTotal() {
 }
 
 // ============================================================
-// UNIVERSAL BUTTON DELEGATION (safety net — works even if a
-// direct addEventListener above somehow fails to attach)
-// ============================================================
-document.addEventListener('click', function (e) {
-  var id = e.target.closest('button, a')?.id || '';
-  var actions = {
-    manageBrandsBtn: function () { openBrandsModal(); },
-    manageCategoriesBtn: function () { openCategoryModal(); },
-    addBrandBtn: function () { addBrand(); },
-    addCategoryBtn: function () { addCategory(); },
-    markAllCompletedBtn: function () {
-      confirm('Mark all as completed?', function () {
-        STATE.reminders.forEach(function (r) { if (r.status !== 'completed') r.status = 'completed'; });
-        saveReminders(); renderReminderTable(); refreshDashboard();
-      });
-    },
-    exportJSONBtn: function () { exportJSON(); },
-    exportCSVBtn: function () { exportCSV(); },
-    exportPDFBtn: function () { exportPDF(); },
-    importDataBtn2: function () { importFile(); },
-    quickBackupBtn: function () { quickBackup(); },
-    quickRestoreBtn: function () { quickRestore(); },
-    confirmImportBtn: function () { confirmImport(); },
-    resetCountersBtn: function () {
-      confirm('Reset?', function () {
-        STATE.counters = { invoiceCounterWW: 1, invoiceCounterMB: 1 };
-        saveCounters();
-      }, 'Reset');
-    },
-    clearDataBtn: function () {
-      confirm('DELETE ALL?', function () {
-        runAutoBackupNow(true, "pre-clear-safety").then(function () {
-          Object.values(KEYS).forEach(function (k) { localStorage.removeItem(k); });
-          sessionStorage.removeItem('servicepro_logged_in');
-          sessionStorage.removeItem('servicepro_last_activity');
-          toast('Safety backup saved. You can undo this from Import/Export → Emergency Restore.', 'info');
-          setTimeout(function () { location.reload(); }, 1800);
-        });
-      }, 'Clear All');
-    },
-  };
-  if (id && actions[id]) {
-    e.preventDefault();
-    actions[id]();
-  }
-});
-
-
+// REMOVED: "Universal Button Delegation" duplicate-listener block
+// used to live here. It attached a SECOND click handler to
+// manageBrandsBtn, manageCategoriesBtn, addBrandBtn, addCategoryBtn,
+// markAllCompletedBtn, exportJSONBtn, exportCSVBtn, exportPDFBtn,
+// importDataBtn2, quickBackupBtn, quickRestoreBtn, confirmImportBtn,
+// resetCountersBtn and clearDataBtn — every one of which ALREADY has
+// its own listener wired in initImportExport() / initInventory() /
+// initReminders() / initSettings(). Because both listeners fired on
+// the same click, every backup/restore/import/export action ran
+// TWICE, which is exactly why file pickers and confirm dialogs
+// appeared to pop up twice ("double select"). Deleting this block
+// does not remove any feature — every action above still works
+// through its original, correct listener.
 // ============================================================
 // NEW (ADDED ONLY) — STRONG AUTO BACKUP SYSTEM
 // ------------------------------------------------------------
@@ -6137,10 +6224,11 @@ document.addEventListener('click', function (e) {
 var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
 var AUTO_BACKUP_STORE = "backups";
-var AUTO_BACKUP_HISTORY_LIMIT = 1500; // keep last 15 snapshots — a bad/empty
-// backup can NEVER again silently wipe out the only good copy, because we
-// never overwrite a single record anymore. Older snapshots are pruned only
-// after the newest one is safely saved.
+var AUTO_BACKUP_ROLLING_ID = "rolling_backup"; // FIXED single record id — every
+// new snapshot is saved under this SAME id, so it overwrites the previous
+// one (put() on this keyPath replaces the existing record). Only ONE
+// backup record ever exists in IndexedDB at a time, exactly like the
+// single rolling file already used for the Google Drive folder.
 var autoBackupTimer = null;
 var autoBackupDBPromise = null;
 
@@ -6189,7 +6277,8 @@ function collectFullBackupData(reason) {
   } catch (e) {}
   var now = new Date();
   return {
-    id: "backup_" + now.getTime() + "_" + Math.random().toString(36).substr(2, 6),
+    id: AUTO_BACKUP_ROLLING_ID, // FIXED — always the same id, so saving
+    // this record OVERWRITES the previous backup instead of adding a new one
     savedAt: now.toISOString(),
     savedAtDisplay: fmtDate() + " " + fmtTime(),
     reason: reason || "auto",
@@ -6262,20 +6351,13 @@ function getAllAutoBackupsFromDB() {
   });
 }
 
-// Only trims EXCESS old snapshots beyond the history limit — the newest
-// snapshot is always saved and safe *before* anything is ever deleted.
+// No longer needed: every snapshot is saved under the SAME fixed id
+// (AUTO_BACKUP_ROLLING_ID), so saveAutoBackupToDB() already overwrites
+// the one existing record on every run — there is never more than one
+// backup record to prune. Kept as a harmless no-op so any existing call
+// site does not need to change.
 function pruneOldAutoBackups() {
-  return getAllAutoBackupsFromDB()
-    .then(function (list) {
-      if (list.length <= AUTO_BACKUP_HISTORY_LIMIT) return;
-      var toDelete = list.slice(AUTO_BACKUP_HISTORY_LIMIT);
-      return Promise.all(
-        toDelete.map(function (r) {
-          return deleteAutoBackupFromDB(r.id);
-        }),
-      );
-    })
-    .catch(function () {});
+  return Promise.resolve();
 }
 
 // Backward-compatible helper: latest snapshot only.
@@ -6299,6 +6381,7 @@ function runAutoBackupNow(silent, reason) {
       .then(function () {
         updateAutoBackupStatusUI(record.savedAtDisplay);
         pruneOldAutoBackups();
+        saveBackupToGoogleDriveFolder(record, silent); // NEW: also write to Google Drive folder
         if (!silent)
           toast("Backup saved (" + record.savedAtDisplay + ")", "success");
         return record;
@@ -6406,6 +6489,38 @@ function openAutoBackupPickerModal() {
   });
 }
 
+// ============================================================
+// NEW (ADDED ONLY): writes each backup snapshot directly to disk
+// inside the Google Drive folder the user selected (via main.js's
+// select-backup-folder handler). Google Drive Desktop then syncs
+// that folder to the cloud on its own — no click needed per backup.
+// Does nothing (silently) until a folder has been selected.
+// ============================================================
+function saveBackupToGoogleDriveFolder(record, silent) {
+  if (!window.electronAPI || !window.electronAPI.saveBackupFile) return;
+  try {
+    var json = JSON.stringify(record, null, 2);
+    // FIXED filename (same every time) so this always OVERWRITES the
+    // one file instead of creating a new file per backup. Each record
+    // already holds the complete data snapshot, so the single file is
+    // always fully up to date after every 30-min cycle.
+    var filename = "servicepro_latest_backup.json";
+    window.electronAPI
+      .saveBackupFile(json, filename)
+      .then(function (res) {
+        if (res && res.success) {
+          var el = qs("#driveBackupStatus");
+          if (el)
+            el.textContent =
+              "Last Drive backup: " + (record.savedAtDisplay || "");
+        } else if (!silent && res && res.reason !== "no-folder-selected") {
+          toast("Drive backup save failed", "warning");
+        }
+      })
+      .catch(function () {});
+  } catch (e) {}
+}
+
 function initAutoBackupSystem() {
   // Show last known backup time immediately, if one already exists, and
   // avoid taking a redundant near-duplicate snapshot right after login if
@@ -6463,6 +6578,28 @@ function initAutoBackupSystem() {
   qs("#restoreFromAutoBackupBtn")?.addEventListener("click", function () {
     openAutoBackupPickerModal();
   });
+
+  // NEW (ADDED ONLY): Google Drive folder selection + status display
+  qs("#selectDriveFolderBtn")?.addEventListener("click", function () {
+    if (!window.electronAPI || !window.electronAPI.selectBackupFolder) {
+      toast("App update needed (main.js/preload.js) for this feature", "error");
+      return;
+    }
+    window.electronAPI.selectBackupFolder().then(function (res) {
+      if (res && res.success) {
+        toast("Google Drive backup folder set: " + res.folder, "success");
+        var el = qs("#driveFolderPath");
+        if (el) el.textContent = res.folder;
+        runAutoBackupNow(true, "manual");
+      }
+    });
+  });
+  if (window.electronAPI && window.electronAPI.getBackupFolder) {
+    window.electronAPI.getBackupFolder().then(function (folder) {
+      var el = qs("#driveFolderPath");
+      if (el) el.textContent = folder || "Not set";
+    });
+  }
 
   qs("#addBackupFileBtn")?.addEventListener("click", function () {
     var inp = document.createElement("input");

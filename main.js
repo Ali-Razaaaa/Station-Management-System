@@ -1,5 +1,29 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("fs");
+
+// ============================================================
+// NEW (ADDED ONLY): Google Drive backup folder support.
+// Lets the renderer (app.js) select a local folder (typically the
+// user's Google Drive Desktop sync folder) once, and then silently
+// write backup JSON files into it on a schedule with no further
+// clicks needed. Google Drive Desktop itself takes care of
+// uploading anything placed in that folder to the cloud.
+// ============================================================
+const CONFIG_PATH = path.join(app.getPath("userData"), "backup-config.json");
+
+function loadBackupConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+  } catch (e) {
+    return {};
+  }
+}
+function saveBackupConfig(cfg) {
+  try {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  } catch (e) {}
+}
 
 let autoUpdater = null;
 try {
@@ -99,6 +123,64 @@ ipcMain.handle("print-receipt", async (event, htmlContent, options) => {
       "data:text/html;charset=UTF-8," + encodeURIComponent(htmlContent),
     );
   });
+});
+
+// ============================================================
+// NEW (ADDED ONLY): backup-folder selection + silent file writer.
+// Existing get-printers / print-receipt handlers above are untouched.
+// ============================================================
+ipcMain.handle("select-backup-folder", async () => {
+  const result = await dialog.showOpenDialog(win, {
+    title: "Select your Google Drive folder for backups",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || !result.filePaths.length) {
+    return { success: false };
+  }
+  const folder = result.filePaths[0];
+  const cfg = loadBackupConfig();
+  cfg.backupFolder = folder;
+  saveBackupConfig(cfg);
+  return { success: true, folder: folder };
+});
+
+ipcMain.handle("get-backup-folder", async () => {
+  const cfg = loadBackupConfig();
+  return cfg.backupFolder || null;
+});
+
+// NOTE: "filename" passed in from app.js is now always the SAME fixed
+// name ("servicepro_latest_backup.json"). Every 30-min cycle OVERWRITES
+// this one file — it never creates a new file. Since each snapshot
+// already contains the FULL localStorage data (every token, invoice,
+// vehicle, etc. — not just what changed since last time), this single
+// file is always a complete, up-to-date, one-file recovery point.
+ipcMain.handle("save-backup-file", async (event, jsonString, filename) => {
+  const cfg = loadBackupConfig();
+  if (!cfg.backupFolder) {
+    return { success: false, reason: "no-folder-selected" };
+  }
+  try {
+    if (!fs.existsSync(cfg.backupFolder)) {
+      return { success: false, reason: "folder-missing" };
+    }
+    const backupsDir = path.join(cfg.backupFolder, "ServicePro_Backups");
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
+    }
+    // Write to a temp file first, then rename over the real file. This
+    // avoids a half-written/corrupted backup if the app closes or the
+    // machine loses power mid-write — the real file is only ever
+    // replaced by a fully-written, valid file.
+    const filePath = path.join(backupsDir, filename);
+    const tmpPath = filePath + ".tmp";
+    fs.writeFileSync(tmpPath, jsonString, "utf8");
+    fs.renameSync(tmpPath, filePath);
+
+    return { success: true, path: filePath };
+  } catch (e) {
+    return { success: false, reason: String(e) };
+  }
 });
 
 app.whenReady().then(() => {
