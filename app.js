@@ -4667,6 +4667,10 @@ function initImportExport() {
 }
 function getModuleData(mod) {
   if (mod === "all")
+    // FIXED: "All Data" export was silently dropping vendors, vendor
+    // payments, purchase orders, vehicle types, pricing services,
+    // counters and businesses. That's why a full restore never brought
+    // those back. Every piece of app data is now included here.
     return {
       inventory: STATE.inventory,
       tokens: STATE.tokens,
@@ -4679,7 +4683,14 @@ function getModuleData(mod) {
       categories: STATE.categories,
       brands: STATE.brands,
       settings: STATE.settings,
-      version: "6.3",
+      pricingVehicles: STATE.pricingVehicles,
+      pricingServices: STATE.pricingServices,
+      counters: STATE.counters,
+      businesses: getBusinesses(),
+      vendors: STATE.vendors,
+      vendorPayments: STATE.vendorPayments,
+      purchaseOrders: STATE.purchaseOrders,
+      version: "6.4",
     };
   if (mod === "inventory") return STATE.inventory;
   if (mod === "tokens") return STATE.tokens;
@@ -4689,6 +4700,9 @@ function getModuleData(mod) {
   if (mod === "reminders") return STATE.reminders;
   if (mod === "productSales") return STATE.productSales;
   if (mod === "pricingMatrix") return STATE.pricingMatrix; // FIX: was missing, single-module export returned {}
+  if (mod === "vendors") return STATE.vendors;
+  if (mod === "vendorPayments") return STATE.vendorPayments;
+  if (mod === "purchaseOrders") return STATE.purchaseOrders;
   return {};
 }
 function exportJSON() {
@@ -4728,14 +4742,21 @@ function exportCSV(mo) {
   }
   if (m === "all" || m === "tokens") {
     if (csv) csv += "\n";
+    // FIXED: Service Price / Discount / Products JSON / Service Breakdown JSON
+    // columns added — these were completely missing before, so re-importing
+    // a tokens CSV always lost every price (servicePrice ended up 0 and the
+    // products list ended up empty, which is why revenue looked wrong after
+    // import even though the saved invoice still had the right price).
     csv +=
-      "Token,Vehicle No,Type,Customer,Contact,Service,Status,Time,Business Prefix,Business Name\n";
+      "Token,Vehicle No,Type,Customer,Contact,Service,Service Price,Discount,Status,Time,Business Prefix,Business Name,Products JSON,Service Breakdown JSON\n";
     STATE.tokens.forEach(function (t) {
       csv +=
         esc(t.number) + "," + esc(t.vehicleNo) + "," + esc(t.vehicleType) + "," +
         esc(t.ownerName) + "," + esc(t.contactNumber) + "," + esc(t.service) + "," +
+        (t.servicePrice || 0) + "," + (t.discount || 0) + "," +
         esc(t.status) + "," + esc(t.time) + "," + esc(t.businessPrefix || "") + "," +
-        esc(t.businessName || "") + "\n";
+        esc(t.businessName || "") + "," + esc(JSON.stringify(t.products || [])) + "," +
+        esc(JSON.stringify(t.serviceBreakdown || [])) + "\n";
     });
   }
   if (m === "all" || m === "vehicles") {
@@ -4770,8 +4791,11 @@ function exportCSV(mo) {
   }
   if (m === "all" || m === "invoices") {
     if (csv) csv += "\n";
+    // FIXED: added "Items JSON" so the exact line items (with price/qty)
+    // come back on import instead of being lost (the old "Items Summary"
+    // was text-only and could never be parsed back into real data).
     csv +=
-      "Invoice #,Date,Time,Token,Vehicle,Customer,Contact,Items Summary,Subtotal,Discount,Tax,Total,Cash Received,Change,Status,Business Prefix,Business Name\n";
+      "Invoice #,Date,Time,Token,Vehicle,Customer,Contact,Items Summary,Items JSON,Subtotal,Discount,Tax,Total,Cash Received,Change,Status,Business Prefix,Business Name\n";
     STATE.invoices.forEach(function (inv) {
       var itemsSummary = (inv.items || [])
         .map(function (it) { return it.name + " x" + it.qty; })
@@ -4780,6 +4804,7 @@ function exportCSV(mo) {
         esc(inv.number) + "," + esc(inv.date) + "," + esc(inv.time) + "," +
         esc(inv.token || "") + "," + esc(inv.vehicle || "") + "," + esc(inv.customer) + "," +
         esc(inv.contactNumber || "") + "," + esc(itemsSummary) + "," +
+        esc(JSON.stringify(inv.items || [])) + "," +
         (inv.subtotal || 0) + "," + (inv.discount || 0) + "," + (inv.tax || 0) + "," +
         (inv.total || 0) + "," + (inv.cashReceived || 0) + "," + (inv.changeReturned || 0) + "," +
         esc(inv.status) + "," + esc(inv.businessPrefix || "") + "," + esc(inv.businessName || "") + "\n";
@@ -4787,14 +4812,17 @@ function exportCSV(mo) {
   }
   if (m === "all" || m === "productSales") {
     if (csv) csv += "\n";
-    csv += "Date,Time,Customer,Vehicle,Items Summary,Discount,Total\n";
+    // FIXED: added "Items JSON" so product-sale line items (with price/qty)
+    // survive a CSV round-trip instead of coming back empty.
+    csv += "Date,Time,Customer,Vehicle,Items Summary,Items JSON,Discount,Total\n";
     STATE.productSales.forEach(function (s) {
       var itemsSummary = (s.items || [])
         .map(function (it) { return it.fullName + " x" + it.qty; })
         .join(" | ");
       csv +=
         esc(s.date) + "," + esc(s.time) + "," + esc(s.customer) + "," +
-        esc(s.vehicleNo || "") + "," + esc(itemsSummary) + "," + (s.discount || 0) + "," +
+        esc(s.vehicleNo || "") + "," + esc(itemsSummary) + "," +
+        esc(JSON.stringify(s.items || [])) + "," + (s.discount || 0) + "," +
         (s.total || 0) + "\n";
     });
   }
@@ -4803,6 +4831,39 @@ function exportCSV(mo) {
     csv += "key,price\n";
     Object.keys(STATE.pricingMatrix).forEach(function (k) {
       csv += esc(k) + "," + STATE.pricingMatrix[k] + "\n";
+    });
+  }
+  // NEW: vendors / vendor payments / purchase orders were entirely missing
+  // from CSV export before — this is a big reason vendor totals and net
+  // profit looked wrong after any restore.
+  if (m === "all" || m === "vendors") {
+    if (csv) csv += "\n";
+    csv +=
+      "Company,Contact Person,Phone,Email,Address,Category,Status,Date Added,Total Purchases,Purchases JSON\n";
+    STATE.vendors.forEach(function (v) {
+      csv +=
+        esc(v.company) + "," + esc(v.contactPerson) + "," + esc(v.phone) + "," +
+        esc(v.email || "") + "," + esc(v.address || "") + "," + esc(v.category) + "," +
+        esc(v.status) + "," + esc(v.dateAdded || "") + "," + (v.totalPurchases || 0) + "," +
+        esc(JSON.stringify(v.purchases || [])) + "\n";
+    });
+  }
+  if (m === "all" || m === "vendorPayments") {
+    if (csv) csv += "\n";
+    csv += "Vendor Id,Amount,Date,Method,Notes\n";
+    STATE.vendorPayments.forEach(function (p) {
+      csv +=
+        esc(p.vendorId) + "," + (p.amount || 0) + "," + esc(p.date) + "," +
+        esc(p.method) + "," + esc(p.notes || "") + "\n";
+    });
+  }
+  if (m === "all" || m === "purchaseOrders") {
+    if (csv) csv += "\n";
+    csv += "Vendor Id,Description,Qty,Amount,Date\n";
+    STATE.purchaseOrders.forEach(function (po) {
+      csv +=
+        esc(po.vendorId) + "," + esc(po.description) + "," + (po.qty || 1) + "," +
+        (po.amount || 0) + "," + esc(po.date) + "\n";
     });
   }
 
@@ -4905,6 +4966,12 @@ function quickRestore() {
         confirm(
           "Restore all data?",
           function () {
+            // FIXED: this used to restore only 6 of the ~17 data
+            // collections — productSales, pricingMatrix, brands,
+            // categories, pricingVehicles, pricingServices, counters,
+            // businesses, vendors, vendorPayments and purchaseOrders were
+            // silently skipped, which is why a Quick Restore never brought
+            // back vendor totals, revenue, or net profit correctly.
             if (d.inventory) {
               STATE.inventory = d.inventory;
               saveInventory();
@@ -4928,6 +4995,49 @@ function quickRestore() {
             if (d.reminders) {
               STATE.reminders = d.reminders;
               saveReminders();
+            }
+            if (d.productSales) {
+              STATE.productSales = d.productSales;
+              saveProductSales();
+            }
+            if (d.pricingMatrix) {
+              STATE.pricingMatrix = d.pricingMatrix;
+              savePricingMatrix();
+            }
+            if (d.brands) {
+              STATE.brands = d.brands;
+              saveBrands();
+            }
+            if (d.categories) {
+              STATE.categories = d.categories;
+              saveCategories();
+            }
+            if (d.pricingVehicles) {
+              STATE.pricingVehicles = d.pricingVehicles;
+              savePricingVehicles();
+            }
+            if (d.pricingServices) {
+              STATE.pricingServices = d.pricingServices;
+              savePricingServices();
+            }
+            if (d.counters) {
+              STATE.counters = d.counters;
+              saveCounters();
+            }
+            if (d.businesses) {
+              saveBusinesses(d.businesses);
+            }
+            if (d.vendors) {
+              STATE.vendors = d.vendors;
+              saveVendors();
+            }
+            if (d.vendorPayments) {
+              STATE.vendorPayments = d.vendorPayments;
+              saveVendorPayments();
+            }
+            if (d.purchaseOrders) {
+              STATE.purchaseOrders = d.purchaseOrders;
+              savePurchaseOrders();
             }
             if (d.settings) {
               STATE.settings = d.settings;
@@ -4993,6 +5103,22 @@ function parseCSVLine(line) {
 function importFile() {
   var m = qs("#importModule")?.value || "inventory";
   var fmt = qs("#importFormat")?.value || "json";
+  // FIXED: "All Data" and "Services" are bundled objects (multiple
+  // collections inside one object), not flat row lists — CSV cannot
+  // represent that. Previously this just returned early with a toast,
+  // which meant clicking "Select File & Import" appeared to do nothing
+  // (file explorer never opened) whenever CSV was picked while the
+  // module was still on its default "All Data". Now we auto-correct the
+  // Format dropdown to JSON and continue, so the file picker always opens.
+  if ((m === "all" || m === "services") && fmt !== "json") {
+    fmt = "json";
+    var fmtSelectEl = qs("#importFormat");
+    if (fmtSelectEl) fmtSelectEl.value = "json";
+    toast(
+      "'" + (m === "all" ? "All Data" : "Services") + "' import needs a JSON file — File Format switched to JSON.",
+      "info",
+    );
+  }
   var inp = document.createElement("input");
   inp.type = "file";
   inp.accept = fmt === "json" ? ".json" : ".csv";
@@ -5005,7 +5131,12 @@ function importFile() {
         var d;
         if (fmt === "json") {
           d = JSON.parse(ev.target.result);
-          if (m === "all") {
+          if (m === "all" || m === "services") {
+            // FIXED: previously only "all" took this path — "services" was
+            // being flattened by the generic `d[m] || d.inventory || []`
+            // logic below, which always resolved to an empty array because
+            // a services export has no top-level "services" or "inventory"
+            // key. That's why importing Services always restored nothing.
             previewImport(m, d);
             return;
           }
@@ -5043,11 +5174,47 @@ function importFile() {
   inp.click();
 }
 function previewImport(m, d) {
+  var el = qs("#importPreviewContent");
+
+  // "all" and "services" are bundled objects holding several collections
+  // (tokens, invoices, vendors, pricingServices, ...), not a flat list of
+  // rows — keep them exactly as-is instead of wrapping in an array.
+  if (m === "all" || m === "services") {
+    STATE.pendingImport = { module: m, data: d };
+    var totalRecords = 0;
+    Object.keys(d || {}).forEach(function (k) {
+      if (Array.isArray(d[k])) totalRecords += d[k].length;
+    });
+    setText("#importAddCount", totalRecords);
+    setText("#importUpdateCount", 0);
+    setText("#importSkipCount", 0);
+    if (el) {
+      var h2 =
+        '<table class="import-preview-table"><thead><tr><th>Data</th><th>Details</th></tr></thead><tbody>';
+      Object.keys(d || {}).forEach(function (k) {
+        if (k === "version") return;
+        var val = d[k];
+        var detail;
+        if (Array.isArray(val)) detail = val.length + " records";
+        else if (val && typeof val === "object")
+          detail = Object.keys(val).length + " entries";
+        else if (val !== undefined && val !== null && val !== "")
+          detail = "Included";
+        else detail = "—";
+        h2 += "<tr><td>" + sanitize(k) + "</td><td>" + detail + "</td></tr>";
+      });
+      h2 += "</tbody></table>";
+      el.innerHTML = h2;
+    }
+    qs("#importPreview").style.display = "block";
+    openModal("importPreviewModal");
+    return;
+  }
+
   if (!Array.isArray(d)) d = [d];
   setText("#importAddCount", d.length);
   setText("#importUpdateCount", 0);
   setText("#importSkipCount", 0);
-  var el = qs("#importPreviewContent");
   if (el && d.length > 0) {
     var keys = Object.keys(d[0]).slice(0, 8);
     var h = '<table class="import-preview-table"><thead><tr>';
@@ -5064,6 +5231,8 @@ function previewImport(m, d) {
     });
     h += "</tbody></table>";
     el.innerHTML = h;
+  } else if (el) {
+    el.innerHTML = "<p>No records found in this file.</p>";
   }
   STATE.pendingImport = { module: m, data: d };
   qs("#importPreview").style.display = "block";
@@ -5137,6 +5306,21 @@ function confirmImport() {
         if (d.businesses) {
           saveBusinesses(d.businesses);
         }
+        // NEW: vendors / vendor payments / purchase orders were previously
+        // not restored at all by "All Data" import, so vendor totals, net
+        // profit, etc always stayed wrong after a restore.
+        if (d.vendors) {
+          STATE.vendors = d.vendors;
+          saveVendors();
+        }
+        if (d.vendorPayments) {
+          STATE.vendorPayments = d.vendorPayments;
+          saveVendorPayments();
+        }
+        if (d.purchaseOrders) {
+          STATE.purchaseOrders = d.purchaseOrders;
+          savePurchaseOrders();
+        }
         STATE.pendingImport = null;
         closeModal("importPreviewModal");
         toast("All data imported!", "success");
@@ -5204,21 +5388,60 @@ function confirmImport() {
   }
   if (m === "tokens") {
     d.forEach(function (item) {
+      // FIXED: previously servicePrice was hardcoded to 0, products to [],
+      // and status was forced to "waiting" on every import — so even a
+      // token that was "completed" with a real price stopped counting
+      // toward revenue/net profit after import. Now we read the real
+      // values back from JSON (item.servicePrice/products/...) or, for a
+      // CSV export, from the "Service Price"/"Discount"/"Products JSON"/
+      // "Service Breakdown JSON" columns.
+      var products = [];
+      if (Array.isArray(item.products)) {
+        products = item.products;
+      } else if (item["Products JSON"]) {
+        try {
+          products = JSON.parse(item["Products JSON"]) || [];
+        } catch (e) {
+          products = [];
+        }
+      }
+      var serviceBreakdown = [];
+      if (Array.isArray(item.serviceBreakdown)) {
+        serviceBreakdown = item.serviceBreakdown;
+      } else if (item["Service Breakdown JSON"]) {
+        try {
+          serviceBreakdown = JSON.parse(item["Service Breakdown JSON"]) || [];
+        } catch (e) {
+          serviceBreakdown = [];
+        }
+      }
+      var servicePrice = parseFloat(
+        item.servicePrice !== undefined ? item.servicePrice : item["Service Price"],
+      );
+      if (isNaN(servicePrice)) servicePrice = 0;
+      var discount = parseFloat(
+        item.discount !== undefined ? item.discount : item["Discount"],
+      );
+      if (isNaN(discount)) discount = 0;
+
       STATE.tokens.push({
         id: uid(),
-        number: item["Token"] || generateTokenNumber(),
-        vehicleNo: item["Vehicle No"] || "",
-        vehicleType: item["Type"] || "",
-        ownerName: item["Customer"] || "",
-        contactNumber: item["Contact"] || "",
-        service: item["Service"] || "",
-        servicePrice: 0,
-        products: [],
-        time: fmtTime(),
-        status: "waiting",
-        businessPrefix: item["Business Prefix"] || getCurrentBusinessPrefix(),
-        businessId: "",
-        businessName: item["Business Name"] || "",
+        number: item["Token"] || item.number || generateTokenNumber(),
+        vehicleNo: item["Vehicle No"] || item.vehicleNo || "",
+        vehicleType: item["Type"] || item.vehicleType || "",
+        ownerName: item["Customer"] || item.ownerName || "",
+        contactNumber: item["Contact"] || item.contactNumber || "",
+        service: item["Service"] || item.service || "",
+        servicePrice: servicePrice,
+        discount: discount,
+        serviceBreakdown: serviceBreakdown,
+        products: products,
+        time: item["Time"] || item.time || fmtTime(),
+        status: item["Status"] || item.status || "waiting",
+        businessPrefix: item["Business Prefix"] || item.businessPrefix || getCurrentBusinessPrefix(),
+        businessId: item.businessId || "",
+        businessName: item["Business Name"] || item.businessName || "",
+        isCustom: item.isCustom || false,
       });
     });
     saveTokens();
@@ -5240,6 +5463,20 @@ function confirmImport() {
   }
   if (m === "invoices") {
     d.forEach(function (item) {
+      // FIXED: item.items was always undefined for a CSV row (CSV only had
+      // a text "Items Summary"), so every CSV-imported invoice ended up
+      // with an empty line-item list. Now falls back to the new "Items
+      // JSON" column.
+      var invItems = [];
+      if (Array.isArray(item.items)) {
+        invItems = item.items;
+      } else if (item["Items JSON"]) {
+        try {
+          invItems = JSON.parse(item["Items JSON"]) || [];
+        } catch (e) {
+          invItems = [];
+        }
+      }
       STATE.invoices.push({
         id: uid(),
         number: item["Invoice #"] || item.number || "INV-001",
@@ -5249,7 +5486,7 @@ function confirmImport() {
         vehicle: item["Vehicle"] || item.vehicle || "",
         customer: item["Customer"] || item.customer || "",
         contactNumber: item["Contact"] || item.contactNumber || "",
-        items: item.items || [],
+        items: invItems,
         subtotal: parseFloat(item["Subtotal"] || item.subtotal || 0),
         discount: parseFloat(item["Discount"] || item.discount || 0),
         tax: parseFloat(item["Tax"] || item.tax || 0),
@@ -5299,11 +5536,21 @@ function confirmImport() {
   }
   if (m === "productSales") {
     d.forEach(function (item) {
+      var saleItems = [];
+      if (Array.isArray(item.items)) {
+        saleItems = item.items;
+      } else if (item["Items JSON"]) {
+        try {
+          saleItems = JSON.parse(item["Items JSON"]) || [];
+        } catch (e) {
+          saleItems = [];
+        }
+      }
       STATE.productSales.push({
         id: uid(),
         customer: item["Customer"] || item.customer || "",
         vehicleNo: item["Vehicle"] || item.vehicleNo || "",
-        items: item.items || [],
+        items: saleItems,
         discount: parseFloat(item["Discount"] || item.discount || 0),
         total: parseFloat(item["Total"] || item.total || 0),
         date: item["Date"] || item.date || fmtDate(),
@@ -5311,6 +5558,64 @@ function confirmImport() {
       });
     });
     saveProductSales();
+  }
+  if (m === "vendors") {
+    // NEW: vendors were not importable at all before.
+    d.forEach(function (item) {
+      var purchases = [];
+      if (Array.isArray(item.purchases)) {
+        purchases = item.purchases;
+      } else if (item["Purchases JSON"]) {
+        try {
+          purchases = JSON.parse(item["Purchases JSON"]) || [];
+        } catch (e) {
+          purchases = [];
+        }
+      }
+      STATE.vendors.push({
+        id: item.id || uid(),
+        company: item["Company"] || item.company || "",
+        contactPerson: item["Contact Person"] || item.contactPerson || "",
+        phone: item["Phone"] || item.phone || "",
+        email: item["Email"] || item.email || "",
+        address: item["Address"] || item.address || "",
+        category: item["Category"] || item.category || "General Supplier",
+        status: item["Status"] || item.status || "Active",
+        dateAdded: item["Date Added"] || item.dateAdded || fmtDate(),
+        purchases: purchases,
+        totalPurchases: parseFloat(item["Total Purchases"] || item.totalPurchases || 0),
+      });
+    });
+    saveVendors();
+  }
+  if (m === "vendorPayments") {
+    // NEW: vendor payments were not importable at all before. These feed
+    // directly into the Vendor Payments / Net Profit dashboard totals.
+    d.forEach(function (item) {
+      STATE.vendorPayments.push({
+        id: item.id || uid(),
+        vendorId: item["Vendor Id"] || item.vendorId || "",
+        amount: parseFloat(item["Amount"] || item.amount || 0),
+        date: item["Date"] || item.date || fmtDate(),
+        method: item["Method"] || item.method || "Cash",
+        notes: item["Notes"] || item.notes || "",
+      });
+    });
+    saveVendorPayments();
+  }
+  if (m === "purchaseOrders") {
+    // NEW: purchase orders were not importable at all before.
+    d.forEach(function (item) {
+      STATE.purchaseOrders.push({
+        id: item.id || uid(),
+        vendorId: item["Vendor Id"] || item.vendorId || "",
+        description: item["Description"] || item.description || "",
+        qty: parseInt(item["Qty"] || item.qty || 1),
+        amount: parseFloat(item["Amount"] || item.amount || 0),
+        date: item["Date"] || item.date || fmtDate(),
+      });
+    });
+    savePurchaseOrders();
   }
   if (m === "pricingMatrix") {
     if (Array.isArray(d)) {
@@ -5369,7 +5674,7 @@ function confirmImport() {
   }
   STATE.pendingImport = null;
   closeModal("importPreviewModal");
-  toast(d.length + " records imported!", "success");
+  toast((Array.isArray(d) ? d.length : "Services") + (Array.isArray(d) ? " records imported!" : " data imported!"), "success");
   renderInventoryTable();
   renderTokenTable();
   renderSavedInvoices();
@@ -5377,6 +5682,8 @@ function confirmImport() {
   renderExpenses();
   renderReminderTable();
   renderPricingMatrix();
+  renderVendorTable();
+  renderVendorKPIs();
   refreshDashboard();
 }
 
