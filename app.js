@@ -14,6 +14,31 @@
   });
 })();
 
+// ============================================================
+// FIX (ADDED ONLY — no existing function touched):
+// Prices in Token / Custom Token / Products (and any other
+// number input) were "slightly" changing because browsers auto
+// increment/decrement a focused <input type="number"> when the
+// mouse wheel / trackpad scrolls over it. If a user typed a price
+// and then scrolled the modal, the focused price field's value
+// would silently tick up/down by 1 (or more, on fast scroll),
+// producing an incorrect saved price. This guard blurs any
+// focused number input the instant a wheel/scroll event happens
+// anywhere on the page, so scrolling can never alter a typed
+// value. It is purely additive and does not modify any existing
+// function, price calculation, or module.
+// ============================================================
+document.addEventListener(
+  "wheel",
+  function (e) {
+    var ae = document.activeElement;
+    if (ae && ae.tagName === "INPUT" && ae.type === "number") {
+      ae.blur();
+    }
+  },
+  { passive: true },
+);
+
 const KEYS = {
   services: "servicepro_services",
   vehicles: "servicepro_vehicles",
@@ -289,6 +314,8 @@ var STATE = {
   pendingImport: null,
   lowStockFilterActive: false,
   appInitialized: false, // NEW: guards initApp() one-time setup (see initApp)
+  editingInvoiceId: null, // NEW: tracks which saved invoice is being edited (null = creating a new invoice)
+  editingSaleId: null, // NEW: tracks which saved product sale is being edited (null = creating a new sale)
 };
 
 function persist(k, d) {
@@ -667,7 +694,29 @@ function getWhatsAppNumber(phone) {
   if (c.startsWith("03") && c.length === 11) return "92" + c.substring(1);
   return c;
 }
-// function openWhatsApp(phone, cn, vn, svc, sd) { ... } // commented out
+// FIXED: openWhatsApp was only a comment placeholder before — calling it
+// (from the Reminders "WhatsApp" button) silently did nothing because the
+// function didn't exist. It now opens WhatsApp (web or app, whichever the
+// device has) with a ready-made reminder message pre-filled for the
+// customer's number.
+function openWhatsApp(phone, customerName, vehicleNo, service, serviceDate) {
+  var num = getWhatsAppNumber(phone);
+  if (!num) {
+    toast("Invalid or missing phone number", "warning");
+    return;
+  }
+  var biz = getCurrentBusiness();
+  var msg =
+    "Hello " + (customerName || "Customer") + ",\n\n" +
+    "This is a reminder from " + (biz ? biz.name : "our service station") + " " +
+    "regarding your vehicle " + (vehicleNo || "") + ".\n" +
+    "Service: " + (service || "N/A") + "\n" +
+    "Last Service Date: " + (serviceDate || "N/A") + "\n\n" +
+    "It's time for your next service. Please visit us at your convenience.\n\n" +
+    "Thank you!";
+  var url = "https://wa.me/" + num + "?text=" + encodeURIComponent(msg);
+  window.open(url, "_blank");
+}
 function createReminderFromToken(token) {
   if (!token.contactNumber || token.contactNumber === "N/A") return;
   var rd = getReminderDays(token.service);
@@ -684,6 +733,7 @@ function createReminderFromToken(token) {
     ex.serviceDate = fmtDate();
     ex.dueDate = fmtDate(dd);
     ex.status = "upcoming";
+    ex.updatedAt = Date.now();
   } else {
     STATE.reminders.push({
       id: uid(),
@@ -697,6 +747,7 @@ function createReminderFromToken(token) {
       dueDate: fmtDate(dd),
       reminderDays: rd,
       status: "upcoming",
+      createdAt: Date.now(),
     });
   }
   saveReminders();
@@ -770,7 +821,10 @@ function renderReminderTable() {
     return ms && (!sf || r.status === sf);
   });
 
-  // ✅ Newest first: sort by serviceDate descending, then by dueDate descending
+  // ✅ Newest first: sort by serviceDate descending, then by dueDate
+  // descending, then by createdAt/updatedAt descending (real insertion/
+  // update time) so a just-added or just-updated reminder always lands on
+  // top instead of the bottom when several reminders share the same dates.
   fl.sort(function (a, b) {
     var dateA = parseDate(a.serviceDate) || new Date(0);
     var dateB = parseDate(b.serviceDate) || new Date(0);
@@ -778,7 +832,10 @@ function renderReminderTable() {
     // same serviceDate → sort by dueDate descending
     var dueA = parseDate(a.dueDate) || new Date(0);
     var dueB = parseDate(b.dueDate) || new Date(0);
-    return dueB - dueA;
+    if (dueB - dueA !== 0) return dueB - dueA;
+    var ordA = a.updatedAt || a.createdAt || 0;
+    var ordB = b.updatedAt || b.createdAt || 0;
+    return ordB - ordA;
   });
 
   var tb = qs("#reminderTableBody");
@@ -1088,14 +1145,14 @@ function initApp() {
       if (so) { openStockModal(so.dataset.stockOut, "out"); return; }
       var vdd = e.target.closest("[data-variant-delete]");
       if (vdd) { confirm("Delete variant?", function () { STATE.inventory.forEach(function (p) { p.variants = (p.variants || []).filter(function (v) { return v.id !== vdd.dataset.variantDelete; }); }); STATE.inventory = STATE.inventory.filter(function (p) { return (p.variants || []).length > 0; }); saveInventory(); renderInventoryTable(); updateInventoryKPI(); refreshDashboard(); }); return; }
-      var vi = e.target.closest("[data-view-invoice]");
-      if (vi) { viewInvoice(vi.dataset.viewInvoice); return; }
+      var ei2 = e.target.closest("[data-edit-invoice]");
+      if (ei2) { editInvoice(ei2.dataset.editInvoice); return; }
       var pi = e.target.closest("[data-print-receipt]");
       if (pi) { printSavedReceipt(pi.dataset.printReceipt); return; }
       var pa4 = e.target.closest("[data-print-a4]");
       if (pa4) { printA4Invoice(pa4.dataset.printA4); return; }
       var di = e.target.closest("[data-delete-invoice]");
-      if (di) { confirm("Delete invoice?", function () { STATE.invoices = STATE.invoices.filter(function (i) { return i.id !== di.dataset.deleteInvoice; }); saveInvoices(); renderSavedInvoices(); }); return; }
+      if (di) { confirm("Delete invoice?", function () { if (STATE.editingInvoiceId === di.dataset.deleteInvoice) exitInvoiceEditMode(); STATE.invoices = STATE.invoices.filter(function (i) { return i.id !== di.dataset.deleteInvoice; }); saveInvoices(); renderSavedInvoices(); }); return; }
       var ed = e.target.closest("[data-expense-del]");
       if (ed) { confirm("Delete?", function () { STATE.expenses = STATE.expenses.filter(function (ex) { return ex.id !== ed.dataset.expenseDel; }); saveExpenses(); renderExpenses(); refreshDashboard(); }); return; }
       var bd2 = e.target.closest("[data-brand-delete]");
@@ -1892,7 +1949,7 @@ function saveToken() {
     }
     setText("#autoTokenNumber", proposedNumber);
 
-    var newToken = { id: uid(), number: proposedNumber, vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, time: fmtTime(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
+    var newToken = { id: uid(), number: proposedNumber, vehicleNo: vn, vehicleType: vt, ownerName: on, contactNumber: cv.formatted, service: fs, servicePrice: sp, discount: discount, products: newProducts, date: fmtDate(), time: fmtTime(), createdAt: Date.now(), status: "waiting", businessPrefix: prefix, businessId: biz.id, businessName: biz.name };
     STATE.tokens.push(newToken); saveTokens(); saveInventory(); saveCounters();
     closeModal("tokenModal"); renderTokenTable(); refreshDashboard();
     toast("Token " + newToken.number + " generated successfully", "success");
@@ -2000,7 +2057,7 @@ function saveCustomToken() {
     service: serviceNames, servicePrice: totalServicePrice,
     serviceBreakdown: customServices,
     discount: discount, products: customProducts,
-    time: fmtTime(), status: "waiting",
+    date: fmtDate(), time: fmtTime(), createdAt: Date.now(), status: "waiting",
     businessPrefix: prefix, businessId: biz.id, businessName: biz.name,
     isCustom: true
   };
@@ -2132,6 +2189,18 @@ function openInvoiceForToken(id) {
     return t.id === id;
   });
   if (!t) return;
+
+  // NEW: this token already has a saved invoice — open THAT invoice for
+  // editing instead of building a fresh (duplicate) one.
+  var existingInv = STATE.invoices.find(function (i) {
+    return i.token && t.number && i.token.toLowerCase() === t.number.toLowerCase();
+  });
+  if (existingInv) {
+    toast("An invoice already exists for this token — opening it for edit", "info");
+    editInvoice(existingInv.id);
+    return;
+  }
+
   navigateTo("billing");
   setTimeout(function () {
     setValue("#invoiceToken", t.number);
@@ -2591,6 +2660,89 @@ function saveInvoice() {
     }
     if (!biz) { biz = getCurrentBusiness(); }
 
+    var tokenNum = (qs("#invoiceToken")?.value || "").trim();
+
+    // ============================================================
+    // NEW — EDIT MODE: editInvoice() sets STATE.editingInvoiceId before
+    // navigating here. When set, UPDATE the existing invoice in place
+    // instead of creating a new one (no new invoice number is generated,
+    // no counter is bumped), and mark it as "edited" so Saved Invoices can
+    // show that badge.
+    // ============================================================
+    if (STATE.editingInvoiceId) {
+      var existingInv = STATE.invoices.find(function (i) { return i.id === STATE.editingInvoiceId; });
+      if (!existingInv) {
+        toast("Invoice not found — it may have been deleted", "error");
+        exitInvoiceEditMode();
+        return;
+      }
+      // If the token was changed to one already used by a DIFFERENT saved
+      // invoice, block it — same duplicate-token rule as new invoices.
+      if (tokenNum) {
+        var conflictInv = STATE.invoices.find(function (i) {
+          return i.id !== existingInv.id && i.token && i.token.toLowerCase() === tokenNum.toLowerCase();
+        });
+        if (conflictInv) {
+          toast("Token " + tokenNum + " is already used by invoice " + conflictInv.number, "error");
+          return;
+        }
+      }
+      existingInv.token = tokenNum;
+      existingInv.vehicle = (qs("#invoiceVehicle")?.value || "").trim();
+      existingInv.customer = cu;
+      existingInv.contactNumber = qs("#invoiceCustomer")?.dataset?.contact || "";
+      existingInv.items = it;
+      existingInv.subtotal = st;
+      existingInv.discount = discount;
+      existingInv.tax = tx;
+      existingInv.total = gt;
+      existingInv.cashReceived = cr;
+      existingInv.changeReturned = cr > 0 ? cr - gt : 0;
+      existingInv.status = cr >= gt && cr > 0 ? "PAID" : "UNPAID";
+      existingInv.paymentMethod = qs("#invoicePaymentMethod")?.value || "Cash";
+      if (invBizSelect && invBizSelect.value && biz) {
+        existingInv.businessPrefix = biz.prefix;
+        existingInv.businessId = biz.id;
+        existingInv.businessName = biz.name;
+      }
+      existingInv.edited = true;
+      existingInv.editedAt = fmtDate() + " " + fmtTime();
+      saveInvoices();
+      exitInvoiceEditMode();
+      toast("Invoice " + existingInv.number + " updated — this invoice has been edited", "success");
+
+      setValue("#invoiceToken", "");
+      setValue("#invoiceVehicle", "");
+      setValue("#invoiceCustomer", "");
+      setValue("#cashReceived", "");
+      setValue("#invoiceDiscount", "0");
+      setText("#changeReturned", "Rs. 0");
+      qs("#invoiceServicesContainer").innerHTML = "";
+      qs("#invoiceProductsContainer").innerHTML = "";
+      addInvoiceServiceRow("", 0);
+      addInvoiceProductRow("", 0, 1);
+      updateInvoicePreview();
+      renderSavedInvoices();
+      refreshDashboard();
+      return;
+    }
+
+    // ============================================================
+    // NEW — DUPLICATE LOCK: a token can only ever have ONE invoice. Once
+    // an invoice has been saved for a token, trying to save another
+    // invoice against the same token number is blocked — the user must
+    // use Edit (in Saved Invoices) on the existing one instead.
+    // ============================================================
+    if (tokenNum) {
+      var dupInv = STATE.invoices.find(function (i) {
+        return i.token && i.token.toLowerCase() === tokenNum.toLowerCase();
+      });
+      if (dupInv) {
+        toast("Invoice " + dupInv.number + " already exists for token " + tokenNum + ". Open Saved Invoices and use Edit instead.", "warning");
+        return;
+      }
+    }
+
     var prefix = biz.prefix;
     var counterKey = "invoiceCounter" + prefix;
     if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
@@ -2601,7 +2753,8 @@ function saveInvoice() {
       number: invNumber,
       date: fmtDate(),
       time: fmtTime(),
-      token: (qs("#invoiceToken")?.value || "").trim(),
+      createdAt: Date.now(),
+      token: tokenNum,
       vehicle: (qs("#invoiceVehicle")?.value || "").trim(),
       customer: cu,
       contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
@@ -2624,7 +2777,7 @@ function saveInvoice() {
     saveInvoices();
     saveCounters();
 
-    // Update linked token if any
+    // Update linked token if any — and lock it so it can't be re-invoiced
     var tn = inv.token;
     if (tn) {
       var tk = STATE.tokens.find(function (t) { return t.number.toLowerCase() === tn.toLowerCase(); });
@@ -2655,6 +2808,86 @@ function saveInvoice() {
     console.error("Save invoice error:", e);
     toast("Error saving invoice. See console.", "error");
   }
+}
+
+// ============================================================
+// NEW — Invoice edit mode helpers.
+// editInvoice() loads a saved invoice back into the Create Invoice form,
+// switches it into "update" mode (STATE.editingInvoiceId), and shows a
+// Cancel button. saveInvoice() checks STATE.editingInvoiceId and updates
+// the existing record in place instead of creating a new invoice.
+// ============================================================
+function editInvoice(id) {
+  var inv = STATE.invoices.find(function (i) { return i.id === id; });
+  if (!inv) { toast("Invoice not found", "error"); return; }
+
+  STATE.editingInvoiceId = id;
+
+  navigateTo("billing");
+
+  setTimeout(function () {
+    var invBizSelect = qs("#invoiceBusinessSelect");
+    if (invBizSelect && inv.businessId) invBizSelect.value = inv.businessId;
+    setValue("#invoiceToken", inv.token || "");
+    setValue("#invoiceVehicle", inv.vehicle || "");
+    setValue("#invoiceCustomer", inv.customer);
+    if (qs("#invoiceCustomer")) qs("#invoiceCustomer").dataset.contact = inv.contactNumber || "";
+    setValue("#cashReceived", inv.cashReceived || "");
+    setValue("#invoiceDiscount", inv.discount || 0);
+    var pmSel = qs("#invoicePaymentMethod");
+    if (pmSel) pmSel.value = inv.paymentMethod || "Cash";
+
+    qs("#invoiceServicesContainer").innerHTML = "";
+    qs("#invoiceProductsContainer").innerHTML = "";
+    (inv.items || []).forEach(function (item) {
+      if (item.type === "service") addInvoiceServiceRow(item.name, item.price);
+      else addInvoiceProductRow(item.name, item.price, item.qty);
+    });
+    updateInvoicePreview();
+    setText("#invNumber", inv.number);
+    setText("#invDate", inv.date);
+    setText("#invBusinessName", inv.businessName || STATE.settings.businessName);
+
+    var saveBtn = qs("#saveInvoiceBtn");
+    if (saveBtn) saveBtn.innerHTML = '<span class="material-icons">save</span> Update Invoice';
+    showCancelEditInvoiceButton();
+
+    toast("Editing invoice " + inv.number + " — make your changes and click Update Invoice", "info");
+  }, 150);
+}
+
+function showCancelEditInvoiceButton() {
+  var actions = qs(".billing-actions");
+  if (!actions || qs("#cancelEditInvoiceBtn")) return;
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-ghost";
+  btn.id = "cancelEditInvoiceBtn";
+  btn.innerHTML = '<span class="material-icons">close</span> Cancel Edit';
+  btn.addEventListener("click", function () {
+    exitInvoiceEditMode();
+    setValue("#invoiceToken", "");
+    setValue("#invoiceVehicle", "");
+    setValue("#invoiceCustomer", "");
+    setValue("#cashReceived", "");
+    setValue("#invoiceDiscount", "0");
+    setText("#changeReturned", "Rs. 0");
+    qs("#invoiceServicesContainer").innerHTML = "";
+    qs("#invoiceProductsContainer").innerHTML = "";
+    addInvoiceServiceRow("", 0);
+    addInvoiceProductRow("", 0, 1);
+    updateInvoicePreview();
+    toast("Edit cancelled", "info");
+  });
+  actions.appendChild(btn);
+}
+
+function exitInvoiceEditMode() {
+  STATE.editingInvoiceId = null;
+  var saveBtn = qs("#saveInvoiceBtn");
+  if (saveBtn) saveBtn.innerHTML = '<span class="material-icons">save</span> Save Invoice';
+  var cancelBtn = qs("#cancelEditInvoiceBtn");
+  if (cancelBtn) cancelBtn.remove();
 }
 function updateInvoicePreview() {
   setText("#invToken", (qs("#invoiceToken")?.value || "").trim() || "—");
@@ -2755,6 +2988,11 @@ function renderSavedInvoices() {
   
   // Step 1: Filter
   var filtered = STATE.invoices.filter(function(inv) {
+    // NEW: Product Sale invoices are created automatically in the
+    // background when a sale is completed, purely for record-keeping —
+    // they should never appear in Billing & Invoice's Saved Invoices list,
+    // which is only for token-based invoices.
+    if (inv.isProductSale) return false;
     var dateMatch = true;
     if (dfFrom || dfTo) {
       var invDate = parseDate(inv.date);
@@ -2788,9 +3026,15 @@ function renderSavedInvoices() {
     var dateB = parseDate(b.inv.date) || new Date(0);
     // Primary: date descending
     if (dateB - dateA !== 0) return dateB - dateA;
-    // Secondary: time descending (if same date)
-    var timeComp = (b.inv.time || "").localeCompare(a.inv.time || "");
-    if (timeComp !== 0) return timeComp;
+    // FIXED: the old "time" comparison compared 12-hour "hh:mm AM/PM"
+    // strings with localeCompare — e.g. "10:15 AM" sorts BEFORE
+    // "09:15 AM" as plain text (because "1" < "9"), so on the same day
+    // an older invoice could wrongly land above a newer one. Real
+    // creation order (createdAt, a millisecond timestamp saved on every
+    // invoice) is used instead — this always reflects true recency.
+    var createdA = a.inv.createdAt || 0;
+    var createdB = b.inv.createdAt || 0;
+    if (createdB - createdA !== 0) return createdB - createdA;
     // Tertiary: original index descending (higher index = newer insertion)
     return b.originalIndex - a.originalIndex;
   });
@@ -2815,6 +3059,11 @@ function renderSavedInvoices() {
             sanitize(inv.businessPrefix || inv.businessName) +
             ")</small>"
           : "") +
+        (inv.edited
+          ? ' <span class="badge badge--orange" style="font-size:0.6rem" title="Edited on ' +
+            sanitize(inv.editedAt || "") +
+            '">Edited</span>'
+          : "") +
         "</td><td>" +
         sanitize(inv.date) +
         "</td><td>" +
@@ -2834,13 +3083,13 @@ function renderSavedInvoices() {
         (inv.status === "PAID" ? "badge--green" : "badge--red") +
         '">' +
         inv.status +
-        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-view-invoice="' +
+        '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" data-edit-invoice="' +
         inv.id +
-        '"><span class="material-icons">visibility</span></button><button class="btn btn-sm btn-primary" data-print-a4="' +
+        '" title="Edit Invoice"><span class="material-icons">edit</span></button><button class="btn btn-sm btn-primary" data-print-a4="' +
         inv.id +
-        '"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' +
+        '" title="Print"><span class="material-icons">print</span></button><button class="btn-icon btn btn-danger-ghost" data-delete-invoice="' +
         inv.id +
-        '"><span class="material-icons">delete</span></button></div></td></tr>'
+        '" title="Delete"><span class="material-icons">delete</span></button></div></td></tr>'
       );
     })
     .join("");
@@ -3536,15 +3785,19 @@ function renderProductSalePage() {
   renderProductSalesHistoryNow();
 }
 
-function addSaleProductRow() {
+function addSaleProductRow(prefill) {
   var c = qs("#saleProductsContainer");
   if (!c) return;
-  var opts = getAllVariantsFlat().filter(function(v) { return v.stock > 0; }).map(function(v) {
-    return '<option value="' + v.id + '" data-price="' + v.sellingPrice + '" data-stock="' + v.stock + '">' + sanitize(v.fullName) + " | " + fmtPrice(v.sellingPrice) + "</option>";
+  // NEW: optional "prefill" ({variantId, qty, price}) lets Edit Sale load
+  // a previously saved row back into the form. Calling addSaleProductRow()
+  // with no argument (every existing call site) behaves exactly as before.
+  var opts = getAllVariantsFlat().filter(function(v) { return v.stock > 0 || (prefill && prefill.variantId === v.id); }).map(function(v) {
+    var sel = prefill && prefill.variantId === v.id ? " selected" : "";
+    return '<option value="' + v.id + '" data-price="' + v.sellingPrice + '" data-stock="' + v.stock + '"' + sel + '>' + sanitize(v.fullName) + " | " + fmtPrice(v.sellingPrice) + "</option>";
   }).join("");
   var r = document.createElement("div");
   r.style.cssText = "display:grid;grid-template-columns:1fr 50px 80px 80px 28px;gap:5px;align-items:center;margin-bottom:6px;";
-  r.innerHTML = '<select class="form-input sale-product-select" style="padding:5px 3px;font-size:0.7rem;"><option value="">Select</option>' + opts + '</select><input type="number" class="form-input sale-product-qty" value="1" min="1" style="padding:5px 2px;font-size:0.75rem;text-align:center;" /><input type="number" class="form-input sale-product-price" value="0" readonly style="padding:5px 2px;font-size:0.75rem;background:var(--surface-active);text-align:right;" /><span class="sale-product-subtotal" style="font-weight:700;font-size:0.8rem;text-align:right;color:#000">Rs. 0</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateSaleTotal();"><span class="material-icons">close</span></button>';
+  r.innerHTML = '<select class="form-input sale-product-select" style="padding:5px 3px;font-size:0.7rem;"><option value="">Select</option>' + opts + '</select><input type="number" class="form-input sale-product-qty" value="' + ((prefill && prefill.qty) || 1) + '" min="1" style="padding:5px 2px;font-size:0.75rem;text-align:center;" /><input type="number" class="form-input sale-product-price" value="' + ((prefill && prefill.price) || 0) + '" readonly style="padding:5px 2px;font-size:0.75rem;background:var(--surface-active);text-align:right;" /><span class="sale-product-subtotal" style="font-weight:700;font-size:0.8rem;text-align:right;color:#000">Rs. 0</span><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'div\').remove();updateSaleTotal();"><span class="material-icons">close</span></button>';
   c.appendChild(r);
   var s = r.querySelector(".sale-product-select");
   s.addEventListener("change", function() {
@@ -3555,6 +3808,7 @@ function addSaleProductRow() {
     updateRowSubtotal(r); updateSaleTotal();
   });
   r.querySelector(".sale-product-qty").addEventListener("input", function() { updateRowSubtotal(r); updateSaleTotal(); });
+  updateRowSubtotal(r);
 }
 
 function updateRowSubtotal(row) {
@@ -3589,6 +3843,62 @@ function saveProductSale() {
   if (isNaN(discount)) discount = 0;
   var grandTotal = Math.max(0, subtotal - discount);
 
+  // FIXED: Payment Method / Payment Status dropdowns were never read
+  // anywhere — selecting "Unpaid"/"Partial" or any method had zero effect.
+  var paymentMethod = qs("#salePaymentMethod")?.value || "Cash";
+  var paymentStatus = qs("#salePaymentStatus")?.value || "PAID";
+
+  // ============================================================
+  // NEW — EDIT MODE: editProductSale() sets STATE.editingSaleId before
+  // navigating here. When set, UPDATE the existing sale record in place
+  // instead of creating a new one. Stock is first reverted for the sale's
+  // OLD items, then deducted again for the NEW items, so inventory always
+  // stays accurate after an edit (same pattern already used for editing
+  // a Token).
+  // ============================================================
+  if (STATE.editingSaleId) {
+    var existingSale = STATE.productSales.find(function (s) { return s.id === STATE.editingSaleId; });
+    if (!existingSale) {
+      toast("Sale not found — it may have been deleted", "error");
+      exitProductSaleEditMode();
+      return;
+    }
+    (existingSale.items || []).forEach(function (i) {
+      var f = findVariantById(i.variantId);
+      if (f) f.variant.stock += i.qty;
+    });
+    items.forEach(function (i) {
+      var f = findVariantById(i.variantId);
+      if (f) f.variant.stock = Math.max(0, f.variant.stock - i.qty);
+    });
+    saveInventory();
+
+    existingSale.customer = cu || "Walk-in Customer";
+    existingSale.vehicleNo = vn || "N/A";
+    existingSale.items = items;
+    existingSale.discount = discount;
+    existingSale.total = grandTotal;
+    existingSale.paymentMethod = paymentMethod;
+    existingSale.paymentStatus = paymentStatus;
+    existingSale.edited = true;
+    existingSale.editedAt = fmtDate() + " " + fmtTime();
+    saveProductSales();
+    refreshDashboard();
+
+    exitProductSaleEditMode();
+    qs("#saleProductsContainer").innerHTML = "";
+    setValue("#saleCustomerName", "");
+    setValue("#saleVehicleNo", "");
+    setValue("#saleDiscount", "0");
+    setValue("#salePaymentMethod", "Cash");
+    setValue("#salePaymentStatus", "PAID");
+    setText("#saleGrandTotal", "Rs. 0");
+    addSaleProductRow();
+    setTimeout(function() { renderProductSalesHistoryNow(); }, 100);
+    toast("Sale updated - " + fmtPrice(grandTotal), "success");
+    return;
+  }
+
   // Stock update
   items.forEach(function(i) {
     var f = findVariantById(i.variantId);
@@ -3604,8 +3914,11 @@ function saveProductSale() {
     items: items,
     discount: discount,
     total: grandTotal,
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
     date: fmtDate(),
-    time: fmtTime()
+    time: fmtTime(),
+    createdAt: Date.now()
   };
   STATE.productSales.push(saleRecord);
   saveProductSales();
@@ -3619,6 +3932,10 @@ function saveProductSale() {
   var invItems = items.map(function(i) {
     return { name: i.fullName, price: i.price, qty: i.qty, type: "product" };
   });
+  // FIXED: invoice status/cashReceived now follow the actual Payment
+  // Status selected (Paid/Unpaid/Partial) instead of always being PAID.
+  var invStatus = paymentStatus === "PAID" ? "PAID" : "UNPAID";
+  var invCashReceived = paymentStatus === "PAID" ? grandTotal : 0;
   var inv = {
     id: uid(),
     number: invNumber,
@@ -3633,12 +3950,14 @@ function saveProductSale() {
     discount: discount,
     tax: 0,
     total: grandTotal,
-    cashReceived: grandTotal,
+    cashReceived: invCashReceived,
     changeReturned: 0,
-    status: "PAID",
+    status: invStatus,
+    paymentMethod: paymentMethod,
     businessPrefix: prefix,
     businessId: biz.id,
-    businessName: biz.name
+    businessName: biz.name,
+    isProductSale: true // NEW: marks this invoice as coming from Product Sale, not a token — used to hide it from Billing & Invoice's Saved Invoices list
   };
   STATE.invoices.push(inv);
   STATE.counters[counterKey]++;
@@ -3651,6 +3970,8 @@ function saveProductSale() {
   setValue("#saleCustomerName", "");
   setValue("#saleVehicleNo", "");
   setValue("#saleDiscount", "0");
+  setValue("#salePaymentMethod", "Cash");
+  setValue("#salePaymentStatus", "PAID");
   setText("#saleGrandTotal", "Rs. 0");
   addSaleProductRow();
   setTimeout(function() { renderProductSalesHistoryNow(); }, 100);
@@ -3666,10 +3987,75 @@ function renderProductSalesHistoryNow() {
   for (var i = 0; i < sorted.length; i++) {
     var sale = sorted[i]; var itemsList = "";
     if (sale.items && sale.items.length > 0) { var names = []; for (var j = 0; j < sale.items.length; j++) { names.push(sanitize(sale.items[j].fullName) + " x" + sale.items[j].qty); } itemsList = names.join(", "); } else { itemsList = "N/A"; }
-    // Show discount (if any) in recent sales history
-    html += '<tr><td>' + sanitize(sale.date) + '<br><small>' + sanitize(sale.time) + '</small></td><td>' + sanitize(sale.customer) + '</td><td>' + sanitize(sale.vehicleNo) + '</td><td style="font-size:0.75rem;max-width:150px">' + itemsList + '</td><td style="font-weight:600;color:var(--success)">' + fmtPrice(sale.total) + (sale.discount ? '<br><small style="color:#b45309;">Discount: -' + fmtPrice(sale.discount) + '</small>' : '') + '</td><td><span class="badge badge--blue" style="font-size:0.6rem">' + sanitize(sale.invoiceNumber || "—") + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-primary" onclick="printSaleReceipt(\'' + sale.id + '\')" style="background:#000;font-size:0.6rem;padding:2px 6px">🧾</button><button class="btn btn-sm btn-outline" onclick="printSaleA4(\'' + sale.id + '\')" style="font-size:0.6rem;padding:2px 6px">📄</button></div></td></tr>';
+    // Show discount (if any) + payment status/method in recent sales history
+    var payBadgeClass = sale.paymentStatus === "PAID" ? "badge--green" : sale.paymentStatus === "PARTIAL" ? "badge--orange" : "badge--red";
+    var payBadgeLabel = sale.paymentStatus === "PAID" ? "Paid" : sale.paymentStatus === "PARTIAL" ? "Partial" : "Unpaid";
+    html += '<tr><td>' + sanitize(sale.date) + '<br><small>' + sanitize(sale.time) + '</small></td><td>' + sanitize(sale.customer) + '</td><td>' + sanitize(sale.vehicleNo) + '</td><td style="font-size:0.75rem;max-width:150px">' + itemsList + '</td><td style="font-weight:600;color:var(--success)">' + fmtPrice(sale.total) + (sale.discount ? '<br><small style="color:#b45309;">Discount: -' + fmtPrice(sale.discount) + '</small>' : '') + '<br><span class="badge ' + payBadgeClass + '" style="font-size:0.55rem">' + payBadgeLabel + ' · ' + sanitize(sale.paymentMethod || "Cash") + '</span></td><td><span class="badge badge--blue" style="font-size:0.6rem">' + sanitize(sale.invoiceNumber || "—") + '</span>' + (sale.edited ? ' <span class="badge badge--orange" style="font-size:0.55rem" title="Edited on ' + sanitize(sale.editedAt || "") + '">Edited</span>' : '') + '</td><td><div class="table-actions">' +
+      // NEW: Edit button — opens this sale back into the form above for editing
+      '<button class="btn btn-sm btn-outline" onclick="editProductSale(\'' + sale.id + '\')" title="Edit Sale"><span class="material-icons" style="font-size:16px;">edit</span></button>' +
+      '<button class="btn btn-sm btn-primary" onclick="printSaleReceipt(\'' + sale.id + '\')" style="background:#000;font-size:0.6rem;padding:2px 6px">🧾</button><button class="btn btn-sm btn-outline" onclick="printSaleA4(\'' + sale.id + '\')" style="font-size:0.6rem;padding:2px 6px">📄</button></div></td></tr>';
   }
   tb.innerHTML = html;
+}
+
+// ============================================================
+// NEW — Product Sale edit mode.
+// editProductSale() loads a saved sale back into the Product Sale form,
+// switches into "update" mode (STATE.editingSaleId), and shows a Cancel
+// button. saveProductSale() checks STATE.editingSaleId and updates the
+// existing record in place instead of creating a new sale.
+// ============================================================
+function editProductSale(id) {
+  var sale = STATE.productSales.find(function (s) { return s.id === id; });
+  if (!sale) { toast("Sale not found", "error"); return; }
+
+  STATE.editingSaleId = id;
+  navigateTo("productsale");
+
+  setTimeout(function () {
+    setValue("#saleCustomerName", sale.customer === "Walk-in Customer" ? "" : sale.customer);
+    setValue("#saleVehicleNo", sale.vehicleNo === "N/A" ? "" : sale.vehicleNo);
+    setValue("#saleDiscount", sale.discount || 0);
+    setValue("#salePaymentMethod", sale.paymentMethod || "Cash");
+    setValue("#salePaymentStatus", sale.paymentStatus || "PAID");
+
+    qs("#saleProductsContainer").innerHTML = "";
+    (sale.items || []).forEach(function (item) {
+      addSaleProductRow({ variantId: item.variantId, qty: item.qty, price: item.price });
+    });
+    if (!(sale.items || []).length) addSaleProductRow();
+    updateSaleTotal();
+
+    var saveBtn = qs("#saveProductSaleBtn");
+    if (saveBtn) saveBtn.innerHTML = '<span class="material-icons">save</span> Update Sale';
+    showCancelEditSaleButton();
+
+    toast("Editing sale — make your changes and click Update Sale", "info");
+  }, 150);
+}
+
+function showCancelEditSaleButton() {
+  var actions = qs("#saveProductSaleBtn")?.closest(".billing-actions");
+  if (!actions || qs("#cancelEditSaleBtn")) return;
+  var btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn btn-ghost";
+  btn.id = "cancelEditSaleBtn";
+  btn.innerHTML = '<span class="material-icons">close</span> Cancel Edit';
+  btn.addEventListener("click", function () {
+    exitProductSaleEditMode();
+    renderProductSalePage();
+    toast("Edit cancelled", "info");
+  });
+  actions.appendChild(btn);
+}
+
+function exitProductSaleEditMode() {
+  STATE.editingSaleId = null;
+  var saveBtn = qs("#saveProductSaleBtn");
+  if (saveBtn) saveBtn.innerHTML = '<span class="material-icons">save</span> Complete Sale';
+  var cancelBtn = qs("#cancelEditSaleBtn");
+  if (cancelBtn) cancelBtn.remove();
 }
 
 function printSaleReceipt(saleId) {
@@ -3702,6 +4088,8 @@ function printSaleA4(saleId) {
 function renderProductSalePage() {
   setText("#saleGrandTotal", "Rs. 0");
   setValue("#saleDiscount", "0");
+  setValue("#salePaymentMethod", "Cash");
+  setValue("#salePaymentStatus", "PAID");
   qs("#saleProductsContainer").innerHTML = "";
   addSaleProductRow();
   renderProductSalesHistoryNow();
@@ -4253,24 +4641,54 @@ function renderReports() {
   var rows = [];
   STATE.tokens.forEach(function (tk) {
     if (tk.status === "completed") {
-      rows.push({ date: fmtDate(), dateObj: new Date(), type: "Revenue", cat: "Service", desc: "Token " + tk.number, amt: tk.servicePrice || 0, bal: "credit" });
-      if (tk.products) tk.products.forEach(function (p) {
-        rows.push({ date: fmtDate(), dateObj: new Date(), type: "Revenue", cat: "Product", desc: p.fullName || p.name, amt: p.price * p.qty, bal: "credit" });
+      // FIXED: tokens now carry their own real "date" (set at creation) and a
+      // "createdAt" timestamp. Previously this always used `new Date()` (the
+      // moment the report was rendered), so every token looked like it
+      // happened "right now" and newest tokens got pushed to the bottom of
+      // the list after the (stable) sort. Older tokens saved before this fix
+      // won't have a date/createdAt yet, so we still fall back sensibly.
+      var tDate = parseDate(tk.date) || new Date();
+      var tOrder = tk.createdAt || 0;
+      // FIXED: previously each token was split into a separate "Service"
+      // row (full service price) PLUS one extra "Product" row per product
+      // — and the token's discount was never subtracted anywhere here.
+      // Now every completed token shows as a SINGLE row for its real,
+      // final total (services + products − discount), matching what the
+      // customer actually paid and matching getTotalRevenue()'s math.
+      var tkProductsTotal = 0;
+      if (tk.products)
+        tk.products.forEach(function (p) {
+          tkProductsTotal += (p.price || 0) * (p.qty || 0);
+        });
+      var tkGrossTotal = (tk.servicePrice || 0) + tkProductsTotal;
+      var tkNetTotal = Math.max(0, tkGrossTotal - (tk.discount || 0));
+      rows.push({
+        date: tk.date || fmtDate(),
+        dateObj: tDate,
+        order: tOrder,
+        type: "Revenue",
+        cat: "Token",
+        desc:
+          "Token " +
+          tk.number +
+          (tk.discount > 0 ? " (Discount: -" + fmtPrice(tk.discount) + ")" : ""),
+        amt: tkNetTotal,
+        bal: "credit",
       });
     }
   });
   STATE.productSales.forEach(function (s) {
     var d = parseDate(s.date) || new Date();
-    rows.push({ date: s.date, dateObj: d, type: "Revenue", cat: "Sale", desc: s.customer || "Walk-in", amt: s.total, bal: "credit" });
+    rows.push({ date: s.date, dateObj: d, order: s.createdAt || 0, type: "Revenue", cat: "Sale", desc: s.customer || "Walk-in", amt: s.total, bal: "credit" });
   });
   STATE.expenses.forEach(function (e) {
     var d = parseDate(e.date) || new Date();
-    rows.push({ date: e.date, dateObj: d, type: "Expense", cat: e.category, desc: e.title, amt: e.amount, bal: "debit" });
+    rows.push({ date: e.date, dateObj: d, order: e.createdAt || 0, type: "Expense", cat: e.category, desc: e.title, amt: e.amount, bal: "debit" });
   });
   STATE.vendorPayments.forEach(function (vp) {
     var d = parseDate(vp.date) || new Date();
     var v = STATE.vendors.find(function(v) { return v.id === vp.vendorId; });
-    rows.push({ date: vp.date, dateObj: d, type: "Expense", cat: "Vendor Payment", desc: v ? v.company : "Vendor", amt: vp.amount, bal: "debit" });
+    rows.push({ date: vp.date, dateObj: d, order: vp.createdAt || 0, type: "Expense", cat: "Vendor Payment", desc: v ? v.company : "Vendor", amt: vp.amount, bal: "debit" });
   });
 
   if (fromDate || toDate) {
@@ -4288,7 +4706,15 @@ function renderReports() {
     rows = rows.filter(function(r) { return r.type === "Expense"; });
   }
 
-  rows.sort(function (a, b) { return b.dateObj - a.dateObj; });
+  // FIXED: sort by real calendar date first (newest date on top); when two
+  // rows fall on the SAME date, break the tie using "order" (createdAt),
+  // so whichever one was actually added most recently shows above the
+  // older one — new entries always land on top instead of the bottom.
+  rows.sort(function (a, b) {
+    var dateDiff = b.dateObj - a.dateObj;
+    if (dateDiff !== 0) return dateDiff;
+    return (b.order || 0) - (a.order || 0);
+  });
   var tb = qs("#reportTableBody");
   if (tb) tb.innerHTML = rows.length ? rows.map(function (r) { return "<tr><td>" + sanitize(r.date) + "</td><td>" + r.type + "</td><td>" + sanitize(r.cat) + "</td><td>" + sanitize(r.desc) + '</td><td style="text-align:right;font-weight:700;">' + (r.bal === "credit" ? "+" : "-") + " " + fmtPrice(r.amt) + "</td></tr>"; }).join("") : '<tr><td colspan="5">No transactions</td></tr>';
 }
@@ -4327,6 +4753,7 @@ function saveExpense() {
     amount: am,
     date: fmtDate(),
     time: fmtTime(),
+    createdAt: Date.now(),
   });
   saveExpenses();
   hideExpenseForm();
@@ -4339,12 +4766,14 @@ function renderExpenses() {
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
   setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
 
-  // ✅ Newest first: sort by date descending, then by time descending
+  // ✅ Newest first: sort by date descending, then by createdAt (real
+  // insertion time) descending. Falls back to the old time-string compare
+  // only for legacy records saved before createdAt existed.
   var fl = STATE.expenses.sort(function (a, b) {
     var dateA = parseDate(a.date) || new Date(0);
     var dateB = parseDate(b.date) || new Date(0);
     if (dateB - dateA !== 0) return dateB - dateA;
-    // same date → compare time (latest first)
+    if (a.createdAt || b.createdAt) return (b.createdAt || 0) - (a.createdAt || 0);
     return (b.time || "").localeCompare(a.time || "");
   });
 
@@ -5925,7 +6354,17 @@ function openVendorModal(d) {
   if (d && d.purchases) {
     d.purchases.forEach(function(p) { addVendorPurchaseRow(p); });
   }
+  // NEW: modal title now reflects Add vs Edit
+  var titleEl = qs("#vendorModal .modal-title");
+  if (titleEl) titleEl.innerHTML = '<span class="material-icons">business</span> ' + (d ? "Edit Vendor" : "Add Vendor");
   openModal("vendorModal");
+}
+
+// NEW: opens a vendor for editing (details + purchase items/prices)
+function editVendor(vid) {
+  var v = STATE.vendors.find(function (v) { return v.id === vid; });
+  if (!v) { toast("Vendor not found", "error"); return; }
+  openVendorModal(v);
 }
 
 function saveVendor() {
@@ -5958,6 +6397,12 @@ function saveVendor() {
       v.address = (qs("#vendorAddress")?.value || "").trim();
       v.category = qs("#vendorCategory")?.value || "General Supplier";
       v.status = qs("#vendorStatus")?.value || "Active";
+      // FIXED: previously the modal let you edit purchase items/qty/price
+      // but saveVendor() never wrote those changes back — v.purchases and
+      // v.totalPurchases were left completely untouched, so any item/price
+      // edit silently had no effect. Now both are updated from the form.
+      v.purchases = purchases;
+      v.totalPurchases = totalPurchases;
     }
     saveVendors();
     closeModal("vendorModal");
@@ -6012,7 +6457,8 @@ function savePayment() {
     amount: amt,
     date: qs("#paymentDate")?.value ? fmtDate(new Date(qs("#paymentDate").value)) : fmtDate(),
     method: qs("#paymentMethod")?.value || "Cash",
-    notes: (qs("#paymentNotes")?.value || "").trim()
+    notes: (qs("#paymentNotes")?.value || "").trim(),
+    createdAt: Date.now()
   });
   saveVendorPayments();
   closeModal("vendorPaymentModal");
@@ -6032,7 +6478,7 @@ function viewVendor(vid) {
 
   var existing = qs("#vendorViewModal");
   if (existing) existing.remove();
-  var modalHTML = '<div class="modal-overlay" id="vendorViewModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> ' + sanitize(v.company) + '</h2><button class="modal-close" onclick="document.getElementById(\'vendorViewModal\').remove();document.body.style.overflow=\'\';"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="kpi-grid kpi-grid--3"><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Purchases</span><span class="kpi-value">' + fmtPrice(v.totalPurchases || 0) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value">' + fmtPrice(paid) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Balance</span><span class="kpi-value" style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + '">' + fmtPrice(balance) + '</span></div></div></div><div class="invoice-section-label">Payment History</div><table class="data-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Notes</th><th>Print</th></tr></thead><tbody>' + paymentHistory + '</tbody></table><button class="btn btn-primary" style="margin-top:1rem" onclick="openPaymentModal(\'' + v.id + '\');document.getElementById(\'vendorViewModal\').remove()">Add Payment</button></div></div></div>';
+  var modalHTML = '<div class="modal-overlay" id="vendorViewModal"><div class="modal"><div class="modal-header"><h2 class="modal-title"><span class="material-icons">business</span> ' + sanitize(v.company) + '</h2><button class="modal-close" onclick="document.getElementById(\'vendorViewModal\').remove();document.body.style.overflow=\'\';"><span class="material-icons">close</span></button></div><div class="modal-body"><div class="kpi-grid kpi-grid--3"><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Purchases</span><span class="kpi-value">' + fmtPrice(v.totalPurchases || 0) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Total Paid</span><span class="kpi-value">' + fmtPrice(paid) + '</span></div></div><div class="kpi-card"><div class="kpi-body"><span class="kpi-label">Balance</span><span class="kpi-value" style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + '">' + fmtPrice(balance) + '</span></div></div></div><div class="invoice-section-label">Payment History</div><table class="data-table"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Notes</th><th>Print</th></tr></thead><tbody>' + paymentHistory + '</tbody></table><div style="display:flex;gap:8px;margin-top:1rem"><button class="btn btn-primary" onclick="openPaymentModal(\'' + v.id + '\');document.getElementById(\'vendorViewModal\').remove()">Add Payment</button><button class="btn btn-outline" onclick="document.getElementById(\'vendorViewModal\').remove();editVendor(\'' + v.id + '\')"><span class="material-icons" style="font-size:16px;vertical-align:middle;">edit</span> Edit Vendor</button></div></div></div></div>';
   document.body.insertAdjacentHTML("beforeend", modalHTML);
   openModal("vendorViewModal");
 }
@@ -6076,7 +6522,7 @@ function renderVendorTable() {
   tb.innerHTML = fl.map(function(v) {
     var paid = STATE.vendorPayments.filter(function(p) { return p.vendorId === v.id; }).reduce(function(s, p) { return s + p.amount; }, 0);
     var balance = (v.totalPurchases || 0) - paid;
-    return '<tr><td style="font-weight:600">' + sanitize(v.company) + '</td><td>' + sanitize(v.contactPerson) + '</td><td>' + sanitize(v.phone) + '</td><td><span class="badge badge--blue">' + sanitize(v.category) + '</span></td><td>' + fmtPrice(v.totalPurchases || 0) + '</td><td>' + fmtPrice(paid) + '</td><td style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:700">' + fmtPrice(balance) + '</td><td><span class="badge ' + (v.status === 'Active' ? 'badge--green' : 'badge--red') + '">' + v.status + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" onclick="viewVendor(\'' + v.id + '\')">View</button><button class="btn btn-sm btn-ghost" onclick="openPurchaseModal(\'' + v.id + '\')">+Purchase</button></div></td></tr>';
+    return '<tr><td style="font-weight:600">' + sanitize(v.company) + '</td><td>' + sanitize(v.contactPerson) + '</td><td>' + sanitize(v.phone) + '</td><td><span class="badge badge--blue">' + sanitize(v.category) + '</span></td><td>' + fmtPrice(v.totalPurchases || 0) + '</td><td>' + fmtPrice(paid) + '</td><td style="color:' + (balance > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:700">' + fmtPrice(balance) + '</td><td><span class="badge ' + (v.status === 'Active' ? 'badge--green' : 'badge--red') + '">' + v.status + '</span></td><td><div class="table-actions"><button class="btn btn-sm btn-outline" onclick="viewVendor(\'' + v.id + '\')">View</button><button class="btn btn-sm btn-ghost" onclick="editVendor(\'' + v.id + '\')" title="Edit Vendor"><span class="material-icons" style="font-size:16px;">edit</span></button><button class="btn btn-sm btn-ghost" onclick="openPurchaseModal(\'' + v.id + '\')">+Purchase</button></div></td></tr>';
   }).join("");
 }
 
