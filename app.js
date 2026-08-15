@@ -1092,7 +1092,33 @@ function initApp() {
     qsa(".nav-link").forEach(function (l) {
       l.addEventListener("click", function (e) {
         e.preventDefault();
-        if (l.dataset.module) navigateTo(l.dataset.module);
+        if (l.dataset.module) {
+          // FIX (Issues 2 & 3): clicking straight into "Billing & Invoice"
+          // from the sidebar must always start a BRAND NEW invoice. Before
+          // this fix, if an invoice had been opened for editing (Saved
+          // Invoices → Edit) and the user left the page without saving or
+          // cancelling, STATE.editingInvoiceId stayed set. The next invoice
+          // you tried to create (even for a brand-new token) silently
+          // stayed in "update mode" — showing "Update Invoice" instead of
+          // "Save Invoice" — and saving it overwrote that old, unrelated
+          // invoice instead of creating a new one.
+          if (l.dataset.module === "billing" && STATE.editingInvoiceId) {
+            exitInvoiceEditMode();
+            setValue("#invoiceToken", "");
+            setValue("#invoiceVehicle", "");
+            setValue("#invoiceCustomer", "");
+            setValue("#cashReceived", "");
+            setValue("#invoiceDiscount", "0");
+            setText("#changeReturned", "Rs. 0");
+            var svcC = qs("#invoiceServicesContainer");
+            var prdC = qs("#invoiceProductsContainer");
+            if (svcC) svcC.innerHTML = "";
+            if (prdC) prdC.innerHTML = "";
+            addInvoiceServiceRow("", 0);
+            addInvoiceProductRow("", 0, 1);
+          }
+          navigateTo(l.dataset.module);
+        }
         if (window.innerWidth <= 768) closeSidebar();
       });
     });
@@ -1479,6 +1505,24 @@ function handleQuickAction(a) {
       openNewVehicleModal();
     },
     newInvoice: function () {
+      // FIX (Issues 2 & 3): same stale-edit-mode guard as the sidebar link —
+      // ensure a fresh "New Invoice" always starts blank, not mid-update of
+      // a previously (and never finished) edited invoice.
+      if (STATE.editingInvoiceId) {
+        exitInvoiceEditMode();
+        setValue("#invoiceToken", "");
+        setValue("#invoiceVehicle", "");
+        setValue("#invoiceCustomer", "");
+        setValue("#cashReceived", "");
+        setValue("#invoiceDiscount", "0");
+        setText("#changeReturned", "Rs. 0");
+        var svcC = qs("#invoiceServicesContainer");
+        var prdC = qs("#invoiceProductsContainer");
+        if (svcC) svcC.innerHTML = "";
+        if (prdC) prdC.innerHTML = "";
+        addInvoiceServiceRow("", 0);
+        addInvoiceProductRow("", 0, 1);
+      }
       navigateTo("billing");
     },
     stockIn: function () {
@@ -1958,6 +2002,12 @@ function saveToken() {
 }
 
 function saveCustomToken() {
+  // ✅ FIX (double-submit): a fast double-click on Save was able to create
+  // two duplicate Custom Tokens before the first click even finished. This
+  // guard mirrors the same pattern already used in saveToken().
+  if (saveCustomToken.running) return;
+  saveCustomToken.running = true;
+
   var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
   var vt = qs("#tokenVehicleType")?.value || "";
   var on = (qs("#tokenOwnerName")?.value || "").trim();
@@ -1971,9 +2021,9 @@ function saveCustomToken() {
   if (!biz) { biz = getCurrentBusiness(); }
   var prefix = biz.prefix;
   
-  if (!vn || !vt) { toast("Please fill vehicle details", "error"); return; }
+  if (!vn || !vt) { toast("Please fill vehicle details", "error"); saveCustomToken.running = false; return; }
   var cv = validateContactNumber(cn);
-  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); return; }
+  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); saveCustomToken.running = false; return; }
 
   var customServices = [];
   qsa("#customTokenServicesList > div").forEach(function(row, idx) {
@@ -1999,7 +2049,15 @@ function saveCustomToken() {
     }
   });
 
+  // ✅ FIX (Inventory Stock): each row now also captures its real inventory
+  // variantId (via data-vid, added in addCustomProductRow) when the product
+  // was picked from the dropdown — a freely typed "Custom Product" (not in
+  // inventory) still gets no variantId, exactly as before. This variantId
+  // is what lets us validate + deduct stock below, and lets the existing
+  // token-delete handler (data-token-delete, which already reads
+  // p.variantId) restore stock correctly when this token is removed.
   var customProducts = [];
+  var hasCustomStockError = false;
   qsa("#customTokenProductsList > div").forEach(function(row, idx) {
     var sel = row.querySelector(".custom-prd-select");
     var name = row.querySelector(".custom-prd-name");
@@ -2011,21 +2069,37 @@ function saveCustomToken() {
     var price = isNaN(rawPrice) ? 0 : rawPrice;
     
     var prdName = "";
+    var vid = "";
     if (sel && (sel.style.display === "none" || sel.value === "__custom__")) {
       prdName = name ? (name.value || "").trim() : "";
     } else if (sel) {
       prdName = sel.value;
+      var opt = sel.options[sel.selectedIndex];
+      vid = opt ? (opt.dataset.vid || "") : "";
     }
     
     // ✅ FIX: Allow price >= 0. Only require name.
     if (prdName) {
-      customProducts.push({ fullName: prdName, qty: qty, price: price });
-      console.log("[Save Custom Prd " + idx + "]", prdName, "qty:", qty, "price:", price);
+      if (vid) {
+        var f = findVariantById(vid);
+        if (f && qty > f.variant.stock) {
+          toast("Only " + f.variant.stock + " units available for " + f.fullName, "error");
+          hasCustomStockError = true;
+          return;
+        }
+      }
+      var prdRecord = { fullName: prdName, qty: qty, price: price };
+      if (vid) prdRecord.variantId = vid;
+      customProducts.push(prdRecord);
+      console.log("[Save Custom Prd " + idx + "]", prdName, "qty:", qty, "price:", price, "variantId:", vid);
     }
   });
 
+  if (hasCustomStockError) { saveCustomToken.running = false; return; }
+
   if (customServices.length === 0 && customProducts.length === 0) {
     toast("Please add at least one service or product", "error");
+    saveCustomToken.running = false;
     return;
   }
 
@@ -2048,7 +2122,25 @@ function saveCustomToken() {
 
   var tokenNumber = (qs("#autoTokenNumber")?.textContent || "").trim();
   if (!tokenNumber) tokenNumber = generateTokenNumber();
-  if (STATE.tokens.some(function(tk){ return tk.number === tokenNumber; })) tokenNumber = generateTokenNumber();
+  // ✅ FIX: retry loop (same safety pattern as saveToken()) instead of a
+  // single re-check, in case of a rare same-millisecond collision.
+  var custMaxRetries = 10;
+  var custRetries = 0;
+  while (custRetries < custMaxRetries && STATE.tokens.some(function(tk){ return tk.number === tokenNumber; })) {
+    tokenNumber = generateTokenNumber();
+    custRetries++;
+  }
+
+  // ✅ FIX (Inventory Stock): deduct stock for every custom product that is
+  // actually linked to a real inventory variant — same behavior saveToken()
+  // already applies for normal Token products. Free-typed custom products
+  // (no variantId) are left untouched, exactly as before.
+  customProducts.forEach(function(p) {
+    if (p.variantId) {
+      var f2 = findVariantById(p.variantId);
+      if (f2) f2.variant.stock = Math.max(0, f2.variant.stock - p.qty);
+    }
+  });
 
   var newToken = {
     id: uid(),
@@ -2063,11 +2155,13 @@ function saveCustomToken() {
   };
   STATE.tokens.push(newToken); 
   saveTokens(); 
+  saveInventory(); // ✅ persists the stock deduction above
   saveCounters();
   closeModal("tokenModal"); 
   renderTokenTable(); 
   refreshDashboard();
   toast("Custom Token " + newToken.number + " generated", "success");
+  saveCustomToken.running = false;
 }
 function renderTokenTable() {
   var sr = (qs("#tokenSearch")?.value || "").toLowerCase();
@@ -2200,6 +2294,13 @@ function openInvoiceForToken(id) {
     editInvoice(existingInv.id);
     return;
   }
+
+  // FIX (Issues 2 & 3): this token has NO existing invoice, so we are about
+  // to build a brand-new one. If a previous, unrelated invoice was left
+  // open in "edit" mode (STATE.editingInvoiceId still set from before),
+  // clear that out first — otherwise saving this new token's invoice would
+  // silently overwrite that other invoice instead of creating a new record.
+  if (STATE.editingInvoiceId) exitInvoiceEditMode();
 
   navigateTo("billing");
   setTimeout(function () {
@@ -2839,9 +2940,25 @@ function editInvoice(id) {
 
     qs("#invoiceServicesContainer").innerHTML = "";
     qs("#invoiceProductsContainer").innerHTML = "";
+    // FIX (Issue 1): a custom-token service/product (typed manually, not
+    // picked from the Services list / Inventory) has no matching <option>
+    // in the normal dropdown row, so addInvoiceServiceRow/addInvoiceProductRow
+    // would render it as an empty "Select..." row — which then gets silently
+    // dropped from both the preview totals and the saved invoice on Update
+    // (name + price appeared to "disappear"). Now we detect whether the item
+    // is a KNOWN service/product first, and only then use the dropdown row;
+    // otherwise we use the custom (free-text) row, exactly like token
+    // auto-fill already does.
     (inv.items || []).forEach(function (item) {
-      if (item.type === "service") addInvoiceServiceRow(item.name, item.price);
-      else addInvoiceProductRow(item.name, item.price, item.qty);
+      if (item.type === "service") {
+        var isKnownService = STATE.pricingServices.some(function (s) { return s.name === item.name; });
+        if (isKnownService) addInvoiceServiceRow(item.name, item.price);
+        else addCustomInvoiceServiceRow(item.name, item.price);
+      } else {
+        var isKnownProduct = getAllVariantsFlat().some(function (v) { return v.fullName === item.name; });
+        if (isKnownProduct) addInvoiceProductRow(item.name, item.price, item.qty);
+        else addCustomInvoiceProductRow(item.name, item.price, item.qty);
+      }
     });
     updateInvoicePreview();
     setText("#invNumber", inv.number);
@@ -3107,9 +3224,18 @@ function viewInvoice(id) {
   setValue("#cashReceived", inv.cashReceived || "");
   qs("#invoiceServicesContainer").innerHTML = "";
   qs("#invoiceProductsContainer").innerHTML = "";
+  // FIX (same as editInvoice): custom (free-text) items need the custom row,
+  // otherwise they render as an empty "Select..." row and get excluded.
   inv.items.forEach(function (item) {
-    if (item.type === "service") addInvoiceServiceRow(item.name, item.price);
-    else addInvoiceProductRow(item.name, item.price, item.qty);
+    if (item.type === "service") {
+      var isKnownService = STATE.pricingServices.some(function (s) { return s.name === item.name; });
+      if (isKnownService) addInvoiceServiceRow(item.name, item.price);
+      else addCustomInvoiceServiceRow(item.name, item.price);
+    } else {
+      var isKnownProduct = getAllVariantsFlat().some(function (v) { return v.fullName === item.name; });
+      if (isKnownProduct) addInvoiceProductRow(item.name, item.price, item.qty);
+      else addCustomInvoiceProductRow(item.name, item.price, item.qty);
+    }
   });
   updateInvoicePreview();
   setText("#invNumber", inv.number);
@@ -6841,7 +6967,7 @@ function addCustomProductRow() {
   var opts = getAllVariantsFlat()
     .map(function (v) {
       var stockLabel = v.stock <= 0 ? " (OUT OF STOCK)" : " | Stock: " + v.stock;
-      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '">' +
+      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '" data-vid="' + v.id + '">' +
         sanitize(v.fullName) + stockLabel + " | " + fmtPrice(v.sellingPrice) + "</option>";
     })
     .join("");
