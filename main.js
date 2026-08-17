@@ -9,8 +9,33 @@ const fs = require("fs");
 // write backup JSON files into it on a schedule with no further
 // clicks needed. Google Drive Desktop itself takes care of
 // uploading anything placed in that folder to the cloud.
+//
+// FIX (config-loss-on-update): this file used to live inside
+// app.getPath("userData"). electron-builder's NSIS installer/uninstaller
+// can wipe that ENTIRE folder on some update/uninstall flows (it does
+// NOT touch localStorage/IndexedDB, which is where the real token /
+// invoice / inventory data lives — that stays 100% intact — but it *can*
+// remove this small config file, which only stores the Google Drive
+// folder PATH, nothing else). Moving it to the Documents folder means it
+// survives app updates. The one-time migration block below copies the
+// OLD config into the NEW location automatically the first time this
+// runs, so an existing user does not need to re-select their Google
+// Drive folder after updating.
 // ============================================================
-const CONFIG_PATH = path.join(app.getPath("userData"), "backup-config.json");
+const OLD_CONFIG_PATH = path.join(app.getPath("userData"), "backup-config.json");
+const CONFIG_PATH = path.join(
+  app.getPath("documents"),
+  "ServiceStation_BackupConfig.json",
+);
+
+function migrateOldConfigIfNeeded() {
+  try {
+    if (!fs.existsSync(CONFIG_PATH) && fs.existsSync(OLD_CONFIG_PATH)) {
+      fs.copyFileSync(OLD_CONFIG_PATH, CONFIG_PATH);
+    }
+  } catch (e) {}
+}
+migrateOldConfigIfNeeded();
 
 function loadBackupConfig() {
   try {

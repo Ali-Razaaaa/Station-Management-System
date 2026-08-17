@@ -1092,12 +1092,18 @@
                   <button class="btn btn-ghost btn-sm" id="addInvoiceService">
                     <span class="material-icons">add</span> Add Service
                   </button>
+                  <button class="btn btn-ghost btn-sm" id="addCustomInvoiceService" style="margin-left:6px">
+                    <span class="material-icons">edit_note</span> Add Custom Service
+                  </button>
                   <div class="invoice-section-label" style="margin-top: 1.5rem">
                     <span class="material-icons">inventory_2</span> Products
                   </div>
                   <div id="invoiceProductsContainer"></div>
                   <button class="btn btn-ghost btn-sm" id="addInvoiceProduct">
                     <span class="material-icons">add</span> Add Product
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="addCustomInvoiceProduct" style="margin-left:6px">
+                    <span class="material-icons">edit_note</span> Add Custom Product
                   </button>
                   <div class="invoice-section-label" style="margin-top: 1.5rem">
                     <span class="material-icons">payments</span> Payment
@@ -1957,7 +1963,7 @@
                 </div>
                 <div class="kpi-body">
                   <span class="kpi-label">Total Paid</span
-                  ><span class="kpi-value" id="kpiVendorPaid">Rs. 0</span>
+                  ><span class="kpi-value" id="vendorTotalPaidKpi">Rs. 0</span>
                 </div>
               </div>
               <div class="kpi-card">

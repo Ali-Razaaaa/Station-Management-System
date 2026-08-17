@@ -453,6 +453,32 @@ function toDateInputValue(d) {
 function fmtPrice(n) {
   return "Rs. " + (Number(n) || 0).toLocaleString("en-PK");
 }
+// FIX (bug review): several amount/price/qty inputs are type="text" (not
+// type="number"), so nothing stops a user from typing a comma-formatted
+// number like "5,000" (very common in Pakistan). Plain parseFloat/parseInt
+// silently STOP at the comma (parseInt("5,000") === 5), and plain Number()
+// returns NaN for the same input, which then falls back to 0 — both cases
+// previously saved a completely wrong number with zero warning to the
+// user. These helpers strip commas/whitespace before parsing, so "5,000"
+// correctly becomes 5000. They are pure, read-only parsing helpers — they
+// do not alter any stored data format, save/load logic, or localStorage
+// handling in any way.
+function parseNum(raw, fallback) {
+  fallback = fallback === undefined ? 0 : fallback;
+  if (raw === null || raw === undefined) return fallback;
+  var cleaned = String(raw).replace(/[,\s]/g, "").trim();
+  if (cleaned === "") return fallback;
+  var n = parseFloat(cleaned);
+  return isNaN(n) ? fallback : n;
+}
+function parseIntNum(raw, fallback) {
+  fallback = fallback === undefined ? 0 : fallback;
+  if (raw === null || raw === undefined) return fallback;
+  var cleaned = String(raw).replace(/[,\s]/g, "").trim();
+  if (cleaned === "") return fallback;
+  var n = parseInt(cleaned, 10);
+  return isNaN(n) ? fallback : n;
+}
 function qs(s, c) {
   return (c || document).querySelector(s);
 }
@@ -1586,6 +1612,22 @@ function getMatrixPrice(sn, vt) {
   var key = sn + "__" + vt;
   return STATE.pricingMatrix[key] || 0;
 }
+// FIX (bug review): "#invoiceVehicle" on the Billing screen holds the
+// VEHICLE NUMBER (e.g. "ABC-1234"), not the vehicle TYPE that
+// getMatrixPrice() needs (e.g. "Car"). This mismatch made the pricing
+// lookup for manually-added invoice services always fail (price showed
+// Rs. 0). This is a pure READ-ONLY lookup against STATE.vehicles — it
+// does not create, edit, or delete any stored data.
+function getVehicleTypeFromNumber(vehicleNo) {
+  if (!vehicleNo) return "";
+  var v = STATE.vehicles.find(function (v) {
+    return (
+      (v.vehicleNo || "").toUpperCase() ===
+      String(vehicleNo).trim().toUpperCase()
+    );
+  });
+  return v ? v.type || "" : "";
+}
 
 // ==================== DASHBOARD ====================
 function initDashboard() {
@@ -1941,9 +1983,20 @@ function saveToken() {
   var fs = selectedServices.join(", ");
   var sp = totalServicePrice;
 
-  var discountRaw = qs("#tokenDiscount")?.value || "0";
-  var discount = parseFloat(discountRaw) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(qs("#tokenDiscount")?.value, 0);
+
+  // FIX (bug review): when this save is an EDIT of an existing token,
+  // that token may already hold reserved stock for these same variants
+  // (deducted when it was first saved). We add that reserved qty back
+  // before checking availability here — same pattern already used in
+  // saveCustomToken() — otherwise editing a token without even
+  // increasing its quantity could wrongly report "insufficient stock"
+  // against its own already-reserved units. This ONLY affects the
+  // validation check below; the actual restore-then-deduct stock logic
+  // further down (for editId) is completely unchanged.
+  var existingTokenForStockCheck = editId
+    ? STATE.tokens.find(function (t) { return t.id === editId; })
+    : null;
 
   var newProducts = []; 
   var hasError = false;
@@ -1953,8 +2006,14 @@ function saveToken() {
     var f = findVariantById(vid); 
     if (!f) return;
     var q = parseInt(qsa("#tokenProductsList .token-product-qty")[i]?.value) || 1;
-    if (q > f.variant.stock) { 
-      toast("Only " + f.variant.stock + " units available for " + f.fullName, "error"); 
+    var availableStock = f.variant.stock;
+    if (existingTokenForStockCheck && existingTokenForStockCheck.products) {
+      existingTokenForStockCheck.products.forEach(function (op) {
+        if (op.variantId === vid) availableStock += op.qty;
+      });
+    }
+    if (q > availableStock) { 
+      toast("Only " + availableStock + " units available for " + f.fullName, "error"); 
       hasError = true; 
       return; 
     }
@@ -2007,6 +2066,17 @@ function saveCustomToken() {
   // guard mirrors the same pattern already used in saveToken().
   if (saveCustomToken.running) return;
   saveCustomToken.running = true;
+
+  // FIX (Issue 4 root cause): this function used to ALWAYS create a brand
+  // new token — even when opened via "Edit" on an existing custom token —
+  // so every edit was silently discarded (the old token stayed exactly as
+  // it was) and printing/viewing that token kept showing the un-edited
+  // data. editId (same pattern as saveToken()) now lets us update the
+  // existing token in place instead.
+  var editId = qs("#tokenModal")?.dataset?.editId || "";
+  var existingTokenForEdit = editId
+    ? STATE.tokens.find(function (tk) { return tk.id === editId; })
+    : null;
 
   var vn = (qs("#tokenVehicleNo")?.value || "").trim().toUpperCase();
   var vt = qs("#tokenVehicleType")?.value || "";
@@ -2082,8 +2152,19 @@ function saveCustomToken() {
     if (prdName) {
       if (vid) {
         var f = findVariantById(vid);
-        if (f && qty > f.variant.stock) {
-          toast("Only " + f.variant.stock + " units available for " + f.fullName, "error");
+        // FIX: when editing, this token may already hold some of this
+        // variant's stock (deducted when it was first saved) — add that
+        // back before checking availability, otherwise editing a token
+        // without even changing its quantity could wrongly report
+        // "insufficient stock" against its own reserved units.
+        var availableStock = f ? f.variant.stock : 0;
+        if (existingTokenForEdit && existingTokenForEdit.products) {
+          existingTokenForEdit.products.forEach(function (op) {
+            if (op.variantId === vid) availableStock += op.qty;
+          });
+        }
+        if (f && qty > availableStock) {
+          toast("Only " + availableStock + " units available for " + f.fullName, "error");
           hasCustomStockError = true;
           return;
         }
@@ -2105,9 +2186,59 @@ function saveCustomToken() {
 
   var serviceNames = customServices.map(function(s) { return s.name; }).join(", ");
   var totalServicePrice = customServices.reduce(function(t, s) { return t + s.price; }, 0);
-  var discountRaw = qs("#tokenDiscount")?.value || "0";
-  var discount = parseFloat(discountRaw) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(qs("#tokenDiscount")?.value, 0);
+
+  // FIX (Issues 1, 2 & 4): UPDATE the existing token in place instead of
+  // always creating a new one. Stock is first restored for the token's
+  // OLD products, then deducted again for the NEW list, so inventory
+  // stays accurate — same pattern already used when editing a normal
+  // (non-custom) token.
+  if (editId) {
+    var tkEdit = STATE.tokens.find(function (tk) { return tk.id === editId; });
+    if (!tkEdit) {
+      toast("Token not found — it may have been deleted", "error");
+      saveCustomToken.running = false;
+      return;
+    }
+    if (tkEdit.products) {
+      tkEdit.products.forEach(function (p) {
+        if (p.variantId) {
+          var fOld = findVariantById(p.variantId);
+          if (fOld) fOld.variant.stock += p.qty;
+        }
+      });
+    }
+    customProducts.forEach(function (p) {
+      if (p.variantId) {
+        var fNew = findVariantById(p.variantId);
+        if (fNew) fNew.variant.stock = Math.max(0, fNew.variant.stock - p.qty);
+      }
+    });
+
+    tkEdit.vehicleNo = vn;
+    tkEdit.vehicleType = vt;
+    tkEdit.ownerName = on;
+    tkEdit.contactNumber = cv.formatted;
+    tkEdit.service = serviceNames;
+    tkEdit.servicePrice = totalServicePrice;
+    tkEdit.serviceBreakdown = customServices;
+    tkEdit.discount = discount;
+    tkEdit.products = customProducts;
+    tkEdit.editedAt = fmtDate() + " " + fmtTime();
+    tkEdit.businessPrefix = prefix;
+    tkEdit.businessId = biz.id;
+    tkEdit.businessName = biz.name;
+    tkEdit.isCustom = true;
+
+    saveTokens();
+    saveInventory();
+    closeModal("tokenModal");
+    renderTokenTable();
+    refreshDashboard();
+    toast("Custom Token " + tkEdit.number + " updated successfully", "success");
+    saveCustomToken.running = false;
+    return;
+  }
 
   var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
   if (!ex) { 
@@ -2284,11 +2415,22 @@ function openInvoiceForToken(id) {
   });
   if (!t) return;
 
-  // NEW: this token already has a saved invoice — open THAT invoice for
-  // editing instead of building a fresh (duplicate) one.
+  // FIX (root cause of "same invoice always opens" bug): matching by
+  // token NUMBER TEXT only is unreliable — if two invoices ever end up
+  // with the same/blank token text (old data, edits, imports, etc.),
+  // .find() always returns the FIRST one, so clicking Invoice on any
+  // token kept opening that same first invoice. Now we match by the
+  // token's UNIQUE ID first (100% exact), and only fall back to the old
+  // text-match for older invoices saved before this fix (which don't
+  // have tokenId yet) — so nothing breaks for existing data.
   var existingInv = STATE.invoices.find(function (i) {
-    return i.token && t.number && i.token.toLowerCase() === t.number.toLowerCase();
+    return i.tokenId && i.tokenId === t.id;
   });
+  if (!existingInv) {
+    existingInv = STATE.invoices.find(function (i) {
+      return i.token && t.number && i.token.toLowerCase() === t.number.toLowerCase();
+    });
+  }
   if (existingInv) {
     toast("An invoice already exists for this token — opening it for edit", "info");
     editInvoice(existingInv.id);
@@ -2372,35 +2514,115 @@ function openEditTokenModal(tid) {
   setValue("#tokenContactNumber", t.contactNumber || "");
   setValue("#tokenDiscount", t.discount || 0);
 
+  // FIX: keep editing under the SAME business the token was created
+  // under, instead of silently defaulting to whichever business happens
+  // to be selected right now (which could re-assign the token/invoice to
+  // the wrong business on save, and print the wrong business details).
+  var bizSelectEdit = qs("#tokenBusinessSelect");
+  if (bizSelectEdit && t.businessId) bizSelectEdit.value = t.businessId;
+
   qs("#tokenServicesList").innerHTML = "";
   qs("#tokenProductsList").innerHTML = "";
   qs("#customTokenServicesList").innerHTML = "";
   qs("#customTokenProductsList").innerHTML = "";
 
-  document.getElementById("tokenServicesSection").style.display = "";
-  document.getElementById("tokenProductsSection").style.display = "";
-  document.getElementById("customTokenServicesSection").style.display = "none";
-  document.getElementById("customTokenProductsSection").style.display = "none";
-
-  if (t.service) {
-    t.service.split(", ").forEach(function (svc) {
-      if (svc) addTokenServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
+  // FIX (Issues 1 & 2): a "Custom Token" (created via the Custom Token
+  // modal, or any token whose services/products don't match the normal
+  // Services list / Inventory) was ALWAYS being reopened in the normal
+  // "Generate Token" layout. Custom names have no matching <option> in
+  // the normal dropdowns, so every custom service/product row rendered
+  // blank ("Select service"/"Select variant") — the name + price looked
+  // completely empty — and the custom "Add Service"/"Add Product" fields
+  // (used to type a fresh custom name/price) were hidden the whole time.
+  // Now we detect a custom token (explicit isCustom flag, OR any
+  // service/product that doesn't exist in the current Services list /
+  // Inventory) and reopen it in the Custom Token layout instead, fully
+  // populated and still editable/addable exactly like a brand-new custom
+  // token.
+  var hasUnknownService =
+    !!t.service &&
+    t.service.split(", ").some(function (svc) {
+      return (
+        svc &&
+        !STATE.pricingServices.some(function (s) {
+          return s.name === svc;
+        })
+      );
     });
-  }
-
-  if (t.products) {
-    t.products.forEach(function (p) {
-      addTokenProduct();
-      var lastRow = qs("#tokenProductsList > div:last-child");
-      if (lastRow) {
-        var sel = lastRow.querySelector(".token-product-select");
-        if (sel) sel.value = p.variantId;
-        var priceInput = lastRow.querySelector(".token-product-price");
-        if (priceInput) priceInput.value = p.price;
-        var qtyInput = lastRow.querySelector(".token-product-qty");
-        if (qtyInput) qtyInput.value = p.qty;
-      }
+  var hasCustomProduct =
+    !!t.products &&
+    t.products.some(function (p) {
+      return !p.variantId;
     });
+  var isCustom = !!t.isCustom || hasUnknownService || hasCustomProduct;
+
+  if (isCustom) {
+    document.getElementById("tokenServicesSection").style.display = "none";
+    document.getElementById("tokenProductsSection").style.display = "none";
+    document.getElementById("customTokenServicesSection").style.display = "";
+    document.getElementById("customTokenProductsSection").style.display = "";
+
+    if (t.serviceBreakdown && t.serviceBreakdown.length) {
+      t.serviceBreakdown.forEach(function (sb) {
+        addCustomServiceRow(sb.name, sb.price);
+      });
+    } else if (t.service) {
+      var svcNames = t.service.split(", ").filter(function (s) {
+        return s;
+      });
+      var knownTotal = 0;
+      var customNames = [];
+      svcNames.forEach(function (svc) {
+        var isKnownSvc = STATE.pricingServices.some(function (s) {
+          return s.name === svc;
+        });
+        if (isKnownSvc) knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
+        else customNames.push(svc);
+      });
+      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
+      var customShare = customNames.length ? remaining / customNames.length : 0;
+      svcNames.forEach(function (svc) {
+        var isKnownSvc = STATE.pricingServices.some(function (s) {
+          return s.name === svc;
+        });
+        addCustomServiceRow(
+          svc,
+          isKnownSvc ? getMatrixPrice(svc, t.vehicleType) || 0 : customShare,
+        );
+      });
+    }
+
+    if (t.products && t.products.length) {
+      t.products.forEach(function (p) {
+        addCustomProductRow(p.fullName, p.price, p.qty, p.variantId || "");
+      });
+    }
+  } else {
+    document.getElementById("tokenServicesSection").style.display = "";
+    document.getElementById("tokenProductsSection").style.display = "";
+    document.getElementById("customTokenServicesSection").style.display = "none";
+    document.getElementById("customTokenProductsSection").style.display = "none";
+
+    if (t.service) {
+      t.service.split(", ").forEach(function (svc) {
+        if (svc) addTokenServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
+      });
+    }
+
+    if (t.products) {
+      t.products.forEach(function (p) {
+        addTokenProduct();
+        var lastRow = qs("#tokenProductsList > div:last-child");
+        if (lastRow) {
+          var sel = lastRow.querySelector(".token-product-select");
+          if (sel) sel.value = p.variantId;
+          var priceInput = lastRow.querySelector(".token-product-price");
+          if (priceInput) priceInput.value = p.price;
+          var qtyInput = lastRow.querySelector(".token-product-qty");
+          if (qtyInput) qtyInput.value = p.qty;
+        }
+      });
+    }
   }
 
   qs("#tokenModal").dataset.editId = tid;
@@ -2428,6 +2650,11 @@ function initBilling() {
 
   qs("#addInvoiceService")?.addEventListener("click", function () { addInvoiceServiceRow("", 0); });
   qs("#addInvoiceProduct")?.addEventListener("click", function () { addInvoiceProductRow("", 0, 1); });
+  // NEW (Issue 3): lets the user add a fully custom (freely typed) service
+  // or product line directly on an invoice — not just when it comes
+  // auto-filled from a Custom Token.
+  qs("#addCustomInvoiceService")?.addEventListener("click", function () { addCustomInvoiceServiceRow("", 0); });
+  qs("#addCustomInvoiceProduct")?.addEventListener("click", function () { addCustomInvoiceProductRow("", 0, 1); });
 
   qs("#saveInvoiceBtn")?.addEventListener("click", function(e){
     console.log("Save button clicked");
@@ -2483,7 +2710,17 @@ function initBilling() {
       status: cash >= totalAfterDiscount && cash > 0 ? "PAID" : "UNPAID",
     };
 
-    var biz = getCurrentBusiness();
+    // FIX (bonus): use whichever business is actually selected on this
+    // invoice form, not always the currently active business.
+    var invBizSelectForPrint = qs("#invoiceBusinessSelect");
+    var businessesForPrint2 = getBusinesses();
+    var biz;
+    if (invBizSelectForPrint && invBizSelectForPrint.value) {
+      biz = businessesForPrint2.find(function (b) {
+        return b.id === invBizSelectForPrint.value;
+      });
+    }
+    if (!biz) biz = getCurrentBusiness();
     var content = generateThermalInvoice(tempInv, biz);
 
     if (window.electronAPI && window.electronAPI.printReceipt) {
@@ -2589,7 +2826,10 @@ function addInvoiceServiceRow(nm, pr) {
         '<option value="' +
         s.name +
         '" data-price="' +
-        (getMatrixPrice(s.name, qs("#invoiceVehicle")?.value || "") || 0) +
+        (getMatrixPrice(
+          s.name,
+          getVehicleTypeFromNumber(qs("#invoiceVehicle")?.value || ""),
+        ) || 0) +
         '" ' +
         (s.name === nm ? "selected" : "") +
         ">" +
@@ -2671,17 +2911,33 @@ function addCustomInvoiceServiceRow(nm, pr) {
   var r = document.createElement("div");
   r.className = "invoice-line-row";
   r.style.background = "#fef9c3";
+  // FIX (Issue 3): the visible name field was "readonly" — fine when this
+  // row is auto-filled from a token, but it meant there was NO way to
+  // manually add a fresh custom service line item straight on an invoice
+  // and type its name. It's now a normal editable text input; typing into
+  // it updates the hidden <select>'s single option (which is what every
+  // other invoice function — preview, save, print — actually reads the
+  // name from), so nothing else needs to change.
   r.innerHTML =
     '<div class="form-group"><select class="form-input invoice-svc-select" style="display:none"><option value="' +
     sanitize(nm) +
     '" selected>' +
     sanitize(nm) +
-    '</option></select><input type="text" class="form-input" value="' +
+    '</option></select><input type="text" class="form-input invoice-svc-name-input" placeholder="Custom service name" value="' +
     sanitize(nm) +
-    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-svc-price" value="' +
+    '" style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-svc-price" value="' +
     pr +
     '"></div><div class="form-group"><input type="number" class="form-input invoice-svc-qty" value="1" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
   qs("#invoiceServicesContainer")?.appendChild(r);
+  var nameInput = r.querySelector(".invoice-svc-name-input");
+  var hiddenSelect = r.querySelector(".invoice-svc-select");
+  nameInput?.addEventListener("input", function () {
+    if (hiddenSelect && hiddenSelect.options[0]) {
+      hiddenSelect.options[0].value = this.value;
+      hiddenSelect.options[0].text = this.value;
+    }
+    updateInvoicePreview();
+  });
   r.querySelector(".invoice-svc-price")?.addEventListener(
     "input",
     updateInvoicePreview,
@@ -2698,6 +2954,11 @@ function addCustomInvoiceProductRow(nm, pr, qt) {
   var r = document.createElement("div");
   r.className = "invoice-line-row";
   r.style.background = "#fef9c3";
+  // FIX (Issue 3): same as addCustomInvoiceServiceRow — name field is now
+  // editable instead of readonly, so a custom product line can be typed
+  // directly on the invoice. Typing syncs into the hidden <select>'s
+  // data-fullname (which updateInvoicePreview/saveInvoice/printing all
+  // read the product name from).
   r.innerHTML =
     '<div class="form-group"><select class="form-input invoice-prd-select" style="display:none"><option value="' +
     pr +
@@ -2705,14 +2966,22 @@ function addCustomInvoiceProductRow(nm, pr, qt) {
     sanitize(nm) +
     '" selected>' +
     sanitize(nm) +
-    '</option></select><input type="text" class="form-input" value="' +
+    '</option></select><input type="text" class="form-input invoice-prd-name-input" placeholder="Custom product name" value="' +
     sanitize(nm) +
-    '" readonly style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-prd-price" value="' +
+    '" style="background:var(--surface-active);"></div><div class="form-group"><input type="number" class="form-input invoice-prd-price" value="' +
     pr +
     '"></div><div class="form-group"><input type="number" class="form-input invoice-prd-qty" value="' +
     qt +
     '" min="1"></div><button class="btn-icon btn btn-danger-ghost" onclick="this.closest(\'.invoice-line-row\').remove();updateInvoicePreview();"><span class="material-icons">close</span></button>';
   qs("#invoiceProductsContainer")?.appendChild(r);
+  var nameInput = r.querySelector(".invoice-prd-name-input");
+  var hiddenSelect = r.querySelector(".invoice-prd-select");
+  nameInput?.addEventListener("input", function () {
+    if (hiddenSelect && hiddenSelect.options[0]) {
+      hiddenSelect.options[0].dataset.fullname = this.value;
+    }
+    updateInvoicePreview();
+  });
   r.querySelector(".invoice-prd-price")?.addEventListener(
     "input",
     updateInvoicePreview,
@@ -2722,6 +2991,91 @@ function addCustomInvoiceProductRow(nm, pr, qt) {
     updateInvoicePreview,
   );
 }
+// ============================================================
+// NEW — TOKEN ↔ INVOICE PRICE SYNC (root-cause fix)
+// ------------------------------------------------------------
+// getTotalRevenue() (and therefore the Dashboard "Total Revenue" KPI and
+// the Reports page) never reads from STATE.invoices at all — it only
+// reads each token's own tk.servicePrice / tk.products / tk.discount.
+// Invoices are normally just a printable copy generated FROM a token, so
+// this worked fine — until an invoice is EDITED (e.g. custom
+// service/product fields added, or their prices changed) directly on the
+// Billing screen. That edit only updated the invoice record; the token
+// behind it kept its old prices, so the Invoice Preview correctly showed
+// the new total (e.g. Rs. 12,000) while Dashboard/Reports revenue kept
+// adding up the token's old, un-synced total (e.g. Rs. 6,000).
+//
+// This function is called every time an invoice linked to a token is
+// created or updated, and rewrites that token's service/product/price
+// fields to exactly match the invoice's current line items — so revenue
+// figures always match what the invoice (and customer) actually shows.
+// ============================================================
+function syncTokenFromInvoiceItems(tokenNumber, items, discount) {
+  if (!tokenNumber) return;
+  var tk = STATE.tokens.find(function (t) {
+    return t.number && t.number.toLowerCase() === tokenNumber.toLowerCase();
+  });
+  if (!tk) return;
+
+  var serviceItems = (items || []).filter(function (i) {
+    return i.type === "service";
+  });
+  var productItems = (items || []).filter(function (i) {
+    return i.type !== "service";
+  });
+
+  // Restore stock for whatever this token previously had linked to real
+  // inventory variants, before writing the new product list (mirrors the
+  // same restore-then-deduct pattern already used when editing a token
+  // directly).
+  if (tk.products) {
+    tk.products.forEach(function (p) {
+      if (p.variantId) {
+        var fOld = findVariantById(p.variantId);
+        if (fOld) fOld.variant.stock += p.qty;
+      }
+    });
+  }
+
+  var allVariants = getAllVariantsFlat();
+  var newProducts = productItems.map(function (i) {
+    var matched = allVariants.find(function (v) {
+      return v.fullName === i.name;
+    });
+    var rec = { fullName: i.name, qty: i.qty || 1, price: i.price || 0 };
+    if (matched) rec.variantId = matched.id;
+    return rec;
+  });
+  newProducts.forEach(function (p) {
+    if (p.variantId) {
+      var fNew = findVariantById(p.variantId);
+      if (fNew) fNew.variant.stock = Math.max(0, fNew.variant.stock - p.qty);
+    }
+  });
+
+  var serviceNames = serviceItems
+    .map(function (i) {
+      return i.name;
+    })
+    .join(", ");
+  var serviceBreakdown = serviceItems.map(function (i) {
+    return { name: i.name, price: (i.price || 0) * (i.qty || 1) };
+  });
+  var serviceTotal = serviceBreakdown.reduce(function (s, sb) {
+    return s + sb.price;
+  }, 0);
+
+  tk.service = serviceNames;
+  tk.servicePrice = serviceTotal;
+  tk.serviceBreakdown = serviceBreakdown;
+  tk.products = newProducts;
+  tk.discount = discount || 0;
+  tk.editedAt = fmtDate() + " " + fmtTime();
+
+  saveTokens();
+  saveInventory();
+}
+
 function saveInvoice() {
   try {
     var cu = (qs("#invoiceCustomer")?.value || "").trim();
@@ -2789,6 +3143,14 @@ function saveInvoice() {
         }
       }
       existingInv.token = tokenNum;
+      // NEW: keep tokenId in sync whenever the token field is changed on
+      // an existing invoice, so the reliable ID-based link never goes stale.
+      existingInv.tokenId = tokenNum
+        ? (function () {
+            var mt = STATE.tokens.find(function (tt) { return tt.number && tt.number.toLowerCase() === tokenNum.toLowerCase(); });
+            return mt ? mt.id : "";
+          })()
+        : "";
       existingInv.vehicle = (qs("#invoiceVehicle")?.value || "").trim();
       existingInv.customer = cu;
       existingInv.contactNumber = qs("#invoiceCustomer")?.dataset?.contact || "";
@@ -2809,6 +3171,10 @@ function saveInvoice() {
       existingInv.edited = true;
       existingInv.editedAt = fmtDate() + " " + fmtTime();
       saveInvoices();
+      // FIX (revenue mismatch): keep the linked token's own price data in
+      // sync with this invoice's final items — this is what
+      // Dashboard/Reports revenue actually reads from.
+      if (tokenNum) syncTokenFromInvoiceItems(tokenNum, it, discount);
       exitInvoiceEditMode();
       toast("Invoice " + existingInv.number + " updated — this invoice has been edited", "success");
 
@@ -2849,6 +3215,13 @@ function saveInvoice() {
     if (!STATE.counters[counterKey]) STATE.counters[counterKey] = 1;
     var invNumber = prefix + "-INV-" + String(STATE.counters[counterKey]).padStart(3, "0");
 
+    // NEW: resolve the exact token record now, so we can save its UNIQUE
+    // ID on the invoice (tokenId) instead of relying only on the token
+    // number text — this is what fixes the "always opens same invoice" bug.
+    var linkedTokenForNewInv = tokenNum
+      ? STATE.tokens.find(function (tt) { return tt.number && tt.number.toLowerCase() === tokenNum.toLowerCase(); })
+      : null;
+
     var inv = {
       id: uid(),
       number: invNumber,
@@ -2856,6 +3229,7 @@ function saveInvoice() {
       time: fmtTime(),
       createdAt: Date.now(),
       token: tokenNum,
+      tokenId: linkedTokenForNewInv ? linkedTokenForNewInv.id : "", // NEW: exact, reliable link to the token
       vehicle: (qs("#invoiceVehicle")?.value || "").trim(),
       customer: cu,
       contactNumber: qs("#invoiceCustomer")?.dataset?.contact || "",
@@ -2881,12 +3255,17 @@ function saveInvoice() {
     // Update linked token if any — and lock it so it can't be re-invoiced
     var tn = inv.token;
     if (tn) {
-      var tk = STATE.tokens.find(function (t) { return t.number.toLowerCase() === tn.toLowerCase(); });
+      var tk = linkedTokenForNewInv;
       if (tk && tk.status !== "completed") {
         tk.status = "completed";
         createReminderFromToken(tk);
         saveTokens();
       }
+      // FIX (revenue mismatch): even on first save, sync the token's own
+      // price data to match this invoice's actual items — covers the
+      // case where custom fields/prices were added on the invoice itself
+      // before ever saving it.
+      syncTokenFromInvoiceItems(tn, it, discount);
     }
 
     toast("Invoice " + inv.number + " saved", "success");
@@ -3252,9 +3631,16 @@ function printThermalReceipt() {
   var invNumber = (qs("#invNumber")?.textContent || "").trim(),
     invDate = (qs("#invDate")?.textContent || "").trim(),
     invCustomer = (qs("#invCustomer")?.textContent || "").trim();
-  var biz = getCurrentBusiness();
-  var businessName =
-      qs("#invBusinessName")?.textContent || biz.name || "Service Station",
+  // FIX (bonus): match the address/phone to the business actually shown
+  // in the preview (could differ from the currently active business),
+  // instead of always pulling address/phone from getCurrentBusiness().
+  var previewBizName = qs("#invBusinessName")?.textContent || "";
+  var businessesForThermal = getBusinesses();
+  var biz =
+    businessesForThermal.find(function (b) {
+      return b.name === previewBizName;
+    }) || getCurrentBusiness();
+  var businessName = previewBizName || biz.name || "Service Station",
     address = biz.address || STATE.settings.address || "Main Road, City",
     phone = biz.phone || STATE.settings.phone || "0300-0000000";
   var items = [];
@@ -3325,7 +3711,7 @@ function printThermalReceipt() {
     fmtRs(grandTotal) +
     '</div><div style="text-align:center;font-weight:bold">*** ' +
     paymentStatus +
-    ' ***</div><div class="ftr">Thank You!<br>Developed by Design Orbits | 03225267908</div></body></html>';
+    ' ***</div><div class="ftr">Thank You!<br>Developed by Design Orbits | 0322-5267908</div></body></html>';
   if (window.electronAPI && window.electronAPI.printReceipt) {
     window.electronAPI
       .printReceipt(h, {
@@ -3367,7 +3753,17 @@ function printTokenReceipt(tokenId) {
     toast("Token not found", "error");
     return;
   }
-  var biz = getCurrentBusiness();
+  // FIX (bonus): print using the business the token was actually created
+  // under, not whichever business happens to be active right now — e.g.
+  // a Metabuilt token printed while Wheel Works is the active business
+  // was wrongly showing Wheel Works' name/address/phone on the receipt.
+  var businessesForPrint = getBusinesses();
+  var biz =
+    (t.businessId &&
+      businessesForPrint.find(function (b) {
+        return b.id === t.businessId;
+      })) ||
+    getCurrentBusiness();
   var businessName = biz.name || "Wheel Works Service Station";
   var address = biz.address || "Main Road, City";
   var phone = biz.phone || "0300-0000000";
@@ -3473,7 +3869,7 @@ function generateThermalCustomerCopy(token, businessName, address, phone, date, 
 
   var grandTotal = Math.max(0, totalAmount - discount);
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.discount-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:10pt;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="addr">' + sanitize(address) + '</div><div class="addr">Tel: ' + sanitize(phone) + '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' + sanitize(token.number) + '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + ' (' + sanitize(token.vehicleType) + ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') + (discount > 0 ? '<div class="discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for Transaction ID</div><div class="ftr-note">' + sanitize(phone) + '</div><div class="ftr-note">Developed by Design Orbits | 03225267908</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px;line-height:1.1}.addr{font-size:8pt;color:#333;margin-top:0.5mm}.tok-box{text-align:center;margin:3mm 0;padding:2.5mm;border:2px solid #000}.tok-lbl{font-size:6.5pt;text-transform:uppercase;letter-spacing:2px;color:#555}.tok-num{font-size:20pt;font-weight:900;letter-spacing:1.5px;margin:1mm 0;line-height:1}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.discount-row{display:flex;justify-content:space-between;padding:1mm 0;font-size:10pt;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.ftr{text-align:center;margin-top:3mm;border-top:2px solid #000;padding-top:2mm}.thanks{font-size:12pt;font-weight:900;text-transform:uppercase}.ftr-note{font-size:7.5pt;color:#555;margin-top:0.5mm}.cut{text-align:center;margin:3mm 0 1.5mm 0;border-top:1px dashed #999;padding-top:1mm;font-size:6.5pt;color:#999;letter-spacing:2px}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="addr">' + sanitize(address) + '</div><div class="addr">Tel: ' + sanitize(phone) + '</div></div><div class="tok-box"><div class="tok-lbl">Token Number</div><div class="tok-num">' + sanitize(token.number) + '</div></div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + ' (' + sanitize(token.vehicleType) + ')</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + '</span></div><div class="info-row"><span class="info-lbl">Time</span><span class="info-val">' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>N/A</span></div>') + (discount > 0 ? '<div class="discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(grandTotal) + '</span></div><div class="ftr"><div class="thanks">Thank You!</div><div class="ftr-note">Please keep this token for Transaction ID</div><div class="ftr-note">' + sanitize(phone) + '</div><div class="ftr-note">Developed by Design Orbits | 0322-5267908</div></div><div class="cut">- - - ✂ CUSTOMER COPY ✂ - - -</div></body></html>';
 }
 function generateThermalCashierCopy(token, businessName, address, phone, date, time) {
   var itemsHTML = '';
@@ -3507,7 +3903,7 @@ function generateThermalCashierCopy(token, businessName, address, phone, date, t
 
   totalAmount = Math.max(0, totalAmount - discount);
 
-  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' + sanitize(token.number) + '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' + sanitize(token.vehicleType) + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + ' ' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') + (discount > 0 ? '<div class="total-row"><span>Discount</span><span>' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' + sanitize(businessName) + ' | ' + sanitize(phone) + ' | Attendant\'s Copy<br>Developed by Design Orbits | 03225267908</div></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Arial","Helvetica",sans-serif;width:74mm;padding:2mm;font-size:11pt;color:#000;background:#fff}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:3mm;background:#f5f5f5;padding:2mm}.biz{font-size:13pt;font-weight:900;text-transform:uppercase;letter-spacing:0.5px}.copy-badge{display:inline-block;background:#000;color:#fff;font-size:9pt;font-weight:900;padding:1mm 5mm;margin-top:1mm;letter-spacing:1px}.tok-num{font-size:16pt;font-weight:900;text-align:center;margin:3mm 0;padding:2mm;border:1px solid #000}.info{margin:3mm 0}.info-row{display:flex;padding:1mm 0;border-bottom:1px dotted #ccc;font-size:9.5pt}.info-lbl{width:28%;font-weight:700;font-size:7.5pt;text-transform:uppercase;color:#555;padding-top:0.5mm}.info-val{flex:1;font-weight:600}.svc-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:3mm 0 1mm 0;border-top:1px solid #000;padding-top:2mm}.svc-row{display:flex;align-items:flex-start;gap:1.5mm;padding:0.5mm 0;font-size:9pt}.svc-dot{font-weight:900;color:#000}.svc-price{margin-left:auto;font-weight:700}.total-row{display:flex;justify-content:space-between;padding:1.5mm 0;margin-top:1mm;border-top:2px solid #000;border-bottom:2px solid #000;font-size:11pt;font-weight:900}.notes-box{border:1px solid #ccc;padding:2mm;min-height:12mm;font-size:8pt;color:#555;margin-top:3mm}.notes-title{font-size:7.5pt;font-weight:900;text-transform:uppercase;margin-bottom:1mm}.ftr{text-align:center;margin-top:2mm;border-top:1px solid #000;padding-top:1.5mm;font-size:6.5pt;color:#555}</style></head><body><div class="hdr"><div class="biz">' + sanitize(businessName) + '</div><div class="copy-badge">ATTENDANT\'S COPY</div></div><div class="tok-num">TOKEN: ' + sanitize(token.number) + '</div><div class="info"><div class="info-row"><span class="info-lbl">Customer</span><span class="info-val">' + sanitize(token.ownerName || "N/A") + '</span></div><div class="info-row"><span class="info-lbl">Vehicle</span><span class="info-val">' + sanitize(token.vehicleNo) + '</span></div><div class="info-row"><span class="info-lbl">Type</span><span class="info-val">' + sanitize(token.vehicleType) + '</span></div><div class="info-row"><span class="info-lbl">Phone</span><span class="info-val">' + sanitize(formatContactDisplay(token.contactNumber || "N/A")) + '</span></div><div class="info-row"><span class="info-lbl">Date</span><span class="info-val">' + sanitize(date) + ' ' + sanitize(time) + '</span></div></div><div class="svc-title">Services & Products</div>' + (itemsHTML || '<div class="svc-row"><span class="svc-dot">•</span><span>No items</span></div>') + (discount > 0 ? '<div class="total-row"><span>Discount</span><span>' + fmtPrice(discount) + '</span></div>' : '') + '<div class="total-row"><span>TOTAL</span><span>' + fmtPrice(totalAmount) + '</span></div><div class="notes-box"><div class="notes-title">Notes / Remarks</div></div><div class="ftr">' + sanitize(businessName) + ' | ' + sanitize(phone) + ' | Attendant\'s Copy<br>Developed by Design Orbits | 0322-5267908</div></body></html>';
 }
 
 // ==================== A4 INVOICE PRINTING ====================
@@ -3519,7 +3915,15 @@ function printA4Invoice(invoiceId) {
     toast("Invoice not found", "error");
     return;
   }
-  var biz = getCurrentBusiness();
+  // FIX (bonus): same as printTokenReceipt — print with the business the
+  // invoice was actually saved under.
+  var businessesForA4 = getBusinesses();
+  var biz =
+    (inv.businessId &&
+      businessesForA4.find(function (b) {
+        return b.id === inv.businessId;
+      })) ||
+    getCurrentBusiness();
   var content = generateA4Invoice(inv, biz);
 
   if (window.electronAPI && window.electronAPI.printReceipt) {
@@ -3650,7 +4054,7 @@ function generateThermalInvoice(inv, biz) {
     "</div>" +
     '<div class="ftr">Thank You!<br>' +
     sanitize(biz.name) + " | " + sanitize(biz.phone) +
-    "<br>Developed by Design Orbits | 03225267908" +
+    "<br>Developed by Design Orbits | 0322-5267908" +
     "</div>" +
     "</body></html>"
   );
@@ -3706,8 +4110,7 @@ function updateSaleTotal() {
     t += parseFloat(row.querySelector(".sale-product-qty")?.value || 0) * parseFloat(row.querySelector(".sale-product-price")?.value || 0);
   });
   var discInput = document.getElementById("saleDiscount");
-  var discount = parseFloat(discInput?.value) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(discInput?.value, 0);
   var grand = Math.max(0, t - discount);
   setText("#saleGrandTotal", fmtPrice(grand));
 }
@@ -3738,7 +4141,7 @@ function printSaleReceipt(saleId) {
   var discount = sale.discount || 0;
   var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0}body{font-family:Arial,sans-serif;width:74mm;padding:2mm;font-size:9pt;color:#000}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:2mm}.biz{font-size:13pt;font-weight:900}.ttl{text-align:center;font-size:12pt;font-weight:900;margin:2mm 0;border:2px solid #000;padding:2mm}.row{display:flex;justify-content:space-between;padding:1mm 0;border-bottom:1px dotted #ccc}.discount-row{color:#b45309;font-weight:700}.grand{text-align:center;font-size:13pt;font-weight:900;margin-top:2mm;border-top:2px solid #000;padding-top:2mm}.ftr{text-align:center;margin-top:2mm;font-size:8pt}.dev-ftr{text-align:center;margin-top:1.5mm;font-size:7pt;color:#333;border-top:1px dashed #999;padding-top:1.5mm}</style></head><body><div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div>' + sanitize(biz.address) + '</div></div><div class="ttl">SALE RECEIPT</div><div class="row"><span>Customer:</span><span><b>' + sanitize(sale.customer) + '</b></span></div><div class="row"><span>Date:</span><span>' + sanitize(sale.date) + '</span></div><table width="100%">' + itemsHTML + '</table>' +
   (discount > 0 ? '<div class="row discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') +
-  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 03225267908</div></body></html>';
+  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 0322-5267908</div></body></html>';
   if (window.electronAPI && window.electronAPI.printReceipt) { window.electronAPI.printReceipt(h, { pageSize: { width: 80000, height: 297000 } }); }
   else { var w = window.open("", "_blank"); w.document.write(h); w.document.close(); setTimeout(function() { w.print(); }, 500); }
 }
@@ -3820,7 +4223,7 @@ function printSaleReceipt(saleId) {
   var discount = sale.discount || 0;
   var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0}body{font-family:Arial,sans-serif;width:74mm;padding:2mm;font-size:9pt;color:#000}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:2mm}.biz{font-size:13pt;font-weight:900}.ttl{text-align:center;font-size:12pt;font-weight:900;margin:2mm 0;border:2px solid #000;padding:2mm}.row{display:flex;justify-content:space-between;padding:1mm 0;border-bottom:1px dotted #ccc}.discount-row{color:#b45309;font-weight:700}.grand{text-align:center;font-size:13pt;font-weight:900;margin-top:2mm;border-top:2px solid #000;padding-top:2mm}.ftr{text-align:center;margin-top:2mm;font-size:8pt}.dev-ftr{text-align:center;margin-top:1.5mm;font-size:7pt;color:#333;border-top:1px dashed #999;padding-top:1.5mm}</style></head><body><div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div>' + sanitize(biz.address) + '</div></div><div class="ttl">SALE RECEIPT</div><div class="row"><span>Customer:</span><span><b>' + sanitize(sale.customer) + '</b></span></div><div class="row"><span>Date:</span><span>' + sanitize(sale.date) + '</span></div><table width="100%">' + itemsHTML + '</table>' +
   (discount > 0 ? '<div class="row discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') +
-  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 03225267908</div></body></html>';
+  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 0322-5267908</div></body></html>';
   if (window.electronAPI && window.electronAPI.printReceipt) { window.electronAPI.printReceipt(h, { pageSize: { width: 80000, height: 297000 } }); }
   else { var w = window.open("", "_blank"); w.document.write(h); w.document.close(); setTimeout(function() { w.print(); }, 500); }
 }
@@ -3880,8 +4283,7 @@ function updateSaleTotal() {
     t += parseFloat(row.querySelector(".sale-product-qty")?.value || 0) * parseFloat(row.querySelector(".sale-product-price")?.value || 0);
   });
   var discInput = document.getElementById("saleDiscount");
-  var discount = parseFloat(discInput?.value) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(discInput?.value, 0);
   var grand = Math.max(0, t - discount);
   setText("#saleGrandTotal", fmtPrice(grand));
 }
@@ -3965,8 +4367,7 @@ function saveProductSale() {
 
   // ⭐ Discount
   var discInput = document.getElementById("saleDiscount");
-  var discount = parseFloat(discInput?.value) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(discInput?.value, 0);
   var grandTotal = Math.max(0, subtotal - discount);
 
   // FIXED: Payment Method / Payment Status dropdowns were never read
@@ -4192,7 +4593,7 @@ function printSaleReceipt(saleId) {
   var discount = sale.discount || 0;
   var h = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0}body{font-family:Arial,sans-serif;width:74mm;padding:2mm;font-size:9pt;color:#000}.hdr{text-align:center;border-bottom:2px solid #000;padding-bottom:2mm;margin-bottom:2mm}.biz{font-size:13pt;font-weight:900}.ttl{text-align:center;font-size:12pt;font-weight:900;margin:2mm 0;border:2px solid #000;padding:2mm}.row{display:flex;justify-content:space-between;padding:1mm 0;border-bottom:1px dotted #ccc}.discount-row{color:#b45309;font-weight:700}.grand{text-align:center;font-size:13pt;font-weight:900;margin-top:2mm;border-top:2px solid #000;padding-top:2mm}.ftr{text-align:center;margin-top:2mm;font-size:8pt}.dev-ftr{text-align:center;margin-top:1.5mm;font-size:7pt;color:#333;border-top:1px dashed #999;padding-top:1.5mm}</style></head><body><div class="hdr"><div class="biz">' + sanitize(biz.name) + '</div><div>' + sanitize(biz.address) + '</div></div><div class="ttl">SALE RECEIPT</div><div class="row"><span>Customer:</span><span><b>' + sanitize(sale.customer) + '</b></span></div><div class="row"><span>Date:</span><span>' + sanitize(sale.date) + '</span></div><table width="100%">' + itemsHTML + '</table>' +
   (discount > 0 ? '<div class="row discount-row"><span>Discount</span><span>-' + fmtPrice(discount) + '</span></div>' : '') +
-  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 03225267908</div></body></html>';
+  '<div class="grand">' + fmtPrice(sale.total) + '</div><div class="ftr">Thank You!</div><div class="dev-ftr">Developed by Design Orbits | 0322-5267908</div></body></html>';
   if (window.electronAPI && window.electronAPI.printReceipt) { window.electronAPI.printReceipt(h, { pageSize: { width: 80000, height: 297000 } }); }
   else { var w = window.open("", "_blank"); w.document.write(h); w.document.close(); setTimeout(function() { w.print(); }, 500); }
 }
@@ -4453,10 +4854,10 @@ function saveProduct() {
       m = card.querySelector(".variant-model")?.value?.trim() || "Standard",
       g = card.querySelector(".variant-grade")?.value?.trim() || "",
       s = card.querySelector(".variant-size")?.value?.trim() || "",
-      pp = Number(card.querySelector(".variant-purchase-price")?.value) || 0,
-      sp = Number(card.querySelector(".variant-selling-price")?.value) || 0,
-      st = parseInt(card.querySelector(".variant-stock")?.value) || 0,
-      ms = parseInt(card.querySelector(".variant-min-stock")?.value) || 5;
+      pp = parseNum(card.querySelector(".variant-purchase-price")?.value, 0),
+      sp = parseNum(card.querySelector(".variant-selling-price")?.value, 0),
+      st = parseIntNum(card.querySelector(".variant-stock")?.value, 0),
+      ms = parseIntNum(card.querySelector(".variant-min-stock")?.value, 5);
     var sku = card.querySelector(".variant-sku")?.value?.trim() || "";
     if (!sp) { toast("Variant #" + (idx + 1) + ": Enter price", "error"); hasError = true; return; }
     if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
@@ -4497,9 +4898,16 @@ function openStockModal(vid, tp) {
 }
 function saveStock() {
   var vid = qs("#stockProductId")?.value || "",
-    qt = Number(qs("#stockQty")?.value) || 0,
+    qt = parseNum(qs("#stockQty")?.value, 0),
     tp = document.querySelector('input[name="stockType"]:checked')?.value || "in";
-  if (!vid || !qt) return;
+  if (!vid) {
+    toast("Select a product first", "error");
+    return;
+  }
+  if (!qt || qt <= 0) {
+    toast("Enter a valid quantity", "error");
+    return;
+  }
   var f = findVariantById(vid);
   if (!f) return;
   if (tp === "out" && qt > f.variant.stock) {
@@ -4870,8 +5278,19 @@ function hideExpenseForm() {
 function saveExpense() {
   var tl = (qs("#expenseTitle")?.value || "").trim(),
     ct = qs("#expenseCategory")?.value || "",
-    am = Number(qs("#expenseAmount")?.value) || 0;
-  if (!tl || !ct || !am) return;
+    am = parseNum(qs("#expenseAmount")?.value, 0);
+  if (!tl) {
+    toast("Enter expense title", "error");
+    return;
+  }
+  if (!ct) {
+    toast("Select a category", "error");
+    return;
+  }
+  if (!am || am <= 0) {
+    toast("Enter a valid amount", "error");
+    return;
+  }
   STATE.expenses.push({
     id: uid(),
     title: tl,
@@ -6431,7 +6850,7 @@ function printVendorPaymentReceipt(pay) {
   '</div>' +
   purchasesHTML +
   '<div class="amount-box"><div class="amount-lbl">AMOUNT PAID</div><div class="amount-val">' + fmtPrice(pay.amount) + '</div></div>' +
-  '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '<br>Developed by Design Orbits | 03225267908</div>' +
+  '<div class="ftr">Thank You!<br>' + sanitize(biz.name) + ' | ' + sanitize(biz.phone) + '<br>Developed by Design Orbits | 0322-5267908</div>' +
   '</body></html>';
 
   if (window.electronAPI && window.electronAPI.printReceipt) {
@@ -6626,7 +7045,7 @@ function renderVendorKPIs() {
   var totalPurchases = vendors.reduce(function(s, v) { return s + (v.totalPurchases || 0); }, 0);
   var pending = Math.max(0, totalPurchases - totalPaid);
   setText("#kpiTotalVendors", vendors.length);
-  setText("#kpiVendorPaid", fmtPrice(totalPaid));
+  setText("#vendorTotalPaidKpi", fmtPrice(totalPaid));
   setText("#kpiVendorPending", fmtPrice(pending));
   setText("#kpiVendorMonth", fmtPrice(0));
 }
@@ -6738,9 +7157,7 @@ function updateTokenTotal() {
     }
   });
   
-  var discountRaw = qs("#tokenDiscount")?.value || "0";
-  var discount = parseFloat(discountRaw) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(qs("#tokenDiscount")?.value, 0);
   
   var grand = Math.max(0, t - discount);
   console.log("[Token Total] Services+Products:", t, "Discount:", discount, "Grand:", grand);
@@ -6803,9 +7220,7 @@ function updateCustomTokenTotal() {
     console.log("[Custom Prd Row " + idx + "]", "qty:", qty, "price:", price, "subtotal:", qty * price);
   });
   
-  var discountRaw = qs("#tokenDiscount")?.value || "0";
-  var discount = parseFloat(discountRaw) || 0;
-  if (isNaN(discount)) discount = 0;
+  var discount = parseNum(qs("#tokenDiscount")?.value, 0);
   
   var grand = Math.max(0, t - discount);
   console.log("[Custom Total] Subtotal:", t, "Discount:", discount, "Grand:", grand);
@@ -6896,19 +7311,25 @@ function addTokenProduct() {
 
   recomputeTokenTotal();
 }
-function addCustomServiceRow() {
+function addCustomServiceRow(nm, pr) {
   var c = qs("#customTokenServicesList");
   if (!c) return;
+  // NEW: optional prefill (nm, pr) lets Edit Token load a previously
+  // saved custom service back into the form. Calling addCustomServiceRow()
+  // with no arguments (the "Add Service" button) behaves exactly as before.
+  var isKnown = !!nm && STATE.pricingServices.some(function (s) { return s.name === nm; });
+  var showCustom = !!nm && !isKnown;
   var opts = STATE.pricingServices.map(function(s) {
-    return '<option value="' + s.name + '">' + sanitize(s.name) + '</option>';
+    var sel = isKnown && s.name === nm ? " selected" : "";
+    return '<option value="' + s.name + '"' + sel + '>' + sanitize(s.name) + '</option>';
   }).join("");
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
   r.innerHTML = 
-    '<select class="form-input custom-svc-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' + opts + 
-    '<option value="__custom__">Custom Service</option></select>' +
-    '<input type="text" class="form-input custom-svc-name" placeholder="Service name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" />' +
-    '<input type="number" step="any" class="form-input custom-svc-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
+    '<select class="form-input custom-svc-select" style="flex:1;padding:6px 4px;font-size:0.72rem;' + (showCustom ? "display:none;" : "") + '"><option value="">Select</option>' + opts + 
+    '<option value="__custom__"' + (showCustom ? " selected" : "") + '>Custom Service</option></select>' +
+    '<input type="text" class="form-input custom-svc-name" placeholder="Service name" value="' + sanitize(showCustom ? nm : "") + '" style="' + (showCustom ? "" : "display:none;") + 'width:100px;padding:6px 4px;font-size:0.72rem" />' +
+    '<input type="number" step="any" class="form-input custom-svc-price" placeholder="Price" value="' + (pr !== undefined && pr !== null ? pr : "") + '" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
     '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
@@ -6925,10 +7346,10 @@ function addCustomServiceRow() {
       nameEl.focus();
     } else if (this.value) {
       var vt = qs("#tokenVehicleType")?.value || "";
-      var pr = vt ? getMatrixPrice(this.value, vt) : 0;
+      var prc = vt ? getMatrixPrice(this.value, vt) : 0;
       // ✅ FIX: Direct assignment, no || ""
-      priceEl.value = pr;
-      if (pr === 0 && vt) {
+      priceEl.value = prc;
+      if (prc === 0 && vt) {
         priceEl.style.background = "#fee2e2";
         priceEl.title = "⚠ No matrix price for: " + this.value + " × " + vt;
       } else {
@@ -6944,7 +7365,10 @@ function addCustomServiceRow() {
     }
     recomputeTokenTotal();
   });
-  
+
+  nameEl.addEventListener("input", function () {
+    recomputeTokenTotal();
+  });
   priceEl.addEventListener("input", function() {
     console.log("[Custom Price Input]", this.value, "parsed:", this.valueAsNumber);
     recomputeTokenTotal();
@@ -6960,14 +7384,23 @@ function addCustomServiceRow() {
   });
 }
 
-function addCustomProductRow() {
+function addCustomProductRow(nm, pr, qt, vid) {
   var c = qs("#customTokenProductsList");
   if (!c) return;
-  
-  var opts = getAllVariantsFlat()
+
+  // NEW: optional prefill (nm, pr, qt, vid) lets Edit Token load a
+  // previously saved custom product back into the form. Calling
+  // addCustomProductRow() with no arguments (the "Add Product" button)
+  // behaves exactly as before.
+  var av = getAllVariantsFlat();
+  var isKnown = !!vid && av.some(function (v) { return v.id === vid; });
+  var showCustom = !!nm && !isKnown;
+
+  var opts = av
     .map(function (v) {
       var stockLabel = v.stock <= 0 ? " (OUT OF STOCK)" : " | Stock: " + v.stock;
-      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '" data-vid="' + v.id + '">' +
+      var sel = isKnown && v.id === vid ? " selected" : "";
+      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '" data-vid="' + v.id + '"' + sel + '>' +
         sanitize(v.fullName) + stockLabel + " | " + fmtPrice(v.sellingPrice) + "</option>";
     })
     .join("");
@@ -6975,12 +7408,12 @@ function addCustomProductRow() {
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
   r.innerHTML =
-    '<select class="form-input custom-prd-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select</option>' +
+    '<select class="form-input custom-prd-select" style="flex:1;padding:6px 4px;font-size:0.72rem;' + (showCustom ? "display:none;" : "") + '"><option value="">Select</option>' +
     opts +
-    '<option value="__custom__">Custom Product</option></select>' +
-    '<input type="text" class="form-input custom-prd-name" placeholder="Product name" style="display:none;width:100px;padding:6px 4px;font-size:0.72rem" />' +
-    '<input type="number" class="form-input custom-prd-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" />' +
-    '<input type="number" step="any" class="form-input custom-prd-price" placeholder="Price" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
+    '<option value="__custom__"' + (showCustom ? " selected" : "") + '>Custom Product</option></select>' +
+    '<input type="text" class="form-input custom-prd-name" placeholder="Product name" value="' + sanitize(showCustom ? nm : "") + '" style="' + (showCustom ? "" : "display:none;") + 'width:100px;padding:6px 4px;font-size:0.72rem" />' +
+    '<input type="number" class="form-input custom-prd-qty" value="' + (qt || 1) + '" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" />' +
+    '<input type="number" step="any" class="form-input custom-prd-price" placeholder="Price" value="' + (pr !== undefined && pr !== null ? pr : "") + '" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
     '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
@@ -6998,8 +7431,8 @@ function addCustomProductRow() {
       nameEl.focus();
     } else {
       var o = this.options[this.selectedIndex];
-      var pr = parseFloat(o?.dataset?.price) || 0;
-      priceEl.value = pr;  // ✅ Direct, no || ""
+      var prc = parseFloat(o?.dataset?.price) || 0;
+      priceEl.value = prc;  // ✅ Direct, no || ""
       nameEl.style.display = "none";
       nameEl.value = "";
     }
@@ -7007,6 +7440,7 @@ function addCustomProductRow() {
   });
   
   qtyInput.addEventListener("input", recomputeTokenTotal);
+  nameEl.addEventListener("input", recomputeTokenTotal);
   priceEl.addEventListener("input", recomputeTokenTotal);
   priceEl.addEventListener("change", recomputeTokenTotal);
   
