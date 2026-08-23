@@ -316,6 +316,8 @@ var STATE = {
   appInitialized: false, // NEW: guards initApp() one-time setup (see initApp)
   editingInvoiceId: null, // NEW: tracks which saved invoice is being edited (null = creating a new invoice)
   editingSaleId: null, // NEW: tracks which saved product sale is being edited (null = creating a new sale)
+  selectedTokenIds: [], // NEW: bulk-select state for Token Management (not persisted)
+  selectedVariantIds: [], // NEW: bulk-select state for Inventory (not persisted)
 };
 
 function persist(k, d) {
@@ -1218,6 +1220,59 @@ function initApp() {
       var bed = e.target.closest("[data-biz-edit]");
       if (bed) { openBusinessEditModal(bed.dataset.bizEdit); return; }
     });
+    // NEW — bulk select/delete checkboxes for Token Management & Inventory
+    document.addEventListener("change", function (e) {
+      var tcb = e.target.closest("[data-token-select]");
+      if (tcb) {
+        var tid = tcb.dataset.tokenSelect;
+        if (tcb.checked) {
+          if (STATE.selectedTokenIds.indexOf(tid) === -1) STATE.selectedTokenIds.push(tid);
+        } else {
+          STATE.selectedTokenIds = STATE.selectedTokenIds.filter(function (id) { return id !== tid; });
+        }
+        updateTokenBulkDeleteUI();
+        return;
+      }
+      var vcb = e.target.closest("[data-variant-select]");
+      if (vcb) {
+        var vid = vcb.dataset.variantSelect;
+        if (vcb.checked) {
+          if (STATE.selectedVariantIds.indexOf(vid) === -1) STATE.selectedVariantIds.push(vid);
+        } else {
+          STATE.selectedVariantIds = STATE.selectedVariantIds.filter(function (id) { return id !== vid; });
+        }
+        updateInventoryBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "tokenSelectAll") {
+        var checkedAll = e.target.checked;
+        qsa(".row-select-checkbox[data-token-select]").forEach(function (cb) {
+          cb.checked = checkedAll;
+          var id1 = cb.dataset.tokenSelect;
+          if (checkedAll) {
+            if (STATE.selectedTokenIds.indexOf(id1) === -1) STATE.selectedTokenIds.push(id1);
+          } else {
+            STATE.selectedTokenIds = STATE.selectedTokenIds.filter(function (id) { return id !== id1; });
+          }
+        });
+        updateTokenBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "inventorySelectAll") {
+        var checkedAll2 = e.target.checked;
+        qsa(".row-select-checkbox[data-variant-select]").forEach(function (cb) {
+          cb.checked = checkedAll2;
+          var id2 = cb.dataset.variantSelect;
+          if (checkedAll2) {
+            if (STATE.selectedVariantIds.indexOf(id2) === -1) STATE.selectedVariantIds.push(id2);
+          } else {
+            STATE.selectedVariantIds = STATE.selectedVariantIds.filter(function (id) { return id !== id2; });
+          }
+        });
+        updateInventoryBulkDeleteUI();
+        return;
+      }
+    });
     initDashboard();
     initTokens();
     initVehicles();
@@ -1727,6 +1782,7 @@ function statusBadge(s) {
 
 // ==================== TOKEN MANAGEMENT ====================
 function initTokens() {
+  qs("#tokenBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedTokens);
   qs("#newTokenBtn")?.addEventListener("click", function(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -1745,12 +1801,22 @@ function initTokens() {
   qs("#saveTokenBtn")?.addEventListener("click", function(e) {
     e.preventDefault();
     e.stopPropagation();
+    // FIX (duplicate token bug): belt-and-braces protection alongside the
+    // saveToken.running / saveCustomToken.running guards already inside
+    // those functions — briefly disabling the button itself makes it
+    // impossible for a fast double-click (or a stray duplicate click
+    // event) to fire two saves from a single user action.
+    if (saveToken.running || saveCustomToken.running) return;
+    var btn = this;
+    if (btn.disabled) return;
+    btn.disabled = true;
     var customSection = document.getElementById("customTokenServicesSection");
     if (customSection && customSection.style.display !== "none") {
       saveCustomToken();
     } else {
       saveToken();
     }
+    setTimeout(function () { btn.disabled = false; }, 500);
   });
   qs("#tokenSearch")?.addEventListener("input", renderTokenTable);
   qs("#tokenStatusFilter")?.addEventListener("change", renderTokenTable);
@@ -1952,19 +2018,32 @@ function saveToken() {
   if (!biz) { biz = getCurrentBusiness(); }
   var prefix = biz.prefix;
 
+  // FIX (make Vehicle Number / Customer Name / Contact Number optional):
+  // Vehicle Type and at least one Service are still required (the token's
+  // core purpose — pricing/receipts — depends on them). Vehicle Number,
+  // Customer Name, and Contact Number are no longer mandatory: if the
+  // user fills them in they're used and validated normally, but leaving
+  // them blank no longer blocks saving the token.
   var hasServices = qsa("#tokenServicesList .token-service-select").some(function(s) { return s.value; });
-  if (!vn || !vt || !hasServices) { 
-    toast("Please fill all required fields", "error"); 
+  if (!vt || !hasServices) { 
+    toast("Please select vehicle type and at least one service", "error"); 
     saveToken.running = false; 
     return; 
   }
 
-  var cv = validateContactNumber(cn);
-  if (!cv.valid) { 
-    toast(cv.message, "error"); 
-    qs("#tokenContactNumber")?.focus(); 
-    saveToken.running = false; 
-    return; 
+  // Contact number: only validate format if the user actually typed
+  // something. An empty contact number is now allowed.
+  var cv;
+  if (!cn) {
+    cv = { valid: true, formatted: "", message: "" };
+  } else {
+    cv = validateContactNumber(cn);
+    if (!cv.valid) {
+      toast(cv.message, "error");
+      qs("#tokenContactNumber")?.focus();
+      saveToken.running = false;
+      return;
+    }
   }
 
   var selectedServices = []; 
@@ -2035,9 +2114,15 @@ function saveToken() {
     toast("Token updated successfully", "success");
   } else {
     newProducts.forEach(function(p) { var f = findVariantById(p.variantId); if (f) f.variant.stock = Math.max(0, f.variant.stock - p.qty); });
-    var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
-    if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
-    else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
+    // FIX: only create/update a Vehicle Record when a vehicle number was
+    // actually entered — vehicle number is now optional on the token, so
+    // skipping this avoids piling up blank "vehicle" rows in Vehicle
+    // Records when it's left empty.
+    if (vn) {
+      var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
+      if (!ex) { STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); saveVehicles(); }
+      else { ex.visits = (ex.visits || 0) + 1; ex.lastService = fmtDate(); if (cv.formatted) ex.contact = cv.formatted; saveVehicles(); }
+    }
 
     // Final duplicate-safety check: if another tab/session generated a token
     // with the same number in the meantime, keep regenerating until unique.
@@ -2091,9 +2176,18 @@ function saveCustomToken() {
   if (!biz) { biz = getCurrentBusiness(); }
   var prefix = biz.prefix;
   
-  if (!vn || !vt) { toast("Please fill vehicle details", "error"); saveCustomToken.running = false; return; }
-  var cv = validateContactNumber(cn);
-  if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); saveCustomToken.running = false; return; }
+  // FIX (make Vehicle Number / Customer Name / Contact Number optional):
+  // same relaxation as saveToken() — Vehicle Type is still required, but
+  // Vehicle Number, Customer Name, and Contact Number no longer block
+  // saving a Custom Token when left blank.
+  if (!vt) { toast("Please select vehicle type", "error"); saveCustomToken.running = false; return; }
+  var cv;
+  if (!cn) {
+    cv = { valid: true, formatted: "", message: "" };
+  } else {
+    cv = validateContactNumber(cn);
+    if (!cv.valid) { toast(cv.message, "error"); qs("#tokenContactNumber")?.focus(); saveCustomToken.running = false; return; }
+  }
 
   var customServices = [];
   qsa("#customTokenServicesList > div").forEach(function(row, idx) {
@@ -2240,15 +2334,20 @@ function saveCustomToken() {
     return;
   }
 
-  var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
-  if (!ex) { 
-    STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); 
-    saveVehicles(); 
-  } else { 
-    ex.visits = (ex.visits || 0) + 1; 
-    ex.lastService = fmtDate(); 
-    if (cv.formatted) ex.contact = cv.formatted; 
-    saveVehicles(); 
+  // FIX: only create/update a Vehicle Record when a vehicle number was
+  // actually entered — vehicle number is now optional on Custom Tokens
+  // too, so skip this when it's left blank (avoids blank vehicle rows).
+  if (vn) {
+    var ex = STATE.vehicles.find(function(v) { return v.vehicleNo === vn; });
+    if (!ex) { 
+      STATE.vehicles.push({ id: uid(), vehicleNo: vn, owner: on, contact: cv.formatted, type: vt, notes: "", visits: 1, lastService: fmtDate() }); 
+      saveVehicles(); 
+    } else { 
+      ex.visits = (ex.visits || 0) + 1; 
+      ex.lastService = fmtDate(); 
+      if (cv.formatted) ex.contact = cv.formatted; 
+      saveVehicles(); 
+    }
   }
 
   var tokenNumber = (qs("#autoTokenNumber")?.textContent || "").trim();
@@ -2344,7 +2443,11 @@ function renderTokenTable() {
         .reverse()
         .map(function (t) {
           return (
-            '<tr><td><span class="table-token-no">' +
+            '<tr><td><input type="checkbox" class="row-select-checkbox" data-token-select="' +
+            t.id +
+            '"' +
+            (STATE.selectedTokenIds.indexOf(t.id) !== -1 ? " checked" : "") +
+            '></td><td><span class="table-token-no">' +
             sanitize(t.number) +
             (t.businessName
               ? ' <small style="color:var(--text-muted);">(' +
@@ -2397,6 +2500,53 @@ function renderTokenTable() {
     }
   }
 }
+// NEW — Bulk select/delete for Token Management. Mirrors the exact same
+// stock-restore logic already used by the single data-token-delete
+// handler, just applied to every selected token in one confirm step.
+function updateTokenBulkDeleteUI() {
+  var btn = qs("#tokenBulkDeleteBtn");
+  var cnt = qs("#tokenBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedTokenIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedTokenIds.length === 0);
+  var selectAll = qs("#tokenSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-token-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedTokens() {
+  if (!STATE.selectedTokenIds.length) return;
+  var ids = STATE.selectedTokenIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected token(s)? This cannot be undone.",
+    function () {
+      ids.forEach(function (tid) {
+        var t = STATE.tokens.find(function (tk) {
+          return tk.id === tid;
+        });
+        if (t && t.products) {
+          t.products.forEach(function (p) {
+            if (p.variantId) {
+              var f = findVariantById(p.variantId);
+              if (f) f.variant.stock += p.qty;
+            }
+          });
+        }
+      });
+      STATE.tokens = STATE.tokens.filter(function (t) {
+        return ids.indexOf(t.id) === -1;
+      });
+      saveTokens();
+      saveInventory();
+      STATE.selectedTokenIds = [];
+      renderTokenTable();
+      updateTokenBulkDeleteUI();
+      refreshDashboard();
+      toast(ids.length + " token(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
 function updateTokenStatus(id, s) {
   var tk = STATE.tokens.find(function (t) {
     return t.id === id;
@@ -2409,6 +2559,64 @@ function updateTokenStatus(id, s) {
     refreshDashboard();
   }
 }
+// FIX (root cause of "invoice shows Rs. 0" bug): the old auto-fill code
+// recomputed each known service's price from the CURRENT pricing matrix.
+// If the matrix entry for that exact service+vehicle-type combo was ever
+// missing/changed/cleared after the token was created, that lookup
+// silently returned 0 — even though the token itself has the REAL price
+// that was actually charged (t.servicePrice). This helper always trusts
+// the token's own stored total as the source of truth: it still uses the
+// matrix to split that total across multiple services proportionally,
+// but if the matrix can't explain the total at all, it falls back to
+// splitting the token's real total evenly instead of showing 0. Used by
+// invoice auto-fill AND the Edit Token modal so both stay consistent.
+function computeServiceRowsForToken(t) {
+  if (!t) return [];
+  if (t.serviceBreakdown && t.serviceBreakdown.length) {
+    return t.serviceBreakdown.map(function (sb) {
+      var isKnown = STATE.pricingServices.some(function (s) {
+        return s.name === sb.name;
+      });
+      return { name: sb.name, price: sb.price || 0, isCustom: !isKnown };
+    });
+  }
+  if (!t.service) return [];
+  var names = t.service.split(", ").filter(function (s) {
+    return s;
+  });
+  if (!names.length) return [];
+  var rows = names.map(function (svc) {
+    var isKnown = STATE.pricingServices.some(function (s) {
+      return s.name === svc;
+    });
+    var mp = isKnown ? getMatrixPrice(svc, t.vehicleType) || 0 : 0;
+    return { name: svc, price: mp, isCustom: !isKnown };
+  });
+  var matrixSum = rows.reduce(function (s, r) {
+    return s + r.price;
+  }, 0);
+  var actualTotal = t.servicePrice || 0;
+  if (matrixSum !== actualTotal) {
+    if (matrixSum > 0) {
+      var running = 0;
+      rows.forEach(function (r, idx) {
+        if (idx === rows.length - 1) {
+          r.price = Math.max(0, actualTotal - running);
+        } else {
+          r.price = Math.round((r.price / matrixSum) * actualTotal);
+          running += r.price;
+        }
+      });
+    } else {
+      var share = rows.length ? actualTotal / rows.length : 0;
+      rows.forEach(function (r) {
+        r.price = share;
+      });
+    }
+  }
+  return rows;
+}
+
 function openInvoiceForToken(id) {
   var t = STATE.tokens.find(function (t) {
     return t.id === id;
@@ -2459,34 +2667,10 @@ function autoFillFromTokenObject(t) {
   qs("#invoiceServicesContainer").innerHTML = "";
   qs("#invoiceProductsContainer").innerHTML = "";
 
-  if (t.service) {
-    if (t.serviceBreakdown && t.serviceBreakdown.length) {
-      t.serviceBreakdown.forEach(function(sb) {
-        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === sb.name; });
-        if (isCustom) addCustomInvoiceServiceRow(sb.name, sb.price);
-        else addInvoiceServiceRow(sb.name, sb.price);
-      });
-    } else {
-      var services = t.service.split(", ").filter(function(s) { return s; });
-      var knownTotal = 0;
-      var customNames = [];
-      services.forEach(function(svc) {
-        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === svc; });
-        if (isCustom) customNames.push(svc);
-        else knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
-      });
-      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
-      var customShare = customNames.length ? remaining / customNames.length : 0;
-      services.forEach(function(svc) {
-        var isCustom = customNames.indexOf(svc) !== -1;
-        if (isCustom) {
-          addCustomInvoiceServiceRow(svc, customShare);
-        } else {
-          addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
-        }
-      });
-    }
-  }
+  computeServiceRowsForToken(t).forEach(function (r) {
+    if (r.isCustom) addCustomInvoiceServiceRow(r.name, r.price);
+    else addInvoiceServiceRow(r.name, r.price);
+  });
 
   if (t.products)
     t.products.forEach(function (p) {
@@ -2562,35 +2746,9 @@ function openEditTokenModal(tid) {
     document.getElementById("customTokenServicesSection").style.display = "";
     document.getElementById("customTokenProductsSection").style.display = "";
 
-    if (t.serviceBreakdown && t.serviceBreakdown.length) {
-      t.serviceBreakdown.forEach(function (sb) {
-        addCustomServiceRow(sb.name, sb.price);
-      });
-    } else if (t.service) {
-      var svcNames = t.service.split(", ").filter(function (s) {
-        return s;
-      });
-      var knownTotal = 0;
-      var customNames = [];
-      svcNames.forEach(function (svc) {
-        var isKnownSvc = STATE.pricingServices.some(function (s) {
-          return s.name === svc;
-        });
-        if (isKnownSvc) knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
-        else customNames.push(svc);
-      });
-      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
-      var customShare = customNames.length ? remaining / customNames.length : 0;
-      svcNames.forEach(function (svc) {
-        var isKnownSvc = STATE.pricingServices.some(function (s) {
-          return s.name === svc;
-        });
-        addCustomServiceRow(
-          svc,
-          isKnownSvc ? getMatrixPrice(svc, t.vehicleType) || 0 : customShare,
-        );
-      });
-    }
+    computeServiceRowsForToken(t).forEach(function (r) {
+      addCustomServiceRow(r.name, r.price);
+    });
 
     if (t.products && t.products.length) {
       t.products.forEach(function (p) {
@@ -2775,34 +2933,10 @@ function autoFillFromToken(tn) {
   qs("#invoiceServicesContainer").innerHTML = "";
   qs("#invoiceProductsContainer").innerHTML = "";
 
-  if (t.service) {
-    if (t.serviceBreakdown && t.serviceBreakdown.length) {
-      t.serviceBreakdown.forEach(function(sb) {
-        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === sb.name; });
-        if (isCustom) addCustomInvoiceServiceRow(sb.name, sb.price);
-        else addInvoiceServiceRow(sb.name, sb.price);
-      });
-    } else {
-      var services = t.service.split(", ").filter(function(s) { return s; });
-      var knownTotal = 0;
-      var customNames = [];
-      services.forEach(function(svc) {
-        var isCustom = !STATE.pricingServices.some(function(s) { return s.name === svc; });
-        if (isCustom) customNames.push(svc);
-        else knownTotal += getMatrixPrice(svc, t.vehicleType) || 0;
-      });
-      var remaining = Math.max(0, (t.servicePrice || 0) - knownTotal);
-      var customShare = customNames.length ? remaining / customNames.length : 0;
-      services.forEach(function(svc) {
-        var isCustom = customNames.indexOf(svc) !== -1;
-        if (isCustom) {
-          addCustomInvoiceServiceRow(svc, customShare);
-        } else {
-          addInvoiceServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
-        }
-      });
-    }
-  }
+  computeServiceRowsForToken(t).forEach(function (r) {
+    if (r.isCustom) addCustomInvoiceServiceRow(r.name, r.price);
+    else addInvoiceServiceRow(r.name, r.price);
+  });
 
   if (t.products)
     t.products.forEach(function (p) {
@@ -4738,6 +4872,7 @@ function renderVehicleTable() {
 
 // ==================== INVENTORY ====================
 function initInventory() {
+  qs("#inventoryBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedVariants);
   qs("#addProductBtn")?.addEventListener("click", function () {
     openProductModal();
   });
@@ -4841,12 +4976,22 @@ function openProductModal(d) {
 }
 
 function saveProduct() {
+  // FIX (inventory duplication bug): saveProduct() had no protection
+  // against being invoked twice in quick succession (e.g. a fast
+  // double-click, or a double-fired click event) — unlike saveToken()/
+  // saveCustomToken() which already guard against this. That gap let the
+  // exact same product get pushed into STATE.inventory more than once
+  // from a single "Save" action. Same safe running-guard pattern as the
+  // token save functions is applied here — no other logic changed.
+  if (saveProduct.running) return;
+  saveProduct.running = true;
+
   var ei = qs("#productEditId")?.value || "";
   var pt = (qs("#productName")?.value || "").trim();
   var catId = qs("#productCategory")?.value || "misc";
   var catObj = STATE.categories.find(function(c) { return c.id === catId; });
   var cat = catObj ? catObj.name : "Miscellaneous";
-  if (!pt) return;
+  if (!pt) { saveProduct.running = false; return; }
   var variants = [];
   var hasError = false;
   qsa("#variantsContainer .variant-card").forEach(function (card, idx) {
@@ -4863,7 +5008,7 @@ function saveProduct() {
     if (!sku) sku = generateVariantSKU(b, m, g, s, idx);
     variants.push({ id: uid(), brand: b, model: m, grade: g, size: s, sku: sku, purchasePrice: pp, sellingPrice: sp, stock: st, minStock: ms });
   });
-  if (hasError || !variants.length) return;
+  if (hasError || !variants.length) { saveProduct.running = false; return; }
   if (ei) {
     var p = STATE.inventory.find(function (p) { return p.id === ei; });
     if (p) { p.productType = pt; p.category = cat; p.variants = variants; }
@@ -4875,6 +5020,7 @@ function saveProduct() {
   renderInventoryTable();
   updateInventoryKPI();
   refreshDashboard();
+  saveProduct.running = false;
 }
 function openStockModal(vid, tp) {
   setValue("#stockQty", "");
@@ -4994,7 +5140,7 @@ function renderInventoryTable() {
   qs("#productCountBadge").textContent = all.length + " variants";
 
   if (!all.length) {
-    tb.innerHTML = '<tr><td colspan="9">No variants</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10">No variants</td></tr>';
     return;
   }
 
@@ -5002,7 +5148,11 @@ function renderInventoryTable() {
     .map(function (v) {
       var lo = v.stock < v.minStock;
       return (
-        '<tr><td><div style="font-weight:500;">' +
+        '<tr><td><input type="checkbox" class="row-select-checkbox" data-variant-select="' +
+        v.id +
+        '"' +
+        (STATE.selectedVariantIds.indexOf(v.id) !== -1 ? " checked" : "") +
+        '></td><td><div style="font-weight:500;">' +
         sanitize(v.productType) +
         '</div><div style="font-size:0.7rem;color:var(--text-muted);">' +
         sanitize(v.fullName) +
@@ -5038,6 +5188,46 @@ function renderInventoryTable() {
     .join("");
 }
 
+// NEW — Bulk select/delete for Inventory. Mirrors the exact same removal
+// logic already used by the single data-variant-delete handler (removes
+// the variant, and drops the parent product if it has no variants left),
+// just applied to every selected row in one confirm step.
+function updateInventoryBulkDeleteUI() {
+  var btn = qs("#inventoryBulkDeleteBtn");
+  var cnt = qs("#inventoryBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedVariantIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedVariantIds.length === 0);
+  var selectAll = qs("#inventorySelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-variant-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedVariants() {
+  if (!STATE.selectedVariantIds.length) return;
+  var ids = STATE.selectedVariantIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected item(s)? This cannot be undone.",
+    function () {
+      STATE.inventory.forEach(function (p) {
+        p.variants = (p.variants || []).filter(function (v) {
+          return ids.indexOf(v.id) === -1;
+        });
+      });
+      STATE.inventory = STATE.inventory.filter(function (p) {
+        return (p.variants || []).length > 0;
+      });
+      saveInventory();
+      STATE.selectedVariantIds = [];
+      renderInventoryTable();
+      updateInventoryBulkDeleteUI();
+      updateInventoryKPI();
+      refreshDashboard();
+      toast(ids.length + " item(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
 function editInventoryProduct(productId) {
   var p = STATE.inventory.find(function(p) { return p.id === productId; });
   if (p) {
@@ -6361,7 +6551,27 @@ function confirmImport() {
     saveInventory();
   }
   if (m === "tokens") {
+    // NEW GUARD (bug fix — "200+ empty tokens on import"): a CSV/JSON file
+    // that was opened and re-saved in Excel commonly gets dozens/hundreds
+    // of trailing blank rows appended (just commas, no real data). The
+    // import loop below used to push EVERY row into STATE.tokens with no
+    // check at all, so each of those blank rows became a real token with
+    // only an auto-generated Token Number and nothing else — exactly the
+    // "200+ empty tokens" symptom. This guard skips a row ONLY if it has
+    // no vehicle number, no customer name, AND no service — i.e. it is
+    // genuinely empty junk. Any row with at least one of those three
+    // fields filled in still imports exactly as before; no valid token
+    // (old or new) is affected, and no other logic changes.
+    var skippedBlankTokenRows = 0;
     d.forEach(function (item) {
+      var _vehicleNo = (item["Vehicle No"] || item.vehicleNo || "").toString().trim();
+      var _ownerName = (item["Customer"] || item.ownerName || "").toString().trim();
+      var _service = (item["Service"] || item.service || "").toString().trim();
+      var _tokenNum = (item["Token"] || item.number || "").toString().trim();
+      if (!_vehicleNo && !_ownerName && !_service && !_tokenNum) {
+        skippedBlankTokenRows++;
+        return;
+      }
       // FIXED: previously servicePrice was hardcoded to 0, products to [],
       // and status was forced to "waiting" on every import — so even a
       // token that was "completed" with a real price stopped counting
@@ -6419,6 +6629,9 @@ function confirmImport() {
       });
     });
     saveTokens();
+    if (skippedBlankTokenRows > 0) {
+      toast(skippedBlankTokenRows + " blank/junk row(s) skipped during import", "info");
+    }
   }
   if (m === "vehicles") {
     d.forEach(function (item) {

@@ -60,6 +60,44 @@ try {
 
 let win;
 
+// ============================================================
+// NEW (ADDED ONLY): Single-instance lock.
+// ------------------------------------------------------------
+// Without this, double-clicking the desktop/taskbar icon (very common),
+// a crashed process leaving a stray instance running, or the auto-updater
+// relaunching the app can end up with TWO app windows open at the same
+// time. Both windows read/write the exact same localStorage data on
+// disk, but each keeps its own separate copy in memory (STATE in app.js).
+// If one window saves data (e.g. generates tokens, imports a CSV) and
+// then the OTHER window — still holding its own older, stale copy —
+// saves anything afterward (even just navigating a tab, which can
+// trigger an auto-backup or a render), it overwrites the first window's
+// fresh data with its outdated version. This can look like data
+// randomly duplicating, going missing, or reverting.
+// requestSingleInstanceLock() guarantees only ONE window can ever be
+// open: if a second launch is attempted, it quits immediately and asks
+// the FIRST (already running) instance to simply focus its existing
+// window instead of opening a new one. This is pure Electron plumbing —
+// it does not touch any business logic, save/print/import code, or any
+// stored data.
+// ============================================================
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  // Another instance is already running — quit this new one immediately.
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // Someone tried to open a second instance (e.g. double-clicked the
+    // icon again) — bring the existing window to the front instead of
+    // opening a duplicate window.
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1400,

@@ -465,6 +465,13 @@
                 </select>
               </div>
               <div class="toolbar-right">
+                <!-- NEW (ADDED ONLY): Bulk Delete button for Token Management.
+                     Hidden by default; app.js toggles it visible once one or
+                     more rows are selected via the checkbox column, and
+                     updates the count shown on it. -->
+                <button class="btn btn-danger hidden" id="tokenBulkDeleteBtn" style="margin-right:8px">
+                  <span class="material-icons">delete</span> Delete Selected (<span id="tokenBulkDeleteCount">0</span>)
+                </button>
                 <button class="btn btn-outline" id="customTokenBtn" style="margin-right:8px">
                   <span class="material-icons">edit_note</span> Custom Token
                 </button>
@@ -558,6 +565,9 @@
                 <table class="data-table" id="tokenTable">
                   <thead>
                     <tr>
+                      <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                           every visible token row at once. -->
+                      <th style="width:36px"><input type="checkbox" id="tokenSelectAll" /></th>
                       <th>Token #</th>
                       <th>Vehicle No.</th>
                       <th>Vehicle Type</th>
@@ -754,6 +764,12 @@
       </button>
     </div>
     <div class="toolbar-right">
+      <!-- NEW (ADDED ONLY): Bulk Delete button for Inventory. Hidden by
+           default; app.js toggles it visible once one or more variant rows
+           are selected via the checkbox column, and updates the count. -->
+      <button class="btn btn-danger hidden" id="inventoryBulkDeleteBtn" style="margin-right:8px">
+        <span class="material-icons">delete</span> Delete Selected (<span id="inventoryBulkDeleteCount">0</span>)
+      </button>
       <button class="btn btn-outline" id="manageBrandsBtn">
         <span class="material-icons">sell</span> Brands
       </button>
@@ -785,6 +801,9 @@
       <table class="data-table" id="inventoryTable">
         <thead>
           <tr>
+            <!-- NEW (ADDED ONLY): header checkbox to select/deselect every
+                 visible variant row at once. -->
+            <th style="width:36px"><input type="checkbox" id="inventorySelectAll" /></th>
             <th>Product / Variant</th>
             <th>SKU</th>
             <th>Category</th>
@@ -1938,7 +1957,7 @@
                     Clear All Data
                   </button>
                   <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);text-align:center;font-size:0.75rem;color:var(--text-muted)">
-                    Version 1.1.25
+                    Version 1.1.26
                   </div>
                 </div>
               </div>
@@ -2369,7 +2388,7 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label"
-                >Vehicle Number <span class="required">*</span></label
+                >Vehicle Number</label
               ><input
                 type="text"
                 class="form-input"
@@ -2397,7 +2416,7 @@
             </div>
             <div class="form-group" style="position:relative">
               <label class="form-label"
-                >Contact Number <span class="required">*</span></label
+                >Contact Number</label
               ><input
                 type="tel"
                 class="form-input contact-input"
