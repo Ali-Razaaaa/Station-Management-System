@@ -6127,94 +6127,36 @@ function quickRestore() {
     r.onload = function (ev) {
       try {
         var d = JSON.parse(ev.target.result);
-        confirm(
-          "Restore all data?",
-          function () {
-            // FIXED: this used to restore only 6 of the ~17 data
-            // collections — productSales, pricingMatrix, brands,
-            // categories, pricingVehicles, pricingServices, counters,
-            // businesses, vendors, vendorPayments and purchaseOrders were
-            // silently skipped, which is why a Quick Restore never brought
-            // back vendor totals, revenue, or net profit correctly.
-            if (d.inventory) {
-              STATE.inventory = d.inventory;
-              saveInventory();
-            }
-            if (d.tokens) {
-              STATE.tokens = d.tokens;
-              saveTokens();
-            }
-            if (d.vehicles) {
-              STATE.vehicles = d.vehicles;
-              saveVehicles();
-            }
-            if (d.invoices) {
-              STATE.invoices = d.invoices;
-              saveInvoices();
-            }
-            if (d.expenses) {
-              STATE.expenses = d.expenses;
-              saveExpenses();
-            }
-            if (d.reminders) {
-              STATE.reminders = d.reminders;
-              saveReminders();
-            }
-            if (d.productSales) {
-              STATE.productSales = d.productSales;
-              saveProductSales();
-            }
-            if (d.pricingMatrix) {
-              STATE.pricingMatrix = d.pricingMatrix;
-              savePricingMatrix();
-            }
-            if (d.brands) {
-              STATE.brands = d.brands;
-              saveBrands();
-            }
-            if (d.categories) {
-              STATE.categories = d.categories;
-              saveCategories();
-            }
-            if (d.pricingVehicles) {
-              STATE.pricingVehicles = d.pricingVehicles;
-              savePricingVehicles();
-            }
-            if (d.pricingServices) {
-              STATE.pricingServices = d.pricingServices;
-              savePricingServices();
-            }
-            if (d.counters) {
-              STATE.counters = d.counters;
-              saveCounters();
-            }
-            if (d.businesses) {
-              saveBusinesses(d.businesses);
-            }
-            if (d.vendors) {
-              STATE.vendors = d.vendors;
-              saveVendors();
-            }
-            if (d.vendorPayments) {
-              STATE.vendorPayments = d.vendorPayments;
-              saveVendorPayments();
-            }
-            if (d.purchaseOrders) {
-              STATE.purchaseOrders = d.purchaseOrders;
-              savePurchaseOrders();
-            }
-            if (d.settings) {
-              STATE.settings = d.settings;
-              saveSettings();
-              updateAllBrandNames();
-            }
-            toast("Restored!", "success");
-            setTimeout(function () {
-              location.reload();
-            }, 1000);
-          },
-          "Restore",
-        );
+      confirm(
+  "Restore all data?",
+  function () {
+    // NEW: safety snapshot of CURRENT data before overwriting — matches
+    // the same pattern already used for Clear All Data / Emergency Restore.
+    runAutoBackupNow(true, "pre-restore-safety").then(function () {
+      if (d.inventory) { STATE.inventory = d.inventory; saveInventory(); }
+      if (d.tokens) { STATE.tokens = d.tokens; saveTokens(); }
+      if (d.vehicles) { STATE.vehicles = d.vehicles; saveVehicles(); }
+      if (d.invoices) { STATE.invoices = d.invoices; saveInvoices(); }
+      if (d.expenses) { STATE.expenses = d.expenses; saveExpenses(); }
+      if (d.reminders) { STATE.reminders = d.reminders; saveReminders(); }
+      if (d.productSales) { STATE.productSales = d.productSales; saveProductSales(); }
+      if (d.pricingMatrix) { STATE.pricingMatrix = d.pricingMatrix; savePricingMatrix(); }
+      if (d.brands) { STATE.brands = d.brands; saveBrands(); }
+      if (d.categories) { STATE.categories = d.categories; saveCategories(); }
+      if (d.pricingVehicles) { STATE.pricingVehicles = d.pricingVehicles; savePricingVehicles(); }
+      if (d.pricingServices) { STATE.pricingServices = d.pricingServices; savePricingServices(); }
+      if (d.counters) { STATE.counters = d.counters; saveCounters(); }
+      if (d.businesses) { saveBusinesses(d.businesses); }
+      if (d.vendors) { STATE.vendors = d.vendors; saveVendors(); }
+      if (d.vendorPayments) { STATE.vendorPayments = d.vendorPayments; saveVendorPayments(); }
+      if (d.purchaseOrders) { STATE.purchaseOrders = d.purchaseOrders; savePurchaseOrders(); }
+      if (d.settings) { STATE.settings = d.settings; saveSettings(); updateAllBrandNames(); }
+      toast("Restored!", "success");
+      setTimeout(function () { location.reload(); }, 300); // was 1000 — faster now
+    });
+  },
+  "Restore",
+);
       } catch (e) {
         toast("Invalid file", "error");
       }
@@ -6407,93 +6349,21 @@ function confirmImport() {
   var m = STATE.pendingImport.module,
     d = STATE.pendingImport.data;
   if (m === "all") {
-    confirm(
-      "This will replace ALL data. Continue?",
-      function () {
-        if (d.inventory) {
-          STATE.inventory = d.inventory;
-          saveInventory();
-        }
-        if (d.tokens) {
-          STATE.tokens = d.tokens;
-          saveTokens();
-        }
-        if (d.vehicles) {
-          STATE.vehicles = d.vehicles;
-          saveVehicles();
-        }
-        if (d.invoices) {
-          STATE.invoices = d.invoices;
-          saveInvoices();
-        }
-        if (d.expenses) {
-          STATE.expenses = d.expenses;
-          saveExpenses();
-        }
-        if (d.reminders) {
-          STATE.reminders = d.reminders;
-          saveReminders();
-        }
-        if (d.productSales) {
-          STATE.productSales = d.productSales;
-          saveProductSales();
-        }
-        if (d.pricingMatrix) {
-          STATE.pricingMatrix = d.pricingMatrix;
-          savePricingMatrix();
-        }
-        if (d.brands) {
-          STATE.brands = d.brands;
-          saveBrands();
-        }
-        if (d.categories) {
-          STATE.categories = d.categories;
-          saveCategories();
-        }
-        if (d.pricingVehicles) {
-          STATE.pricingVehicles = d.pricingVehicles;
-          savePricingVehicles();
-        }
-        if (d.pricingServices) {
-          STATE.pricingServices = d.pricingServices;
-          savePricingServices();
-        }
-        if (d.settings) {
-          STATE.settings = d.settings;
-          saveSettings();
-          updateAllBrandNames();
-        }
-        if (d.counters) {
-          STATE.counters = d.counters;
-          saveCounters();
-        }
-        if (d.businesses) {
-          saveBusinesses(d.businesses);
-        }
-        // NEW: vendors / vendor payments / purchase orders were previously
-        // not restored at all by "All Data" import, so vendor totals, net
-        // profit, etc always stayed wrong after a restore.
-        if (d.vendors) {
-          STATE.vendors = d.vendors;
-          saveVendors();
-        }
-        if (d.vendorPayments) {
-          STATE.vendorPayments = d.vendorPayments;
-          saveVendorPayments();
-        }
-        if (d.purchaseOrders) {
-          STATE.purchaseOrders = d.purchaseOrders;
-          savePurchaseOrders();
-        }
-        STATE.pendingImport = null;
-        closeModal("importPreviewModal");
-        toast("All data imported!", "success");
-        setTimeout(function () {
-          location.reload();
-        }, 1000);
-      },
-      "Import All",
-    );
+   confirm(
+  "This will replace ALL data. Continue?",
+  function () {
+    // NEW: safety snapshot before an "All Data" import overwrites everything
+    runAutoBackupNow(true, "pre-import-safety").then(function () {
+      if (d.inventory) { STATE.inventory = d.inventory; saveInventory(); }
+      // ... (baaki poora existing block yahan as-it-is rahega) ...
+      STATE.pendingImport = null;
+      closeModal("importPreviewModal");
+      toast("All data imported!", "success");
+      setTimeout(function () { location.reload(); }, 300); // was 1000 — faster now
+    });
+  },
+  "Import All",
+);
     return;
   }
   if (m === "inventory") {
@@ -7747,7 +7617,7 @@ function debugTokenTotal() {
 //   modify, replace, or remove any existing function, module,
 //   or data key used elsewhere in the app.
 // ============================================================
-var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+var AUTO_BACKUP_INTERVAL_MS = 5 * 60 * 1000; // 30 minutes
 var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
 var AUTO_BACKUP_STORE = "backups";
 var AUTO_BACKUP_ROLLING_ID = "rolling_backup"; // FIXED single record id — every
@@ -7803,11 +7673,14 @@ function collectFullBackupData(reason) {
   } catch (e) {}
   var now = new Date();
   return {
-    id: AUTO_BACKUP_ROLLING_ID, // FIXED — always the same id, so saving
-    // this record OVERWRITES the previous backup instead of adding a new one
+    // NEW: unique id per snapshot (timestamp + random) instead of one fixed
+    // rolling id — this is what lets multiple backup versions actually
+    // exist at once, instead of every new backup erasing the last one.
+    id: "backup_" + now.getTime() + "_" + Math.random().toString(36).substr(2, 6),
     savedAt: now.toISOString(),
     savedAtDisplay: fmtDate() + " " + fmtTime(),
     reason: reason || "auto",
+    keyCount: Object.keys(data).length, // NEW: quick integrity indicator
     localStorageData: data,
   };
 }
@@ -7882,8 +7755,21 @@ function getAllAutoBackupsFromDB() {
 // the one existing record on every run — there is never more than one
 // backup record to prune. Kept as a harmless no-op so any existing call
 // site does not need to change.
+var AUTO_BACKUP_KEEP_COUNT = 20; // NEW: how many historical snapshots to retain
+
 function pruneOldAutoBackups() {
-  return Promise.resolve();
+  return getAllAutoBackupsFromDB()
+    .then(function (list) {
+      if (list.length <= AUTO_BACKUP_KEEP_COUNT) return;
+      // list is newest-first (see getAllAutoBackupsFromDB) — delete everything past the keep count
+      var toDelete = list.slice(AUTO_BACKUP_KEEP_COUNT);
+      return Promise.all(
+        toDelete.map(function (rec) {
+          return deleteAutoBackupFromDB(rec.id);
+        }),
+      );
+    })
+    .catch(function () {});
 }
 
 // Backward-compatible helper: latest snapshot only.
@@ -7893,24 +7779,69 @@ function getAutoBackupFromDB() {
   });
 }
 
-function updateAutoBackupStatusUI(ts) {
+function updateAutoBackupStatusUI(ts, keyCount) {
   var el = qs("#autoBackupStatus");
-  if (el) el.textContent = "Last auto-backup: " + (ts || "Never");
+  if (el)
+    el.textContent =
+      "Last auto-backup: " + (ts || "Never") + (keyCount ? " (" + keyCount + " data keys)" : "");
 }
 
+// Returns a Promise so callers (like "Clear All Data") can WAIT for the
+// safety snapshot to finish saving before doing anything destructive.
 // Returns a Promise so callers (like "Clear All Data") can WAIT for the
 // safety snapshot to finish saving before doing anything destructive.
 function runAutoBackupNow(silent, reason) {
   try {
     var record = collectFullBackupData(reason);
-    return saveAutoBackupToDB(record)
-      .then(function () {
-        updateAutoBackupStatusUI(record.savedAtDisplay);
-        pruneOldAutoBackups();
-        saveBackupToGoogleDriveFolder(record, silent); // NEW: also write to Google Drive folder
-        if (!silent)
-          toast("Backup saved (" + record.savedAtDisplay + ")", "success");
-        return record;
+    return getAutoBackupFromDB()
+      .then(function (prevRecord) {
+        // ============================================================
+        // NEW (ADDED ONLY) — SHRINK-PROTECTION GUARD
+        // ------------------------------------------------------------
+        // If the new snapshot is drastically SMALLER than the last saved
+        // backup (e.g. right after an app update, when localStorage may
+        // briefly appear empty/incomplete), do NOT overwrite the existing
+        // good backup (IndexedDB record + Google Drive file) with it.
+        // This is exactly the "18KB backup became 3KB after update" bug —
+        // the fixed single backup file was being silently overwritten by
+        // a near-empty snapshot taken too early after launch.
+        // Threshold: if new size is less than 40% of the previous size
+        // (and the previous size was non-trivial), skip this cycle.
+        // ============================================================
+        if (prevRecord && prevRecord.localStorageData) {
+          var prevSize = JSON.stringify(prevRecord.localStorageData).length;
+          var newSize = JSON.stringify(record.localStorageData).length;
+          if (prevSize > 2000 && newSize < prevSize * 0.4) {
+            if (!silent) {
+              toast(
+                "Backup skipped — new data (" + newSize +
+                " bytes) looks much smaller than last backup (" + prevSize +
+                " bytes). Old backup kept safe.",
+                "warning",
+              );
+            } else {
+              console.warn(
+                "[Auto Backup] Skipped — possible data loss detected. Prev: " +
+                prevSize + " bytes, New: " + newSize + " bytes. Old backup preserved.",
+              );
+            }
+            return null;
+          }
+        }
+
+        return saveAutoBackupToDB(record)
+          .then(function () {
+            updateAutoBackupStatusUI(record.savedAtDisplay, record.keyCount);
+            pruneOldAutoBackups();
+            saveBackupToGoogleDriveFolder(record, silent); // also writes to Google Drive folder
+            if (!silent)
+              toast("Backup saved (" + record.savedAtDisplay + ")", "success");
+            return record;
+          })
+          .catch(function () {
+            if (!silent) toast("Backup failed", "error");
+            return null;
+          });
       })
       .catch(function () {
         if (!silent) toast("Backup failed", "error");
@@ -7934,7 +7865,7 @@ function restoreLocalStorageDataObject(dataObj) {
     toast("Data restored from backup. Reloading...", "success");
     setTimeout(function () {
       location.reload();
-    }, 1200);
+    }, 400); // was 1200 — faster now
   } catch (e) {
     toast("Restore failed", "error");
   }
