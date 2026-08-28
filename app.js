@@ -318,6 +318,11 @@ var STATE = {
   editingSaleId: null, // NEW: tracks which saved product sale is being edited (null = creating a new sale)
   selectedTokenIds: [], // NEW: bulk-select state for Token Management (not persisted)
   selectedVariantIds: [], // NEW: bulk-select state for Inventory (not persisted)
+  selectedVehicleIds: [], // NEW: bulk-select state for Vehicles (not persisted)
+  selectedExpenseIds: [], // NEW: bulk-select state for Expenses (not persisted)
+  selectedReminderIds: [], // NEW: bulk-select state for Reminders (not persisted)
+  selectedInvoiceIds: [], // NEW: bulk-select state for Saved Invoices (not persisted)
+  selectedReportIds: [], // NEW: bulk-select state for Reports/Transactions (not persisted)
 };
 
 function persist(k, d) {
@@ -824,6 +829,7 @@ function getReminderStats() {
 function initReminders() {
   qs("#reminderSearch")?.addEventListener("input", renderReminderTable);
   qs("#reminderStatusFilter")?.addEventListener("change", renderReminderTable);
+  qs("#reminderBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedReminders);
   qs("#markAllCompletedBtn")?.addEventListener("click", function () {
     confirm("Mark all as completed?", function () {
       STATE.reminders.forEach(function (r) {
@@ -883,7 +889,7 @@ function renderReminderTable() {
   }
   if (!fl.length) {
     tb.innerHTML =
-      '<tr><td colspan="9" style="text-align:center;padding:3rem;">No reminders</td></tr>';
+      '<tr><td colspan="10" style="text-align:center;padding:3rem;">No reminders</td></tr>';
     return;
   }
   tb.innerHTML = fl
@@ -913,7 +919,11 @@ function renderReminderTable() {
               : r.daysRemaining + "d left"
           : "—";
       return (
-        "<tr><td>" +
+        '<tr><td><input type="checkbox" class="row-select-checkbox" data-reminder-select="' +
+        r.id +
+        '"' +
+        (STATE.selectedReminderIds.indexOf(r.id) !== -1 ? " checked" : "") +
+        '></td><td>' +
         sanitize(r.customerName) +
         '</td><td><span class="contact-display">' +
         sanitize(formatContactDisplay(r.phone)) +
@@ -1270,6 +1280,118 @@ function initApp() {
           }
         });
         updateInventoryBulkDeleteUI();
+        return;
+      }
+      // NEW (ADDED ONLY) — bulk-select checkboxes for Vehicles, Expenses,
+      // Reminders, and Saved Invoices. Same pattern as Token/Inventory above.
+      var vehcb = e.target.closest("[data-vehicle-select]");
+      if (vehcb) {
+        var vhid = vehcb.dataset.vehicleSelect;
+        if (vehcb.checked) {
+          if (STATE.selectedVehicleIds.indexOf(vhid) === -1) STATE.selectedVehicleIds.push(vhid);
+        } else {
+          STATE.selectedVehicleIds = STATE.selectedVehicleIds.filter(function (id) { return id !== vhid; });
+        }
+        updateVehicleBulkDeleteUI();
+        return;
+      }
+      var excb = e.target.closest("[data-expense-select]");
+      if (excb) {
+        var exid = excb.dataset.expenseSelect;
+        if (excb.checked) {
+          if (STATE.selectedExpenseIds.indexOf(exid) === -1) STATE.selectedExpenseIds.push(exid);
+        } else {
+          STATE.selectedExpenseIds = STATE.selectedExpenseIds.filter(function (id) { return id !== exid; });
+        }
+        updateExpenseBulkDeleteUI();
+        return;
+      }
+      var remcb = e.target.closest("[data-reminder-select]");
+      if (remcb) {
+        var rmid = remcb.dataset.reminderSelect;
+        if (remcb.checked) {
+          if (STATE.selectedReminderIds.indexOf(rmid) === -1) STATE.selectedReminderIds.push(rmid);
+        } else {
+          STATE.selectedReminderIds = STATE.selectedReminderIds.filter(function (id) { return id !== rmid; });
+        }
+        updateReminderBulkDeleteUI();
+        return;
+      }
+      var invcb = e.target.closest("[data-invoice-select]");
+      if (invcb) {
+        var ivid = invcb.dataset.invoiceSelect;
+        if (invcb.checked) {
+          if (STATE.selectedInvoiceIds.indexOf(ivid) === -1) STATE.selectedInvoiceIds.push(ivid);
+        } else {
+          STATE.selectedInvoiceIds = STATE.selectedInvoiceIds.filter(function (id) { return id !== ivid; });
+        }
+        updateInvoiceBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "vehicleSelectAll") {
+        var ca1 = e.target.checked;
+        qsa(".row-select-checkbox[data-vehicle-select]").forEach(function (cb) {
+          cb.checked = ca1;
+          var idv = cb.dataset.vehicleSelect;
+          if (ca1) { if (STATE.selectedVehicleIds.indexOf(idv) === -1) STATE.selectedVehicleIds.push(idv); }
+          else { STATE.selectedVehicleIds = STATE.selectedVehicleIds.filter(function (id) { return id !== idv; }); }
+        });
+        updateVehicleBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "expenseSelectAll") {
+        var ca2 = e.target.checked;
+        qsa(".row-select-checkbox[data-expense-select]").forEach(function (cb) {
+          cb.checked = ca2;
+          var ide = cb.dataset.expenseSelect;
+          if (ca2) { if (STATE.selectedExpenseIds.indexOf(ide) === -1) STATE.selectedExpenseIds.push(ide); }
+          else { STATE.selectedExpenseIds = STATE.selectedExpenseIds.filter(function (id) { return id !== ide; }); }
+        });
+        updateExpenseBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "reminderSelectAll") {
+        var ca3 = e.target.checked;
+        qsa(".row-select-checkbox[data-reminder-select]").forEach(function (cb) {
+          cb.checked = ca3;
+          var idr = cb.dataset.reminderSelect;
+          if (ca3) { if (STATE.selectedReminderIds.indexOf(idr) === -1) STATE.selectedReminderIds.push(idr); }
+          else { STATE.selectedReminderIds = STATE.selectedReminderIds.filter(function (id) { return id !== idr; }); }
+        });
+        updateReminderBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "savedInvoiceSelectAll") {
+        var ca4 = e.target.checked;
+        qsa(".row-select-checkbox[data-invoice-select]").forEach(function (cb) {
+          cb.checked = ca4;
+          var idi = cb.dataset.invoiceSelect;
+          if (ca4) { if (STATE.selectedInvoiceIds.indexOf(idi) === -1) STATE.selectedInvoiceIds.push(idi); }
+          else { STATE.selectedInvoiceIds = STATE.selectedInvoiceIds.filter(function (id) { return id !== idi; }); }
+        });
+        updateInvoiceBulkDeleteUI();
+        return;
+      }
+      var repcb = e.target.closest("[data-report-select]");
+      if (repcb) {
+        var rpkey = repcb.dataset.reportSelect;
+        if (repcb.checked) {
+          if (STATE.selectedReportIds.indexOf(rpkey) === -1) STATE.selectedReportIds.push(rpkey);
+        } else {
+          STATE.selectedReportIds = STATE.selectedReportIds.filter(function (id) { return id !== rpkey; });
+        }
+        updateReportBulkDeleteUI();
+        return;
+      }
+      if (e.target && e.target.id === "reportSelectAll") {
+        var ca5 = e.target.checked;
+        qsa(".row-select-checkbox[data-report-select]").forEach(function (cb) {
+          cb.checked = ca5;
+          var idr2 = cb.dataset.reportSelect;
+          if (ca5) { if (STATE.selectedReportIds.indexOf(idr2) === -1) STATE.selectedReportIds.push(idr2); }
+          else { STATE.selectedReportIds = STATE.selectedReportIds.filter(function (id) { return id !== idr2; }); }
+        });
+        updateReportBulkDeleteUI();
         return;
       }
     });
@@ -2806,6 +2928,7 @@ function initBilling() {
     invBizSelect.onchange = function () { updateInvoicePreview(); };
   }
 
+  qs("#invoiceBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedInvoices);
   qs("#addInvoiceService")?.addEventListener("click", function () { addInvoiceServiceRow("", 0); });
   qs("#addInvoiceProduct")?.addEventListener("click", function () { addInvoiceProductRow("", 0, 1); });
   // NEW (Issue 3): lets the user add a fully custom (freely typed) service
@@ -3676,13 +3799,17 @@ function renderSavedInvoices() {
   if (countBadge) countBadge.textContent = sorted.length;
   
   if (!sorted.length) {
-    tb.innerHTML = '<tr><td colspan="8">No invoices found</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9">No invoices found</td></tr>';
     return;
   }
   tb.innerHTML = sorted
     .map(function (inv) {
       return (
-        '<tr><td style="font-weight:700;color:var(--primary);">' +
+        '<tr><td><input type="checkbox" class="row-select-checkbox" data-invoice-select="' +
+        inv.id +
+        '"' +
+        (STATE.selectedInvoiceIds.indexOf(inv.id) !== -1 ? " checked" : "") +
+        '></td><td style="font-weight:700;color:var(--primary);">' +
         sanitize(inv.number) +
         (inv.businessName
           ? ' <small style="color:var(--text-muted);">(' +
@@ -4758,6 +4885,7 @@ function renderProductSalePage() {
 // ==================== VEHICLES ====================
 function initVehicles() {
   qs("#vehicleSearch")?.addEventListener("input", renderVehicleTable);
+  qs("#vehicleBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedVehicles);
   renderVehicleTable();
 }
 function openNewVehicleModal(d) {
@@ -4852,7 +4980,11 @@ function renderVehicleTable() {
   tb.innerHTML = fl
     .map(function (v) {
       return (
-        '<tr><td><span class="table-vehicle-no">' +
+        '<tr><td><input type="checkbox" class="row-select-checkbox" data-vehicle-select="' +
+        v.id +
+        '"' +
+        (STATE.selectedVehicleIds.indexOf(v.id) !== -1 ? " checked" : "") +
+        '></td><td><span class="table-vehicle-no">' +
         sanitize(v.vehicleNo) +
         "</span></td><td>" +
         sanitize(v.owner) +
@@ -5228,6 +5360,224 @@ function bulkDeleteSelectedVariants() {
     "Delete " + ids.length,
   );
 }
+// ============================================================
+// NEW (ADDED ONLY) — Bulk select/delete for Vehicle Records,
+// Expenses, Reminders, and Saved Invoices. Same pattern already
+// used above for Token Management and Inventory. Nothing else in
+// this file was changed — these are purely additive functions.
+// ============================================================
+
+// NEW — Bulk select/delete for Vehicle Records
+function updateVehicleBulkDeleteUI() {
+  var btn = qs("#vehicleBulkDeleteBtn");
+  var cnt = qs("#vehicleBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedVehicleIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedVehicleIds.length === 0);
+  var selectAll = qs("#vehicleSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-vehicle-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedVehicles() {
+  if (!STATE.selectedVehicleIds.length) return;
+  var ids = STATE.selectedVehicleIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected vehicle(s)? This cannot be undone.",
+    function () {
+      STATE.vehicles = STATE.vehicles.filter(function (v) { return ids.indexOf(v.id) === -1; });
+      saveVehicles();
+      STATE.selectedVehicleIds = [];
+      renderVehicleTable();
+      updateVehicleBulkDeleteUI();
+      toast(ids.length + " vehicle(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
+
+// NEW — Bulk select/delete for Expenses
+function updateExpenseBulkDeleteUI() {
+  var btn = qs("#expenseBulkDeleteBtn");
+  var cnt = qs("#expenseBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedExpenseIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedExpenseIds.length === 0);
+  var selectAll = qs("#expenseSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-expense-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedExpenses() {
+  if (!STATE.selectedExpenseIds.length) return;
+  var ids = STATE.selectedExpenseIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected expense(s)? This cannot be undone.",
+    function () {
+      STATE.expenses = STATE.expenses.filter(function (e) { return ids.indexOf(e.id) === -1; });
+      saveExpenses();
+      STATE.selectedExpenseIds = [];
+      renderExpenses();
+      updateExpenseBulkDeleteUI();
+      refreshDashboard();
+      toast(ids.length + " expense(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
+
+// NEW — Bulk select/delete for Reminders
+function updateReminderBulkDeleteUI() {
+  var btn = qs("#reminderBulkDeleteBtn");
+  var cnt = qs("#reminderBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedReminderIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedReminderIds.length === 0);
+  var selectAll = qs("#reminderSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-reminder-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedReminders() {
+  if (!STATE.selectedReminderIds.length) return;
+  var ids = STATE.selectedReminderIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected reminder(s)? This cannot be undone.",
+    function () {
+      STATE.reminders = STATE.reminders.filter(function (r) { return ids.indexOf(r.id) === -1; });
+      saveReminders();
+      STATE.selectedReminderIds = [];
+      renderReminderTable();
+      updateReminderBulkDeleteUI();
+      refreshDashboard();
+      toast(ids.length + " reminder(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
+
+// NEW — Bulk select/delete for Saved Invoices
+function updateInvoiceBulkDeleteUI() {
+  var btn = qs("#invoiceBulkDeleteBtn");
+  var cnt = qs("#invoiceBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedInvoiceIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedInvoiceIds.length === 0);
+  var selectAll = qs("#savedInvoiceSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-invoice-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedInvoices() {
+  if (!STATE.selectedInvoiceIds.length) return;
+  var ids = STATE.selectedInvoiceIds.slice();
+  confirm(
+    "Delete " + ids.length + " selected invoice(s)? This cannot be undone.",
+    function () {
+      if (STATE.editingInvoiceId && ids.indexOf(STATE.editingInvoiceId) !== -1) exitInvoiceEditMode();
+      STATE.invoices = STATE.invoices.filter(function (i) { return ids.indexOf(i.id) === -1; });
+      saveInvoices();
+      STATE.selectedInvoiceIds = [];
+      renderSavedInvoices();
+      updateInvoiceBulkDeleteUI();
+      toast(ids.length + " invoice(s) deleted", "success");
+    },
+    "Delete " + ids.length,
+  );
+}
+
+// NEW — Bulk select/delete for Reports/Transactions. Each row can come
+// from one of four different sources (a completed token, a product sale,
+// an expense, or a vendor payment). Deleting a row here deletes the real
+// underlying record it was generated from, restoring inventory stock for
+// tokens/sales exactly like the existing single-item delete handlers do.
+function updateReportBulkDeleteUI() {
+  var btn = qs("#reportBulkDeleteBtn");
+  var cnt = qs("#reportBulkDeleteCount");
+  if (cnt) cnt.textContent = STATE.selectedReportIds.length;
+  if (btn) btn.classList.toggle("hidden", STATE.selectedReportIds.length === 0);
+  var selectAll = qs("#reportSelectAll");
+  if (selectAll) {
+    var boxes = qsa(".row-select-checkbox[data-report-select]");
+    selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+  }
+}
+function bulkDeleteSelectedReportRows() {
+  if (!STATE.selectedReportIds.length) return;
+  var keys = STATE.selectedReportIds.slice();
+  confirm(
+    "Delete " + keys.length + " selected transaction(s)? This removes the underlying record (token/sale/expense/vendor payment) and cannot be undone.",
+    function () {
+      var tokenIds = [], saleIds = [], expenseIds = [], vendorPaymentIds = [];
+      keys.forEach(function (key) {
+        var parts = key.split("|");
+        var src = parts[0], id = parts.slice(1).join("|");
+        if (src === "token") tokenIds.push(id);
+        else if (src === "sale") saleIds.push(id);
+        else if (src === "expense") expenseIds.push(id);
+        else if (src === "vendorPayment") vendorPaymentIds.push(id);
+      });
+
+      // Restore stock for tokens (same pattern as data-token-delete)
+      if (tokenIds.length) {
+        STATE.tokens.forEach(function (t) {
+          if (tokenIds.indexOf(t.id) !== -1 && t.products) {
+            t.products.forEach(function (p) {
+              if (p.variantId) {
+                var f = findVariantById(p.variantId);
+                if (f) f.variant.stock += p.qty;
+              }
+            });
+          }
+        });
+        STATE.tokens = STATE.tokens.filter(function (t) { return tokenIds.indexOf(t.id) === -1; });
+        saveTokens();
+      }
+
+      // Restore stock for product sales (their items reference real variants too)
+      if (saleIds.length) {
+        STATE.productSales.forEach(function (s) {
+          if (saleIds.indexOf(s.id) !== -1 && s.items) {
+            s.items.forEach(function (i) {
+              if (i.variantId) {
+                var f = findVariantById(i.variantId);
+                if (f) f.variant.stock += i.qty;
+              }
+            });
+          }
+        });
+        STATE.productSales = STATE.productSales.filter(function (s) { return saleIds.indexOf(s.id) === -1; });
+        saveProductSales();
+      }
+
+      if (tokenIds.length || saleIds.length) saveInventory();
+
+      if (expenseIds.length) {
+        STATE.expenses = STATE.expenses.filter(function (e) { return expenseIds.indexOf(e.id) === -1; });
+        saveExpenses();
+      }
+
+      if (vendorPaymentIds.length) {
+        STATE.vendorPayments = STATE.vendorPayments.filter(function (p) { return vendorPaymentIds.indexOf(p.id) === -1; });
+        saveVendorPayments();
+      }
+
+      STATE.selectedReportIds = [];
+      renderReports();
+      // Keep all other views that show the same underlying data in sync
+      if (tokenIds.length) renderTokenTable();
+      if (saleIds.length) renderProductSalesHistoryNow();
+      if (expenseIds.length) renderExpenses();
+      if (vendorPaymentIds.length) { renderVendorTable(); renderVendorKPIs(); }
+      renderInventoryTable();
+      updateInventoryKPI();
+      refreshDashboard();
+      toast(keys.length + " transaction(s) deleted", "success");
+    },
+    "Delete " + keys.length,
+  );
+}
+
 function editInventoryProduct(productId) {
   var p = STATE.inventory.find(function(p) { return p.id === productId; });
   if (p) {
@@ -5333,6 +5683,7 @@ function initReports() {
   qs("#downloadCSV")?.addEventListener("click", function () {
     exportCSV("reports");
   });
+  qs("#reportBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedReportRows);
   var td = new Date(),
     wa = new Date(td);
   wa.setDate(wa.getDate() - 30);
@@ -5398,21 +5749,23 @@ function renderReports() {
           (tk.discount > 0 ? " (Discount: -" + fmtPrice(tk.discount) + ")" : ""),
         amt: tkNetTotal,
         bal: "credit",
+        source: "token", // NEW: lets bulk delete know which STATE array/id this row maps to
+        id: tk.id, // NEW
       });
     }
   });
   STATE.productSales.forEach(function (s) {
     var d = parseDate(s.date) || new Date();
-    rows.push({ date: s.date, dateObj: d, order: s.createdAt || 0, type: "Revenue", cat: "Sale", desc: s.customer || "Walk-in", amt: s.total, bal: "credit" });
+    rows.push({ date: s.date, dateObj: d, order: s.createdAt || 0, type: "Revenue", cat: "Sale", desc: s.customer || "Walk-in", amt: s.total, bal: "credit", source: "sale", id: s.id });
   });
   STATE.expenses.forEach(function (e) {
     var d = parseDate(e.date) || new Date();
-    rows.push({ date: e.date, dateObj: d, order: e.createdAt || 0, type: "Expense", cat: e.category, desc: e.title, amt: e.amount, bal: "debit" });
+    rows.push({ date: e.date, dateObj: d, order: e.createdAt || 0, type: "Expense", cat: e.category, desc: e.title, amt: e.amount, bal: "debit", source: "expense", id: e.id });
   });
   STATE.vendorPayments.forEach(function (vp) {
     var d = parseDate(vp.date) || new Date();
     var v = STATE.vendors.find(function(v) { return v.id === vp.vendorId; });
-    rows.push({ date: vp.date, dateObj: d, order: vp.createdAt || 0, type: "Expense", cat: "Vendor Payment", desc: v ? v.company : "Vendor", amt: vp.amount, bal: "debit" });
+    rows.push({ date: vp.date, dateObj: d, order: vp.createdAt || 0, type: "Expense", cat: "Vendor Payment", desc: v ? v.company : "Vendor", amt: vp.amount, bal: "debit", source: "vendorPayment", id: vp.id });
   });
 
   if (fromDate || toDate) {
@@ -5440,7 +5793,37 @@ function renderReports() {
     return (b.order || 0) - (a.order || 0);
   });
   var tb = qs("#reportTableBody");
-  if (tb) tb.innerHTML = rows.length ? rows.map(function (r) { return "<tr><td>" + sanitize(r.date) + "</td><td>" + r.type + "</td><td>" + sanitize(r.cat) + "</td><td>" + sanitize(r.desc) + '</td><td style="text-align:right;font-weight:700;">' + (r.bal === "credit" ? "+" : "-") + " " + fmtPrice(r.amt) + "</td></tr>"; }).join("") : '<tr><td colspan="5">No transactions</td></tr>';
+  if (tb)
+    tb.innerHTML = rows.length
+      ? rows
+          .map(function (r) {
+            // NEW: composite key "source|id" identifies exactly which
+            // underlying record (token/sale/expense/vendorPayment) this
+            // row came from, so bulk delete can remove the right one.
+            var rowKey = (r.source || "") + "|" + (r.id || "");
+            return (
+              '<tr><td><input type="checkbox" class="row-select-checkbox" data-report-select="' +
+              sanitize(rowKey) +
+              '"' +
+              (STATE.selectedReportIds.indexOf(rowKey) !== -1 ? " checked" : "") +
+              '></td><td>' +
+              sanitize(r.date) +
+              "</td><td>" +
+              r.type +
+              "</td><td>" +
+              sanitize(r.cat) +
+              "</td><td>" +
+              sanitize(r.desc) +
+              '</td><td style="text-align:right;font-weight:700;">' +
+              (r.bal === "credit" ? "+" : "-") +
+              " " +
+              fmtPrice(r.amt) +
+              "</td></tr>"
+            );
+          })
+          .join("")
+      : '<tr><td colspan="6">No transactions</td></tr>';
+  updateReportBulkDeleteUI();
 }
 
 // ==================== EXPENSES ====================
@@ -5449,6 +5832,7 @@ function initExpenses() {
   qs("#saveExpenseBtn")?.addEventListener("click", saveExpense);
   qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm);
   qs("#expenseSearch")?.addEventListener("input", renderExpenses);
+  qs("#expenseBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedExpenses);
   var di = qs("#expenseDate");
   if (di) di.value = toDateInputValue(new Date());
   hideExpenseForm();
@@ -5520,7 +5904,11 @@ function renderExpenses() {
       ? fl
           .map(function (e) {
             return (
-              "<tr><td>" +
+              '<tr><td><input type="checkbox" class="row-select-checkbox" data-expense-select="' +
+              e.id +
+              '"' +
+              (STATE.selectedExpenseIds.indexOf(e.id) !== -1 ? " checked" : "") +
+              '></td><td>' +
               sanitize(e.date) +
               "</td><td>" +
               sanitize(e.title) +
@@ -5534,7 +5922,7 @@ function renderExpenses() {
             );
           })
           .join("")
-      : '<tr><td colspan="5">No expenses</td></tr>';
+      : '<tr><td colspan="6">No expenses</td></tr>';
 }
 
 // ==================== SERVICES (PRICING MATRIX) ====================
@@ -6127,36 +6515,94 @@ function quickRestore() {
     r.onload = function (ev) {
       try {
         var d = JSON.parse(ev.target.result);
-      confirm(
-  "Restore all data?",
-  function () {
-    // NEW: safety snapshot of CURRENT data before overwriting — matches
-    // the same pattern already used for Clear All Data / Emergency Restore.
-    runAutoBackupNow(true, "pre-restore-safety").then(function () {
-      if (d.inventory) { STATE.inventory = d.inventory; saveInventory(); }
-      if (d.tokens) { STATE.tokens = d.tokens; saveTokens(); }
-      if (d.vehicles) { STATE.vehicles = d.vehicles; saveVehicles(); }
-      if (d.invoices) { STATE.invoices = d.invoices; saveInvoices(); }
-      if (d.expenses) { STATE.expenses = d.expenses; saveExpenses(); }
-      if (d.reminders) { STATE.reminders = d.reminders; saveReminders(); }
-      if (d.productSales) { STATE.productSales = d.productSales; saveProductSales(); }
-      if (d.pricingMatrix) { STATE.pricingMatrix = d.pricingMatrix; savePricingMatrix(); }
-      if (d.brands) { STATE.brands = d.brands; saveBrands(); }
-      if (d.categories) { STATE.categories = d.categories; saveCategories(); }
-      if (d.pricingVehicles) { STATE.pricingVehicles = d.pricingVehicles; savePricingVehicles(); }
-      if (d.pricingServices) { STATE.pricingServices = d.pricingServices; savePricingServices(); }
-      if (d.counters) { STATE.counters = d.counters; saveCounters(); }
-      if (d.businesses) { saveBusinesses(d.businesses); }
-      if (d.vendors) { STATE.vendors = d.vendors; saveVendors(); }
-      if (d.vendorPayments) { STATE.vendorPayments = d.vendorPayments; saveVendorPayments(); }
-      if (d.purchaseOrders) { STATE.purchaseOrders = d.purchaseOrders; savePurchaseOrders(); }
-      if (d.settings) { STATE.settings = d.settings; saveSettings(); updateAllBrandNames(); }
-      toast("Restored!", "success");
-      setTimeout(function () { location.reload(); }, 300); // was 1000 — faster now
-    });
-  },
-  "Restore",
-);
+        confirm(
+          "Restore all data?",
+          function () {
+            // FIXED: this used to restore only 6 of the ~17 data
+            // collections — productSales, pricingMatrix, brands,
+            // categories, pricingVehicles, pricingServices, counters,
+            // businesses, vendors, vendorPayments and purchaseOrders were
+            // silently skipped, which is why a Quick Restore never brought
+            // back vendor totals, revenue, or net profit correctly.
+            if (d.inventory) {
+              STATE.inventory = d.inventory;
+              saveInventory();
+            }
+            if (d.tokens) {
+              STATE.tokens = d.tokens;
+              saveTokens();
+            }
+            if (d.vehicles) {
+              STATE.vehicles = d.vehicles;
+              saveVehicles();
+            }
+            if (d.invoices) {
+              STATE.invoices = d.invoices;
+              saveInvoices();
+            }
+            if (d.expenses) {
+              STATE.expenses = d.expenses;
+              saveExpenses();
+            }
+            if (d.reminders) {
+              STATE.reminders = d.reminders;
+              saveReminders();
+            }
+            if (d.productSales) {
+              STATE.productSales = d.productSales;
+              saveProductSales();
+            }
+            if (d.pricingMatrix) {
+              STATE.pricingMatrix = d.pricingMatrix;
+              savePricingMatrix();
+            }
+            if (d.brands) {
+              STATE.brands = d.brands;
+              saveBrands();
+            }
+            if (d.categories) {
+              STATE.categories = d.categories;
+              saveCategories();
+            }
+            if (d.pricingVehicles) {
+              STATE.pricingVehicles = d.pricingVehicles;
+              savePricingVehicles();
+            }
+            if (d.pricingServices) {
+              STATE.pricingServices = d.pricingServices;
+              savePricingServices();
+            }
+            if (d.counters) {
+              STATE.counters = d.counters;
+              saveCounters();
+            }
+            if (d.businesses) {
+              saveBusinesses(d.businesses);
+            }
+            if (d.vendors) {
+              STATE.vendors = d.vendors;
+              saveVendors();
+            }
+            if (d.vendorPayments) {
+              STATE.vendorPayments = d.vendorPayments;
+              saveVendorPayments();
+            }
+            if (d.purchaseOrders) {
+              STATE.purchaseOrders = d.purchaseOrders;
+              savePurchaseOrders();
+            }
+            if (d.settings) {
+              STATE.settings = d.settings;
+              saveSettings();
+              updateAllBrandNames();
+            }
+            toast("Restored!", "success");
+            setTimeout(function () {
+              location.reload();
+            }, 1000);
+          },
+          "Restore",
+        );
       } catch (e) {
         toast("Invalid file", "error");
       }
@@ -6349,21 +6795,93 @@ function confirmImport() {
   var m = STATE.pendingImport.module,
     d = STATE.pendingImport.data;
   if (m === "all") {
-   confirm(
-  "This will replace ALL data. Continue?",
-  function () {
-    // NEW: safety snapshot before an "All Data" import overwrites everything
-    runAutoBackupNow(true, "pre-import-safety").then(function () {
-      if (d.inventory) { STATE.inventory = d.inventory; saveInventory(); }
-      // ... (baaki poora existing block yahan as-it-is rahega) ...
-      STATE.pendingImport = null;
-      closeModal("importPreviewModal");
-      toast("All data imported!", "success");
-      setTimeout(function () { location.reload(); }, 300); // was 1000 — faster now
-    });
-  },
-  "Import All",
-);
+    confirm(
+      "This will replace ALL data. Continue?",
+      function () {
+        if (d.inventory) {
+          STATE.inventory = d.inventory;
+          saveInventory();
+        }
+        if (d.tokens) {
+          STATE.tokens = d.tokens;
+          saveTokens();
+        }
+        if (d.vehicles) {
+          STATE.vehicles = d.vehicles;
+          saveVehicles();
+        }
+        if (d.invoices) {
+          STATE.invoices = d.invoices;
+          saveInvoices();
+        }
+        if (d.expenses) {
+          STATE.expenses = d.expenses;
+          saveExpenses();
+        }
+        if (d.reminders) {
+          STATE.reminders = d.reminders;
+          saveReminders();
+        }
+        if (d.productSales) {
+          STATE.productSales = d.productSales;
+          saveProductSales();
+        }
+        if (d.pricingMatrix) {
+          STATE.pricingMatrix = d.pricingMatrix;
+          savePricingMatrix();
+        }
+        if (d.brands) {
+          STATE.brands = d.brands;
+          saveBrands();
+        }
+        if (d.categories) {
+          STATE.categories = d.categories;
+          saveCategories();
+        }
+        if (d.pricingVehicles) {
+          STATE.pricingVehicles = d.pricingVehicles;
+          savePricingVehicles();
+        }
+        if (d.pricingServices) {
+          STATE.pricingServices = d.pricingServices;
+          savePricingServices();
+        }
+        if (d.settings) {
+          STATE.settings = d.settings;
+          saveSettings();
+          updateAllBrandNames();
+        }
+        if (d.counters) {
+          STATE.counters = d.counters;
+          saveCounters();
+        }
+        if (d.businesses) {
+          saveBusinesses(d.businesses);
+        }
+        // NEW: vendors / vendor payments / purchase orders were previously
+        // not restored at all by "All Data" import, so vendor totals, net
+        // profit, etc always stayed wrong after a restore.
+        if (d.vendors) {
+          STATE.vendors = d.vendors;
+          saveVendors();
+        }
+        if (d.vendorPayments) {
+          STATE.vendorPayments = d.vendorPayments;
+          saveVendorPayments();
+        }
+        if (d.purchaseOrders) {
+          STATE.purchaseOrders = d.purchaseOrders;
+          savePurchaseOrders();
+        }
+        STATE.pendingImport = null;
+        closeModal("importPreviewModal");
+        toast("All data imported!", "success");
+        setTimeout(function () {
+          location.reload();
+        }, 1000);
+      },
+      "Import All",
+    );
     return;
   }
   if (m === "inventory") {
@@ -7617,7 +8135,7 @@ function debugTokenTotal() {
 //   modify, replace, or remove any existing function, module,
 //   or data key used elsewhere in the app.
 // ============================================================
-var AUTO_BACKUP_INTERVAL_MS = 5 * 60 * 1000; // 30 minutes
+var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
 var AUTO_BACKUP_STORE = "backups";
 var AUTO_BACKUP_ROLLING_ID = "rolling_backup"; // FIXED single record id — every
@@ -7673,14 +8191,11 @@ function collectFullBackupData(reason) {
   } catch (e) {}
   var now = new Date();
   return {
-    // NEW: unique id per snapshot (timestamp + random) instead of one fixed
-    // rolling id — this is what lets multiple backup versions actually
-    // exist at once, instead of every new backup erasing the last one.
-    id: "backup_" + now.getTime() + "_" + Math.random().toString(36).substr(2, 6),
+    id: AUTO_BACKUP_ROLLING_ID, // FIXED — always the same id, so saving
+    // this record OVERWRITES the previous backup instead of adding a new one
     savedAt: now.toISOString(),
     savedAtDisplay: fmtDate() + " " + fmtTime(),
     reason: reason || "auto",
-    keyCount: Object.keys(data).length, // NEW: quick integrity indicator
     localStorageData: data,
   };
 }
@@ -7755,21 +8270,8 @@ function getAllAutoBackupsFromDB() {
 // the one existing record on every run — there is never more than one
 // backup record to prune. Kept as a harmless no-op so any existing call
 // site does not need to change.
-var AUTO_BACKUP_KEEP_COUNT = 20; // NEW: how many historical snapshots to retain
-
 function pruneOldAutoBackups() {
-  return getAllAutoBackupsFromDB()
-    .then(function (list) {
-      if (list.length <= AUTO_BACKUP_KEEP_COUNT) return;
-      // list is newest-first (see getAllAutoBackupsFromDB) — delete everything past the keep count
-      var toDelete = list.slice(AUTO_BACKUP_KEEP_COUNT);
-      return Promise.all(
-        toDelete.map(function (rec) {
-          return deleteAutoBackupFromDB(rec.id);
-        }),
-      );
-    })
-    .catch(function () {});
+  return Promise.resolve();
 }
 
 // Backward-compatible helper: latest snapshot only.
@@ -7779,69 +8281,24 @@ function getAutoBackupFromDB() {
   });
 }
 
-function updateAutoBackupStatusUI(ts, keyCount) {
+function updateAutoBackupStatusUI(ts) {
   var el = qs("#autoBackupStatus");
-  if (el)
-    el.textContent =
-      "Last auto-backup: " + (ts || "Never") + (keyCount ? " (" + keyCount + " data keys)" : "");
+  if (el) el.textContent = "Last auto-backup: " + (ts || "Never");
 }
 
-// Returns a Promise so callers (like "Clear All Data") can WAIT for the
-// safety snapshot to finish saving before doing anything destructive.
 // Returns a Promise so callers (like "Clear All Data") can WAIT for the
 // safety snapshot to finish saving before doing anything destructive.
 function runAutoBackupNow(silent, reason) {
   try {
     var record = collectFullBackupData(reason);
-    return getAutoBackupFromDB()
-      .then(function (prevRecord) {
-        // ============================================================
-        // NEW (ADDED ONLY) — SHRINK-PROTECTION GUARD
-        // ------------------------------------------------------------
-        // If the new snapshot is drastically SMALLER than the last saved
-        // backup (e.g. right after an app update, when localStorage may
-        // briefly appear empty/incomplete), do NOT overwrite the existing
-        // good backup (IndexedDB record + Google Drive file) with it.
-        // This is exactly the "18KB backup became 3KB after update" bug —
-        // the fixed single backup file was being silently overwritten by
-        // a near-empty snapshot taken too early after launch.
-        // Threshold: if new size is less than 40% of the previous size
-        // (and the previous size was non-trivial), skip this cycle.
-        // ============================================================
-        if (prevRecord && prevRecord.localStorageData) {
-          var prevSize = JSON.stringify(prevRecord.localStorageData).length;
-          var newSize = JSON.stringify(record.localStorageData).length;
-          if (prevSize > 2000 && newSize < prevSize * 0.4) {
-            if (!silent) {
-              toast(
-                "Backup skipped — new data (" + newSize +
-                " bytes) looks much smaller than last backup (" + prevSize +
-                " bytes). Old backup kept safe.",
-                "warning",
-              );
-            } else {
-              console.warn(
-                "[Auto Backup] Skipped — possible data loss detected. Prev: " +
-                prevSize + " bytes, New: " + newSize + " bytes. Old backup preserved.",
-              );
-            }
-            return null;
-          }
-        }
-
-        return saveAutoBackupToDB(record)
-          .then(function () {
-            updateAutoBackupStatusUI(record.savedAtDisplay, record.keyCount);
-            pruneOldAutoBackups();
-            saveBackupToGoogleDriveFolder(record, silent); // also writes to Google Drive folder
-            if (!silent)
-              toast("Backup saved (" + record.savedAtDisplay + ")", "success");
-            return record;
-          })
-          .catch(function () {
-            if (!silent) toast("Backup failed", "error");
-            return null;
-          });
+    return saveAutoBackupToDB(record)
+      .then(function () {
+        updateAutoBackupStatusUI(record.savedAtDisplay);
+        pruneOldAutoBackups();
+        saveBackupToGoogleDriveFolder(record, silent); // NEW: also write to Google Drive folder
+        if (!silent)
+          toast("Backup saved (" + record.savedAtDisplay + ")", "success");
+        return record;
       })
       .catch(function () {
         if (!silent) toast("Backup failed", "error");
@@ -7865,7 +8322,7 @@ function restoreLocalStorageDataObject(dataObj) {
     toast("Data restored from backup. Reloading...", "success");
     setTimeout(function () {
       location.reload();
-    }, 400); // was 1200 — faster now
+    }, 1200);
   } catch (e) {
     toast("Restore failed", "error");
   }

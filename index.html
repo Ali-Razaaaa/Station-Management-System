@@ -619,6 +619,15 @@
         />
       </div>
     </div>
+    <div class="toolbar-right">
+      <!-- NEW (ADDED ONLY): Bulk Delete button for Vehicle Records.
+           Hidden by default; app.js toggles it visible once one or
+           more rows are selected via the checkbox column, and
+           updates the count shown on it. -->
+      <button class="btn btn-danger hidden" id="vehicleBulkDeleteBtn">
+        <span class="material-icons">delete</span> Delete Selected (<span id="vehicleBulkDeleteCount">0</span>)
+      </button>
+    </div>
   </div>
   <div class="card">
     <div class="card-header">
@@ -636,6 +645,9 @@
       <table class="data-table" id="vehicleTable">
         <thead>
           <tr>
+            <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                 every visible vehicle row at once. -->
+            <th style="width:36px"><input type="checkbox" id="vehicleSelectAll" /></th>
             <th>Vehicle No.</th>
             <th>Owner</th>
             <th>Contact</th>
@@ -881,6 +893,13 @@
                 </select>
               </div>
               <div class="toolbar-right">
+                <!-- NEW (ADDED ONLY): Bulk Delete button for Reminders.
+                     Hidden by default; app.js toggles it visible once one
+                     or more rows are selected via the checkbox column, and
+                     updates the count shown on it. -->
+                <button class="btn btn-danger hidden" id="reminderBulkDeleteBtn" style="margin-right:8px">
+                  <span class="material-icons">delete</span> Delete Selected (<span id="reminderBulkDeleteCount">0</span>)
+                </button>
                 <button class="btn btn-outline" id="markAllCompletedBtn">
                   <span class="material-icons">done_all</span> Mark All
                   Completed
@@ -903,6 +922,9 @@
                 <table class="data-table" id="reminderTable">
                   <thead>
                     <tr>
+                      <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                           every visible reminder row at once. -->
+                      <th style="width:36px"><input type="checkbox" id="reminderSelectAll" /></th>
                       <th>Customer</th>
                       <th>Phone</th>
                       <th>Vehicle</th>
@@ -1290,11 +1312,21 @@
                 <span style="font-size:0.8rem;color:var(--text-muted)">to</span>
                 <input type="date" class="filter-select" id="savedInvoiceDateTo" style="width:135px" title="To Date" />
                 <button class="btn btn-sm btn-ghost" id="clearInvoiceDateFilter" title="Clear Date" style="font-size:0.7rem">✕ Clear</button>
+                <!-- NEW (ADDED ONLY): Bulk Delete button for Saved Invoices.
+                     Hidden by default; app.js toggles it visible once one
+                     or more rows are selected via the checkbox column, and
+                     updates the count shown on it. -->
+                <button class="btn btn-danger hidden" id="invoiceBulkDeleteBtn" style="margin-left:auto">
+                  <span class="material-icons">delete</span> Delete Selected (<span id="invoiceBulkDeleteCount">0</span>)
+                </button>
               </div>
               <div class="card-body p-0">
                 <table class="data-table" id="savedInvoiceTable">
                   <thead>
                     <tr>
+                      <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                           every visible invoice row at once. -->
+                      <th style="width:36px"><input type="checkbox" id="savedInvoiceSelectAll" /></th>
                       <th>Invoice #</th>
                       <th>Date</th>
                       <th>Customer</th>
@@ -1395,12 +1427,24 @@
                   ><button class="btn btn-sm btn-outline" id="downloadCSV">
                     CSV
                   </button>
+                  <!-- NEW (ADDED ONLY): Bulk Delete button for Reports/Transactions.
+                       Hidden by default; app.js toggles it visible once one or
+                       more rows are selected via the checkbox column, and
+                       updates the count shown on it. Deleting a row here
+                       deletes the underlying record (token/sale/expense/
+                       vendor payment) it was generated from. -->
+                  <button class="btn btn-danger hidden" id="reportBulkDeleteBtn">
+                    <span class="material-icons">delete</span> Delete Selected (<span id="reportBulkDeleteCount">0</span>)
+                  </button>
                 </div>
               </div>
               <div class="card-body p-0">
                 <table class="data-table">
                   <thead>
                     <tr>
+                      <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                           every visible transaction row at once. -->
+                      <th style="width:36px"><input type="checkbox" id="reportSelectAll" /></th>
                       <th>Date</th>
                       <th>Type</th>
                       <th>Category</th>
@@ -1475,6 +1519,13 @@
                 </select>
               </div>
               <div class="toolbar-right">
+                <!-- NEW (ADDED ONLY): Bulk Delete button for Expenses.
+                     Hidden by default; app.js toggles it visible once one
+                     or more rows are selected via the checkbox column, and
+                     updates the count shown on it. -->
+                <button class="btn btn-danger hidden" id="expenseBulkDeleteBtn" style="margin-right:8px">
+                  <span class="material-icons">delete</span> Delete Selected (<span id="expenseBulkDeleteCount">0</span>)
+                </button>
                 <button class="btn btn-primary" id="addExpenseBtn">
                   <span class="material-icons">add</span> Add Expense
                 </button>
@@ -1548,6 +1599,9 @@
                 <table class="data-table">
                   <thead>
                     <tr>
+                      <!-- NEW (ADDED ONLY): header checkbox to select/deselect
+                           every visible expense row at once. -->
+                      <th style="width:36px"><input type="checkbox" id="expenseSelectAll" /></th>
                       <th>Date</th>
                       <th>Title</th>
                       <th>Category</th>
@@ -1957,7 +2011,7 @@
                     Clear All Data
                   </button>
                   <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);text-align:center;font-size:0.75rem;color:var(--text-muted)">
-                    Version 1.1.26
+                    Version 1.1.27
                   </div>
                 </div>
               </div>
