@@ -1785,6 +1785,44 @@ function getAllExpensesTotal() {
   }, 0);
   return expTotal + vendorTotal;
 }
+// ============================================================
+// NEW (ADDED ONLY) — Product cost (purchase price) helpers for Net Profit.
+// Net Profit ab sirf product ka PROFIT count karta hai (sale - cost),
+// pura sale amount nahi. Cost wohi lookup use karta hai jo Monthly
+// Summary ke "Product Profit" me already use hota hai: pehle variant ID,
+// phir same naam wali entry. Custom (inventory se bahar) product ki cost
+// maloom nahi hoti, isliye uski cost 0 maani jati hai (koi change nahi).
+// ============================================================
+function getProductUnitCost(variantId, name) {
+  var pp = 0;
+  var f = variantId ? findVariantById(variantId) : null;
+  if (f) pp = f.variant.purchasePrice || 0;
+  if (pp <= 0 && name) {
+    var withCost = getAllVariantsFlat().find(function (v) {
+      return v.fullName === name && (v.purchasePrice || 0) > 0;
+    });
+    if (withCost) pp = withCost.purchasePrice;
+  }
+  return pp;
+}
+function getTotalProductCost() {
+  var cost = 0;
+  STATE.tokens.forEach(function (tk) {
+    if (tk.status !== "completed") return;
+    (tk.products || []).forEach(function (p) {
+      cost += getProductUnitCost(p.variantId, p.fullName) * (p.qty || 0);
+    });
+  });
+  STATE.productSales.forEach(function (s) {
+    (s.items || []).forEach(function (i) {
+      cost += getProductUnitCost(i.variantId, i.fullName) * (i.qty || 0);
+    });
+  });
+  return cost;
+}
+function getNetProfit() {
+  return getTotalRevenue() - getTotalProductCost() - getAllExpensesTotal();
+}
 function getMatrixPrice(sn, vt) {
   var key = sn + "__" + vt;
   return STATE.pricingMatrix[key] || 0;
@@ -1828,7 +1866,7 @@ setText("#kpiVendorPaid", fmtPrice(totalVendorPaid));
   setText("#kpiRevenue", fmtPrice(dr));
   setText("#kpiAlerts", ls);
   setText("#kpiLowStock", ls);
-  setText("#kpiNetProfit", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
+  setText("#kpiNetProfit", fmtPrice(getNetProfit()));
   var ab = qs("#activeTokenBadge");
   if (ab) {
     ab.textContent = at;
@@ -2884,19 +2922,34 @@ function openEditTokenModal(tid) {
     document.getElementById("customTokenServicesSection").style.display = "none";
     document.getElementById("customTokenProductsSection").style.display = "none";
 
-    if (t.service) {
-      t.service.split(", ").forEach(function (svc) {
-        if (svc) addTokenServiceRow(svc, getMatrixPrice(svc, t.vehicleType) || 0);
-      });
-    }
+    // FIX: reopen with the token's OWN saved service prices (not a fresh
+    // matrix lookup), so name + price + total stay exactly as saved.
+    computeServiceRowsForToken(t).forEach(function (r) {
+      addTokenServiceRow(r.name, r.price, true);
+    });
 
     if (t.products) {
       t.products.forEach(function (p) {
         addTokenProduct();
         var lastRow = qs("#tokenProductsList > div:last-child");
         if (lastRow) {
+          // FIX: the product picker is a search box + hidden <select> that
+          // starts with only an empty option, so `sel.value = variantId`
+          // silently failed — the name vanished and the product was
+          // dropped from the total. Now the option and the visible name
+          // are filled in explicitly.
           var sel = lastRow.querySelector(".token-product-select");
-          if (sel) sel.value = p.variantId;
+          if (sel) {
+            sel.innerHTML = "";
+            var opt = document.createElement("option");
+            opt.value = p.variantId || "";
+            opt.textContent = p.fullName || "";
+            opt.selected = true;
+            sel.appendChild(opt);
+            sel.value = p.variantId || "";
+          }
+          var searchInput = lastRow.querySelector(".tp-search");
+          if (searchInput) searchInput.value = p.fullName || "";
           var priceInput = lastRow.querySelector(".token-product-price");
           if (priceInput) priceInput.value = p.price;
           var qtyInput = lastRow.querySelector(".token-product-qty");
@@ -5704,7 +5757,7 @@ function renderReports() {
   setText("#rptRevenue", fmtPrice(getTotalRevenue()));
   setText("#rptExpenses", fmtPrice(getTotalExpenses()));
   setText("#rptLabour", fmtPrice(getLabourCost()));
-  setText("#rptProfit", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
+  setText("#rptProfit", fmtPrice(getNetProfit()));
 
   var totalVendorPaid = STATE.vendorPayments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
   setText("#rptVendorPayments", fmtPrice(totalVendorPaid));
@@ -5968,6 +6021,20 @@ function buildReportExportData() {
   });
   var usageRows = Object.keys(usage).sort().map(function (k) { return [k, usage[k].qty, usage[k].amt]; });
 
+  // Product cost (purchase price) of items sold in this date range — Net Profit me se minus hota hai
+  var productCostRange = 0;
+  tokensInRange.forEach(function (x) {
+    if (x.t.status !== "completed") return;
+    (x.t.products || []).forEach(function (p) {
+      productCostRange += getProductUnitCost(p.variantId, p.fullName) * (p.qty || 0);
+    });
+  });
+  salesInRange.forEach(function (x) {
+    (x.s.items || []).forEach(function (p) {
+      productCostRange += getProductUnitCost(p.variantId, p.fullName) * (p.qty || 0);
+    });
+  });
+
   // ---- Current inventory snapshot ----
   var invRows = getAllVariantsFlat()
     .sort(function (a, b) { return (a.fullName || "").localeCompare(b.fullName || ""); })
@@ -5987,7 +6054,8 @@ function buildReportExportData() {
         ["Labour Cost", labour],
         ["Vendor Payments", vendorPaid],
         ["Total Expenses (all)", expAll],
-        ["Net Profit", revenue - expAll],
+        ["Product Cost (items sold)", productCostRange],
+        ["Net Profit", revenue - productCostRange - expAll],
       ],
     },
     {
@@ -6131,6 +6199,7 @@ function exportReportPDF() {
   var pdfVendor = sv("Vendor Payments");
   var pdfExpAll = sv("Total Expenses (all)");
   var pdfNet = sv("Net Profit");
+  var pdfProdCost = sv("Product Cost (items sold)");
 
   function card(label, val, color) {
     return '<div class="card"><div class="cl">' + sanitize(label) + '</div><div class="cv" style="color:' + (color || "#000") + '">' + sanitize(fmtPrice(val)) + "</div></div>";
@@ -6167,6 +6236,7 @@ function exportReportPDF() {
     body += card("Labour Cost", pdfLabour, "#b45309");
     body += card("Vendor Payments", pdfVendor, "#b45309");
     body += card("Total Expenses", pdfExpAll, "#b91c1c");
+    body += card("Product Cost (items sold)", pdfProdCost, "#b45309");
   }
   if (showRevenueParts && showExpenseParts) body += card("Net Profit", pdfNet, pdfNet >= 0 ? "#15803d" : "#b91c1c");
   body += "</div>";
@@ -6277,6 +6347,8 @@ function initExpenses() {
   qs("#saveExpenseBtn")?.addEventListener("click", saveExpense);
   qs("#cancelExpenseBtn")?.addEventListener("click", hideExpenseForm);
   qs("#expenseSearch")?.addEventListener("input", renderExpenses);
+  var expFilterSel = getExpenseFilterSelect();
+  if (expFilterSel) expFilterSel.addEventListener("change", renderExpenses);
   qs("#expenseBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedExpenses);
   var di = qs("#expenseDate");
   if (di) di.value = toDateInputValue(new Date());
@@ -6324,11 +6396,27 @@ function saveExpense() {
   renderExpenses();
   refreshDashboard();
 }
+// Finds the "All" category dropdown next to the expense search box
+// (works even if its id is not known).
+function getExpenseFilterSelect() {
+  var ids = ["#expenseCategoryFilter", "#expenseFilter", "#expenseFilterCategory", "#expenseTypeFilter", "#expenseStatusFilter"];
+  for (var i = 0; i < ids.length; i++) {
+    var el = qs(ids[i]);
+    if (el) return el;
+  }
+  var s = qs("#expenseSearch");
+  var p = s ? s.parentElement : null;
+  for (var d = 0; p && d < 4; d++, p = p.parentElement) {
+    var sel = p.querySelector("select");
+    if (sel && !sel.closest("table") && !sel.closest(".modal-overlay") && sel.id !== "expenseCategory") return sel;
+  }
+  return null;
+}
 function renderExpenses() {
   setText("#totalRevenueAmt", fmtPrice(getTotalRevenue()));
   setText("#totalExpenseAmt", fmtPrice(getTotalExpenses()));
   setText("#labourCostAmt", fmtPrice(getLabourCost()));
-  setText("#netProfitAmt", fmtPrice(getTotalRevenue() - getAllExpensesTotal()));
+  setText("#netProfitAmt", fmtPrice(getNetProfit()));
 
   // ✅ Newest first: sort by date descending, then by createdAt (real
   // insertion time) descending. Falls back to the old time-string compare
@@ -6339,6 +6427,28 @@ function renderExpenses() {
     if (dateB - dateA !== 0) return dateB - dateA;
     if (a.createdAt || b.createdAt) return (b.createdAt || 0) - (a.createdAt || 0);
     return (b.time || "").localeCompare(a.time || "");
+  });
+
+  // FIX: search box / category dropdown were wired to this function but it
+  // never actually filtered anything. Filtering now happens on a copy, so
+  // STATE.expenses itself (and totals above) are untouched.
+  var expSearch = (qs("#expenseSearch")?.value || "").trim().toLowerCase();
+  var expFilterEl = getExpenseFilterSelect();
+  var expCat = expFilterEl ? (expFilterEl.value || "").trim().toLowerCase() : "";
+  var expCatText = expFilterEl && expFilterEl.selectedIndex >= 0
+    ? (expFilterEl.options[expFilterEl.selectedIndex].text || "").trim().toLowerCase()
+    : "";
+  if (expCatText === "all" || expCatText.indexOf("all ") === 0) expCat = "";
+  fl = fl.filter(function (e) {
+    var cat = (e.category || "").toLowerCase();
+    if (expCat && cat !== expCat && cat !== expCatText) return false;
+    if (!expSearch) return true;
+    return (
+      (e.title || "").toLowerCase().indexOf(expSearch) !== -1 ||
+      cat.indexOf(expSearch) !== -1 ||
+      String(e.amount == null ? "" : e.amount).indexOf(expSearch) !== -1 ||
+      (e.date || "").toLowerCase().indexOf(expSearch) !== -1
+    );
   });
 
   var countBadge = qs("#expenseCountBadge");
@@ -8284,7 +8394,7 @@ function recomputeTokenTotal() {
   }
 }
 
-function addTokenServiceRow(svcName, svcPrice) {
+function addTokenServiceRow(svcName, svcPrice, keepPrice) {
   var c = qs("#tokenServicesList");
   if (!c) return;
   var opts = STATE.pricingServices
@@ -8304,7 +8414,7 @@ function addTokenServiceRow(svcName, svcPrice) {
   c.appendChild(r);
 
   var vt = qs("#tokenVehicleType")?.value || "";
-  if (svcName && vt) {
+  if (svcName && vt && !keepPrice) {
     r.querySelector(".token-service-price").value = getMatrixPrice(svcName, vt) || 0;
   }
 
@@ -9469,14 +9579,15 @@ function renderMonthlySummary() {
   });
 
   var revenue = tokenRevenue + saleRevenue;
-  var net = revenue - otherExp - labour - vendorPaid;
+  var pb = mdProductBreakdown(key);
+  // Net Profit: product ka sirf profit (sale - cost), pura sale amount nahi
+  var net = revenue - pb.totalCost - otherExp - labour - vendorPaid;
 
   function card(icon, color, label, value, extra) {
     return '<div class="kpi-card' + (extra || "") + '"><div class="kpi-icon kpi-icon--' + color +
       '"><span class="material-icons">' + icon + '</span></div><div class="kpi-body"><span class="kpi-label">' +
       label + '</span><span class="kpi-value">' + value + "</span></div></div>";
   }
-  var pb = mdProductBreakdown(key);
   grid.innerHTML =
     card("trending_up", "green", "Revenue", fmtPrice(revenue)) +
     card("build", "blue", "Token Revenue", fmtPrice(tokenRevenue)) +
