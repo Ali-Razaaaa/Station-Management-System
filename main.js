@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -111,6 +111,24 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  // ============================================================
+  // FIX (WhatsApp "update Chrome" error): app.js opens WhatsApp reminders
+  // with window.open("https://wa.me/..."). Inside Electron that opened an
+  // in-app window whose user-agent contains "Electron", and WhatsApp Web
+  // rejects it with "update Chrome" no matter how new Chrome is. Now every
+  // http(s) link is sent to the computer's DEFAULT BROWSER (real Chrome /
+  // WhatsApp Desktop) instead. Non-web windows (the blank window used for
+  // print/PDF fallbacks) are still allowed exactly as before.
+  // ============================================================
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      shell.openExternal(url);
+      return { action: "deny" };
+    }
+    return { action: "allow" };
+  });
+
   win.loadFile("index.html");
 }
 
