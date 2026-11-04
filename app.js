@@ -1851,6 +1851,7 @@ setText("#kpiVendorPaid", fmtPrice(totalVendorPaid));
   }
   renderRecentActivity();
   updateLowStockAlert(ls);
+  renderMonthlySummary();
 }
 function updateLowStockAlert(c) {
   var ae = qs("#lowStockAlert");
@@ -5680,9 +5681,8 @@ function addCategory() {
 function initReports() {
   qs("#applyRptFilter")?.addEventListener("click", renderReports);
   qs("#resetRptFilter")?.addEventListener("click", resetReportFilters);
-  qs("#downloadCSV")?.addEventListener("click", function () {
-    exportCSV("reports");
-  });
+   qs("#downloadCSV")?.addEventListener("click", exportReportCSV);
+  qs("#downloadPDF")?.addEventListener("click", exportReportPDF);
   qs("#reportBulkDeleteBtn")?.addEventListener("click", bulkDeleteSelectedReportRows);
   var td = new Date(),
     wa = new Date(td);
@@ -5711,6 +5711,7 @@ function renderReports() {
 
   var fromDate = qs("#rptFromDate")?.value ? new Date(qs("#rptFromDate").value) : null;
   var toDate = qs("#rptToDate")?.value ? new Date(qs("#rptToDate").value) : null;
+    if (fromDate) fromDate.setHours(0, 0, 0, 0);
   if (toDate) toDate.setHours(23, 59, 59);
 
   var rows = [];
@@ -5824,6 +5825,450 @@ function renderReports() {
           .join("")
       : '<tr><td colspan="6">No transactions</td></tr>';
   updateReportBulkDeleteUI();
+}
+// ============================================================
+// NEW (ADDED ONLY) — Reports CSV / PDF export (follows the Reports
+// filters: From date, To date, Type). Nothing existing was modified.
+// Includes: summary, filtered transactions, tokens, product sales,
+// invoices, vendor payments, items used/sold, current inventory.
+// ============================================================
+function parseInputDateLocal(s, endOfDay) {
+  if (!s) return null;
+  var p = String(s).split("-");
+  if (p.length !== 3) return null;
+  var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  if (endOfDay) d.setHours(23, 59, 59, 999);
+  else d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function buildReportExportData() {
+  var fromStr = qs("#rptFromDate")?.value || "";
+  var toStr = qs("#rptToDate")?.value || "";
+  var from = parseInputDateLocal(fromStr, false);
+  var to = parseInputDateLocal(toStr, true);
+  var type = qs("#rptType")?.value || "all";
+
+  function inRange(d) {
+    d = d || new Date();
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  }
+  function tokenNet(t) {
+    var pt = 0;
+    (t.products || []).forEach(function (p) {
+      pt += (p.price || 0) * (p.qty || 0);
+    });
+    return Math.max(0, (t.servicePrice || 0) + pt - (t.discount || 0));
+  }
+  function productsText(list) {
+    return (list || [])
+      .map(function (p) {
+        return (p.fullName || "") + " x" + (p.qty || 0);
+      })
+      .join(" | ");
+  }
+  function vendorName(id) {
+    var v = STATE.vendors.find(function (v) {
+      return v.id === id;
+    });
+    return v ? v.company : "Vendor";
+  }
+  function byDateDesc(a, b) {
+    var dd = b.dateObj - a.dateObj;
+    if (dd !== 0) return dd;
+    return (b.order || 0) - (a.order || 0);
+  }
+
+  // ---- Transaction rows (same sources/logic as renderReports) ----
+  var rows = [];
+  STATE.tokens.forEach(function (tk) {
+    if (tk.status === "completed") {
+      rows.push({
+        date: tk.date || fmtDate(),
+        dateObj: parseDate(tk.date) || new Date(),
+        order: tk.createdAt || 0,
+        type: "Revenue",
+        cat: "Token",
+        desc: "Token " + tk.number + (tk.discount > 0 ? " (Discount: -" + fmtPrice(tk.discount) + ")" : ""),
+        amt: tokenNet(tk),
+        bal: "credit",
+      });
+    }
+  });
+  STATE.productSales.forEach(function (s) {
+    rows.push({ date: s.date, dateObj: parseDate(s.date) || new Date(), order: s.createdAt || 0, type: "Revenue", cat: "Sale", desc: s.customer || "Walk-in", amt: s.total || 0, bal: "credit" });
+  });
+  STATE.expenses.forEach(function (e) {
+    rows.push({ date: e.date, dateObj: parseDate(e.date) || new Date(), order: e.createdAt || 0, type: "Expense", cat: e.category, desc: e.title, amt: e.amount || 0, bal: "debit" });
+  });
+  STATE.vendorPayments.forEach(function (vp) {
+    rows.push({ date: vp.date, dateObj: parseDate(vp.date) || new Date(), order: vp.createdAt || 0, type: "Expense", cat: "Vendor Payment", desc: vendorName(vp.vendorId), amt: vp.amount || 0, bal: "debit" });
+  });
+
+  var dateRows = rows.filter(function (r) { return inRange(r.dateObj); }).sort(byDateDesc);
+
+  // ---- Summary (always for the selected date range) ----
+  var revenue = 0, expAll = 0, labour = 0, vendorPaid = 0;
+  dateRows.forEach(function (r) {
+    if (r.type === "Revenue") revenue += r.amt;
+    else {
+      expAll += r.amt;
+      if (r.cat === "labour") labour += r.amt;
+      if (r.cat === "Vendor Payment") vendorPaid += r.amt;
+    }
+  });
+  var otherExp = expAll - labour - vendorPaid;
+
+  var txRows = dateRows.filter(function (r) {
+    if (type === "revenue") return r.type === "Revenue";
+    if (type === "expenses") return r.type === "Expense";
+    return true;
+  });
+
+  // ---- Tokens in range ----
+  var tokensInRange = STATE.tokens
+    .map(function (t) { return { t: t, dateObj: parseDate(t.date) || new Date(), order: t.createdAt || 0 }; })
+    .filter(function (x) { return inRange(x.dateObj); })
+    .sort(byDateDesc);
+
+  // ---- Product sales in range ----
+  var salesInRange = STATE.productSales
+    .map(function (s) { return { s: s, dateObj: parseDate(s.date) || new Date(), order: s.createdAt || 0 }; })
+    .filter(function (x) { return inRange(x.dateObj); })
+    .sort(byDateDesc);
+
+  // ---- Invoices in range (product-sale invoices excluded, same as Saved Invoices) ----
+  var invoicesInRange = STATE.invoices
+    .filter(function (i) { return !i.isProductSale; })
+    .map(function (i) { return { i: i, dateObj: parseDate(i.date) || new Date(), order: i.createdAt || 0 }; })
+    .filter(function (x) { return inRange(x.dateObj); })
+    .sort(byDateDesc);
+
+  // ---- Vendor payments in range ----
+  var vpInRange = STATE.vendorPayments
+    .map(function (p) { return { p: p, dateObj: parseDate(p.date) || new Date(), order: p.createdAt || 0 }; })
+    .filter(function (x) { return inRange(x.dateObj); })
+    .sort(byDateDesc);
+
+  // ---- Items used / sold in range (from tokens + product sales) ----
+  var usage = {};
+  function addUsage(name, qty, amt) {
+    if (!name) return;
+    if (!usage[name]) usage[name] = { qty: 0, amt: 0 };
+    usage[name].qty += qty || 0;
+    usage[name].amt += amt || 0;
+  }
+  tokensInRange.forEach(function (x) {
+    (x.t.products || []).forEach(function (p) { addUsage(p.fullName, p.qty, (p.price || 0) * (p.qty || 0)); });
+  });
+  salesInRange.forEach(function (x) {
+    (x.s.items || []).forEach(function (p) { addUsage(p.fullName, p.qty, (p.price || 0) * (p.qty || 0)); });
+  });
+  var usageRows = Object.keys(usage).sort().map(function (k) { return [k, usage[k].qty, usage[k].amt]; });
+
+  // ---- Current inventory snapshot ----
+  var invRows = getAllVariantsFlat()
+    .sort(function (a, b) { return (a.fullName || "").localeCompare(b.fullName || ""); })
+    .map(function (v) {
+      return [v.fullName, v.sku, v.category || "", v.stock, v.minStock, v.purchasePrice || 0, v.sellingPrice || 0, (v.stock || 0) * (v.sellingPrice || 0), v.stock < v.minStock ? "LOW" : "OK"];
+    });
+
+  var typeLabel = type === "revenue" ? "Revenue only" : type === "expenses" ? "Expenses only" : "All";
+  var sections = [
+    {
+      title: "SUMMARY (selected date range)",
+      headers: ["Item", "Amount"],
+      moneyCols: [1],
+      rows: [
+        ["Total Revenue", revenue],
+        ["Other Expenses", otherExp],
+        ["Labour Cost", labour],
+        ["Vendor Payments", vendorPaid],
+        ["Total Expenses (all)", expAll],
+        ["Net Profit", revenue - expAll],
+      ],
+    },
+    {
+      title: "TRANSACTIONS (Type: " + typeLabel + ")",
+      headers: ["Date", "Type", "Category", "Description", "Amount"],
+      moneyCols: [4],
+      rows: txRows.map(function (r) {
+        return [r.date, r.type, r.cat, r.desc, r.bal === "credit" ? r.amt : -r.amt];
+      }),
+    },
+    {
+      title: "TOKENS (all statuses)",
+      headers: ["Token", "Date", "Time", "Vehicle", "Type", "Customer", "Contact", "Services", "Products", "Discount", "Total", "Status", "Business"],
+      moneyCols: [9, 10],
+      rows: tokensInRange.map(function (x) {
+        var t = x.t;
+        return [t.number, t.date || "", t.time || "", t.vehicleNo || "", t.vehicleType || "", t.ownerName || "", t.contactNumber || "", t.service || "", productsText(t.products), t.discount || 0, tokenNet(t), t.status, t.businessName || t.businessPrefix || ""];
+      }),
+    },
+    {
+      title: "PRODUCT SALES",
+      headers: ["Date", "Time", "Customer", "Vehicle", "Items", "Discount", "Total", "Payment"],
+      moneyCols: [5, 6],
+      rows: salesInRange.map(function (x) {
+        var s = x.s;
+        return [s.date, s.time || "", s.customer || "", s.vehicleNo || "", productsText(s.items), s.discount || 0, s.total || 0, (s.paymentStatus || "PAID") + " / " + (s.paymentMethod || "Cash")];
+      }),
+    },
+    {
+      title: "INVOICES",
+      headers: ["Invoice #", "Date", "Customer", "Vehicle", "Token", "Total", "Status", "Payment Method"],
+      moneyCols: [5],
+      rows: invoicesInRange.map(function (x) {
+        var i = x.i;
+        return [i.number, i.date, i.customer || "", i.vehicle || "", i.token || "", i.total || 0, i.status, i.paymentMethod || "Cash"];
+      }),
+    },
+    {
+      title: "VENDOR PAYMENTS",
+      headers: ["Date", "Vendor", "Amount", "Method", "Notes"],
+      moneyCols: [2],
+      rows: vpInRange.map(function (x) {
+        return [x.p.date, vendorName(x.p.vendorId), x.p.amount || 0, x.p.method || "", x.p.notes || ""];
+      }),
+    },
+    {
+      title: "ITEMS USED / SOLD (selected date range)",
+      headers: ["Item", "Qty", "Amount"],
+      moneyCols: [2],
+      rows: usageRows,
+    },
+    {
+      title: "CURRENT INVENTORY (snapshot as of today)",
+      headers: ["Product / Variant", "SKU", "Category", "Stock", "Min", "Cost", "Price", "Stock Value", "Status"],
+      moneyCols: [5, 6, 7],
+      rows: invRows,
+    },
+  ];
+
+  return {
+    meta: {
+      business: getCurrentBusiness().name,
+      from: fromStr,
+      to: toStr,
+      period: (fromStr || "Start") + " to " + (toStr || "Today"),
+      typeLabel: typeLabel,
+      generated: fmtDate() + " " + fmtTime(),
+    },
+    sections: sections,
+  };
+}
+
+function reportRangeIsValid() {
+  var f = qs("#rptFromDate")?.value || "";
+  var t = qs("#rptToDate")?.value || "";
+  if (f && t && f > t) {
+    toast("'From' date 'To' date se bari nahi ho sakti", "warning");
+    return false;
+  }
+  return true;
+}
+
+function exportReportCSV() {
+  if (!reportRangeIsValid()) return;
+  var data = buildReportExportData();
+  var esc = function (v) {
+    return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  };
+  var csv = "\uFEFF";
+  csv += esc("BUSINESS") + "," + esc(data.meta.business) + "\n";
+  csv += esc("PERIOD") + "," + esc(data.meta.period) + "\n";
+  csv += esc("TYPE FILTER") + "," + esc(data.meta.typeLabel) + "\n";
+  csv += esc("GENERATED") + "," + esc(data.meta.generated) + "\n";
+  data.sections.forEach(function (sec) {
+    csv += "\n" + esc(sec.title) + "\n";
+    csv += sec.headers.map(esc).join(",") + "\n";
+    if (!sec.rows.length) {
+      csv += esc("No records") + "\n";
+    } else {
+      sec.rows.forEach(function (r) {
+        csv += r.map(esc).join(",") + "\n";
+      });
+    }
+  });
+  var b = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(b);
+  a.download = "report_" + (data.meta.from || "start") + "_to_" + (data.meta.to || "today") + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast("Report CSV exported", "success");
+}
+
+function exportReportPDF() {
+  if (!reportRangeIsValid()) return;
+  var data = buildReportExportData();
+  // ---- COMPACT PDF: sirf zaroori cheezein (tokens/invoices/full inventory list nahi) ----
+  // Filter ka asar: Type = Revenue/Expenses ke hisab se sections khud chhup/dikhte hain,
+  // aur Date range sab par lagti hai (buildReportExportData se).
+  var rptTypeSel = qs("#rptType")?.value || "all";
+  var showRevenueParts = rptTypeSel !== "expenses";
+  var showExpenseParts = rptTypeSel !== "revenue";
+  var S = data.sections;
+  var summaryRows = S[0].rows;
+  var txRowsPdf = S[1].rows;
+  var tokenRowsPdf = S[2].rows;
+  var salesRowsPdf = S[3].rows;
+  var invRowsPdf = S[4].rows;
+  var usageRowsPdf = S[6].rows;
+  var stockRowsPdf = S[7].rows;
+
+  function sv(name) {
+    var r = summaryRows.find(function (x) { return x[0] === name; });
+    return r ? r[1] : 0;
+  }
+  var pdfRevenue = sv("Total Revenue");
+  var pdfOther = sv("Other Expenses");
+  var pdfLabour = sv("Labour Cost");
+  var pdfVendor = sv("Vendor Payments");
+  var pdfExpAll = sv("Total Expenses (all)");
+  var pdfNet = sv("Net Profit");
+
+  function card(label, val, color) {
+    return '<div class="card"><div class="cl">' + sanitize(label) + '</div><div class="cv" style="color:' + (color || "#000") + '">' + sanitize(fmtPrice(val)) + "</div></div>";
+  }
+  function tbl(headers, rows, moneyCols, totalRow) {
+    var th = headers.map(function (h, i) {
+      return "<th" + (moneyCols.indexOf(i) !== -1 ? ' style="text-align:right"' : "") + ">" + sanitize(h) + "</th>";
+    }).join("");
+    var trs = rows.length
+      ? rows.map(function (r) {
+          return "<tr>" + r.map(function (c, i) {
+            var m = moneyCols.indexOf(i) !== -1;
+            return "<td" + (m ? ' style="text-align:right;white-space:nowrap"' : "") + ">" + sanitize(m ? fmtPrice(c) : c) + "</td>";
+          }).join("") + "</tr>";
+        }).join("")
+      : '<tr><td colspan="' + headers.length + '" style="text-align:center;color:#666">No records</td></tr>';
+    var tf = "";
+    if (totalRow) {
+      tf = "<tr class=\"tot\">" + totalRow.map(function (c, i) {
+        var m = moneyCols.indexOf(i) !== -1;
+        return "<td" + (m ? ' style="text-align:right;white-space:nowrap"' : "") + ">" + sanitize(m ? fmtPrice(c) : c) + "</td>";
+      }).join("") + "</tr>";
+    }
+    return "<table><thead><tr>" + th + "</tr></thead><tbody>" + trs + tf + "</tbody></table>";
+  }
+
+  var body = "";
+
+  // 1) Summary cards
+  body += "<h2>Summary</h2><div class=\"cards\">";
+  if (showRevenueParts) body += card("Total Revenue", pdfRevenue, "#15803d");
+  if (showExpenseParts) {
+    body += card("Other Expenses", pdfOther, "#b91c1c");
+    body += card("Labour Cost", pdfLabour, "#b45309");
+    body += card("Vendor Payments", pdfVendor, "#b45309");
+    body += card("Total Expenses", pdfExpAll, "#b91c1c");
+  }
+  if (showRevenueParts && showExpenseParts) body += card("Net Profit", pdfNet, pdfNet >= 0 ? "#15803d" : "#b91c1c");
+  body += "</div>";
+
+  // 2) Activity (sirf ginti)
+  var tokDone = tokenRowsPdf.filter(function (r) { return r[11] === "completed"; }).length;
+  var tokOpen = tokenRowsPdf.length - tokDone;
+  if (showRevenueParts) {
+    body += "<h2>Activity</h2>" + tbl(
+      ["Item", "Count"],
+      [
+        ["Tokens completed", tokDone],
+        ["Tokens pending / in progress", tokOpen],
+        ["Product sales", salesRowsPdf.length],
+        ["Invoices", invRowsPdf.length],
+      ],
+      []
+    );
+  }
+
+  // 3) Category-wise breakdown (transactions se)
+  var revCat = {}, expCat = {};
+  txRowsPdf.forEach(function (r) {
+    var t = r[1], cat = r[2] || "Other", amt = Math.abs(r[4] || 0);
+    var m = t === "Revenue" ? revCat : expCat;
+    m[cat] = (m[cat] || 0) + amt;
+  });
+  function catRows(m) {
+    return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }).map(function (k) { return [k, m[k]]; });
+  }
+  if (showRevenueParts) {
+    var rc = catRows(revCat);
+    body += "<h2>Revenue by Source</h2>" + tbl(["Source", "Amount"], rc, [1],
+      rc.length ? ["Total", rc.reduce(function (s, r) { return s + r[1]; }, 0)] : null);
+  }
+  if (showExpenseParts) {
+    var ec = catRows(expCat);
+    body += "<h2>Expenses by Category</h2>" + tbl(["Category", "Amount"], ec, [1],
+      ec.length ? ["Total", ec.reduce(function (s, r) { return s + r[1]; }, 0)] : null);
+  }
+
+  // 4) Transactions (Type filter ke mutabiq)
+  body += "<h2>Transactions</h2>" + tbl(["Date", "Type", "Category", "Description", "Amount"], txRowsPdf, [4]);
+
+  // 5) Items sold / used (sirf jab revenue wali cheezein dikh rahi hon)
+  if (showRevenueParts && usageRowsPdf.length) {
+    body += "<h2>Items Sold / Used</h2>" + tbl(["Item", "Qty", "Amount"], usageRowsPdf, [2],
+      ["Total", usageRowsPdf.reduce(function (s, r) { return s + (r[1] || 0); }, 0), usageRowsPdf.reduce(function (s, r) { return s + (r[2] || 0); }, 0)]);
+  }
+
+  // 6) Sirf low stock items (poori inventory nahi)
+  var lowStock = stockRowsPdf.filter(function (r) { return r[8] === "LOW"; })
+    .map(function (r) { return [r[0], r[3], r[4]]; });
+  if (lowStock.length) {
+    body += "<h2>Low Stock Alert</h2>" + tbl(["Product / Variant", "Stock", "Min"], lowStock, []);
+  }
+
+  var html =
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Report</title><style>' +
+    "@page{size:A4;margin:10mm}*{box-sizing:border-box}" +
+    "body{font-family:Arial,sans-serif;font-size:9pt;color:#000;margin:0}" +
+    "h1{font-size:15pt;text-align:center;margin:0 0 2mm}" +
+    ".meta{text-align:center;font-size:9pt;margin-bottom:4mm;color:#333}" +
+    "h2{font-size:10.5pt;margin:6mm 0 1.5mm;border-bottom:2px solid #000;padding-bottom:1mm;page-break-after:avoid}" +
+    "table{width:100%;border-collapse:collapse;font-size:8pt}" +
+    "th{background:#eee;border:1px solid #000;padding:1.2mm;text-align:left}" +
+    "td{border:1px solid #999;padding:1.1mm;vertical-align:top;word-break:break-word}" +
+    "tr{page-break-inside:avoid}thead{display:table-header-group}" +
+    ".cards{display:flex;flex-wrap:wrap;gap:3mm}.card{flex:1 1 30%;border:1px solid #000;padding:2mm 3mm}.cl{font-size:7.5pt;text-transform:uppercase;color:#444}.cv{font-size:12pt;font-weight:700}tr.tot td{font-weight:700;background:#f3f3f3}" +
+    "</style></head><body>" +
+    "<h1>" + sanitize(data.meta.business) + " — Report</h1>" +
+    '<div class="meta">Period: ' + sanitize(data.meta.period) + " | Type: " + sanitize(data.meta.typeLabel) + " | Generated: " + sanitize(data.meta.generated) + "</div>" +
+    body +
+    "</body></html>";
+
+  function browserFallback() {
+    var w = window.open("", "_blank");
+    if (!w) {
+      toast("Popup blocked", "error");
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function () { w.print(); }, 500);
+  }
+
+  if (window.electronAPI && window.electronAPI.printReceipt) {
+    toast("Print window me 'Save as PDF' / 'Microsoft Print to PDF' select karein", "info");
+    window.electronAPI
+      .printReceipt(html, { pageSize: { width: 210000, height: 297000 }, printBackground: true })
+      .then(function (res) {
+        if (res && !res.success && res.reason === "no-printer") browserFallback();
+        else if (res && !res.success && res.reason !== "cancelled" && res.reason !== "Print job canceled") {
+          toast("PDF/print failed: " + res.reason, "error");
+        }
+      })
+      .catch(function () {
+        toast("PDF export error", "error");
+      });
+  } else {
+    browserFallback();
+  }
 }
 
 // ==================== EXPENSES ====================
@@ -7876,35 +8321,79 @@ function addTokenServiceRow(svcName, svcPrice) {
 
   recomputeTokenTotal();
 }
-
+// NEW: variants ko naam ke hisab se A to Z sort karta hai (case ignore)
+function sortVariantsAlpha(list) {
+  return list.slice().sort(function (a, b) {
+    return (a.fullName || "").toLowerCase().localeCompare((b.fullName || "").toLowerCase());
+  });
+}
 function addTokenProduct() {
   var c = qs("#tokenProductsList");
   if (!c) return;
-  var opts = getAllVariantsFlat()
-    .filter(function (v) { return v.stock > 0; })
-    .map(function (v) {
-      return (
-        '<option value="' + v.id + '" data-price="' + v.sellingPrice + '" data-stock="' + v.stock + '">' +
-        sanitize(v.fullName) + " | Stock: " + v.stock + " | " + fmtPrice(v.sellingPrice) + "</option>"
-      );
-    })
-    .join("");
+  var variantsList = sortVariantsAlpha(getAllVariantsFlat().filter(function (v) { return v.stock > 0; }));
+
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
   r.innerHTML =
-    '<select class="form-input token-product-select" style="flex:1;padding:6px 4px;font-size:0.72rem;"><option value="">Select variant</option>' +
-    opts +
-    '</select><input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" /><input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" /><button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
+    '<div class="tp-picker" style="flex:1;position:relative;">' +
+      '<input type="text" class="form-input tp-search" placeholder="Search product..." autocomplete="off" style="width:100%;padding:6px 4px;font-size:0.72rem;" />' +
+      '<select class="token-product-select" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;"><option value="">Select variant</option></select>' +
+      '<div class="tp-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:4px;max-height:220px;overflow-y:auto;z-index:2000;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>' +
+    '</div>' +
+    '<input type="number" class="form-input token-product-qty" value="1" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" />' +
+    '<input type="number" class="form-input token-product-price" value="0" readonly style="width:70px;padding:6px 2px;font-size:0.78rem;background:var(--surface-active);text-align:right;" />' +
+    '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
-  var s = r.querySelector(".token-product-select");
-  s.addEventListener("change", function () {
-    var o = this.options[this.selectedIndex];
-    r.querySelector(".token-product-price").value = parseFloat(o?.dataset?.price) || 0;
-    r.querySelector(".token-product-qty").max = parseInt(o?.dataset?.stock) || 0;
+  var searchInput = r.querySelector(".tp-search");
+  var dropdown = r.querySelector(".tp-dropdown");
+  var selectEl = r.querySelector(".token-product-select");
+  var qtyInput = r.querySelector(".token-product-qty");
+  var priceInput = r.querySelector(".token-product-price");
+
+  function renderDropdown(filterText) {
+    var ft = (filterText || "").trim().toLowerCase();
+    var filtered = !ft
+      ? variantsList
+      : variantsList.filter(function (v) { return v.fullName.toLowerCase().includes(ft); });
+    if (!filtered.length) {
+      dropdown.innerHTML = '<div style="padding:8px;font-size:0.72rem;color:var(--text-muted);">No match found</div>';
+    } else {
+      dropdown.innerHTML = filtered.map(function (v) {
+        return (
+          '<div class="tp-option" data-vid="' + v.id + '" data-price="' + v.sellingPrice +
+          '" data-stock="' + v.stock + '" data-name="' + sanitize(v.fullName) +
+          '" style="padding:7px 8px;cursor:pointer;font-size:0.72rem;border-bottom:1px solid var(--border);">' +
+          sanitize(v.fullName) + " | Stock: " + v.stock + " | " + fmtPrice(v.sellingPrice) +
+          "</div>"
+        );
+      }).join("");
+    }
+    dropdown.style.display = "block";
+  }
+
+  searchInput.addEventListener("focus", function () { renderDropdown(this.value); });
+  searchInput.addEventListener("click", function () { renderDropdown(this.value); });
+  searchInput.addEventListener("input", function () { renderDropdown(this.value); });
+
+  dropdown.addEventListener("mousedown", function (e) {
+    var opt = e.target.closest(".tp-option");
+    if (!opt) return;
+    e.preventDefault();
+    selectEl.innerHTML = '<option value="' + opt.dataset.vid + '" selected>' + opt.dataset.name + "</option>";
+    selectEl.value = opt.dataset.vid;
+    searchInput.value = opt.dataset.name;
+    priceInput.value = parseFloat(opt.dataset.price) || 0;
+    qtyInput.max = parseInt(opt.dataset.stock) || 0;
+    dropdown.style.display = "none";
     recomputeTokenTotal();
   });
-  r.querySelector(".token-product-qty").addEventListener("input", recomputeTokenTotal);
+
+  document.addEventListener("click", function (e) {
+    if (!r.contains(e.target)) dropdown.style.display = "none";
+  });
+
+  qtyInput.addEventListener("input", recomputeTokenTotal);
   r.querySelector("button").addEventListener("click", function () {
     r.remove();
     recomputeTokenTotal();
@@ -7989,62 +8478,120 @@ function addCustomProductRow(nm, pr, qt, vid) {
   var c = qs("#customTokenProductsList");
   if (!c) return;
 
-  // NEW: optional prefill (nm, pr, qt, vid) lets Edit Token load a
-  // previously saved custom product back into the form. Calling
-  // addCustomProductRow() with no arguments (the "Add Product" button)
-  // behaves exactly as before.
-  var av = getAllVariantsFlat();
-  var isKnown = !!vid && av.some(function (v) { return v.id === vid; });
-  var showCustom = !!nm && !isKnown;
+  // inventory products A to Z
+  var av = getAllVariantsFlat().sort(function (a, b) {
+    return (a.fullName || "").toLowerCase().localeCompare((b.fullName || "").toLowerCase());
+  });
+  var knownVariant = vid ? av.find(function (v) { return v.id === vid; }) : null;
+  var showCustom = !!nm && !knownVariant;
 
-  var opts = av
-    .map(function (v) {
-      var stockLabel = v.stock <= 0 ? " (OUT OF STOCK)" : " | Stock: " + v.stock;
-      var sel = isKnown && v.id === vid ? " selected" : "";
-      return '<option value="' + v.fullName + '" data-price="' + v.sellingPrice + '" data-vid="' + v.id + '"' + sel + '>' +
-        sanitize(v.fullName) + stockLabel + " | " + fmtPrice(v.sellingPrice) + "</option>";
-    })
-    .join("");
-    
   var r = document.createElement("div");
   r.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px;";
   r.innerHTML =
-    '<select class="form-input custom-prd-select" style="flex:1;padding:6px 4px;font-size:0.72rem;' + (showCustom ? "display:none;" : "") + '"><option value="">Select</option>' +
-    opts +
-    '<option value="__custom__"' + (showCustom ? " selected" : "") + '>Custom Product</option></select>' +
-    '<input type="text" class="form-input custom-prd-name" placeholder="Product name" value="' + sanitize(showCustom ? nm : "") + '" style="' + (showCustom ? "" : "display:none;") + 'width:100px;padding:6px 4px;font-size:0.72rem" />' +
+    '<div class="tp-picker" style="flex:1;position:relative;">' +
+      '<input type="text" class="form-input custom-prd-search" placeholder="Search product..." autocomplete="off" style="width:100%;padding:6px 4px;font-size:0.72rem;' + (showCustom ? "display:none;" : "") + '" />' +
+      '<select class="custom-prd-select" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;"></select>' +
+      '<div class="cp-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:4px;max-height:220px;overflow-y:auto;z-index:2000;box-shadow:0 4px 12px rgba(0,0,0,0.15);"></div>' +
+    '</div>' +
+    '<input type="text" class="form-input custom-prd-name" placeholder="Product name" style="' + (showCustom ? "" : "display:none;") + 'width:100px;padding:6px 4px;font-size:0.72rem" />' +
     '<input type="number" class="form-input custom-prd-qty" value="' + (qt || 1) + '" min="1" style="width:50px;padding:6px 2px;font-size:0.78rem;text-align:center;" />' +
     '<input type="number" step="any" class="form-input custom-prd-price" placeholder="Price" value="' + (pr !== undefined && pr !== null ? pr : "") + '" style="width:80px;padding:6px 2px;font-size:0.78rem;text-align:right;" />' +
     '<button type="button" class="btn-icon btn btn-danger-ghost"><span class="material-icons">close</span></button>';
   c.appendChild(r);
 
+  var searchEl = r.querySelector(".custom-prd-search");
   var selectEl = r.querySelector(".custom-prd-select");
+  var dropdown = r.querySelector(".cp-dropdown");
   var nameEl = r.querySelector(".custom-prd-name");
   var qtyInput = r.querySelector(".custom-prd-qty");
   var priceEl = r.querySelector(".custom-prd-price");
 
-  selectEl.addEventListener("change", function () {
-    if (this.value === "__custom__") {
-      this.style.display = "none";
+  // hidden select hi asli value rakhta hai (save/total functions yahi padhte hain)
+  function setSel(value, price, variantId) {
+    selectEl.innerHTML = "";
+    var o = document.createElement("option");
+    o.value = value;
+    o.textContent = value || "Select";
+    if (price !== undefined && price !== null) o.dataset.price = price;
+    if (variantId) o.dataset.vid = variantId;
+    o.selected = true;
+    selectEl.appendChild(o);
+    selectEl.value = value;
+  }
+
+  if (knownVariant) {
+    setSel(knownVariant.fullName, knownVariant.sellingPrice, knownVariant.id);
+    searchEl.value = knownVariant.fullName;
+  } else if (showCustom) {
+    setSel("__custom__");
+    nameEl.value = nm;
+  } else {
+    setSel("");
+  }
+
+  var shown = [];
+  function renderDropdown(text) {
+    var ft = (text || "").trim().toLowerCase();
+    shown = !ft
+      ? av.slice()
+      : av.filter(function (v) { return v.fullName.toLowerCase().includes(ft); })
+          .sort(function (a, b) {
+            var as = a.fullName.toLowerCase().startsWith(ft) ? 0 : 1;
+            var bs = b.fullName.toLowerCase().startsWith(ft) ? 0 : 1;
+            return as - bs;
+          });
+    var h = shown.map(function (v, i) {
+      var st = v.stock <= 0 ? " (OUT OF STOCK)" : " | Stock: " + v.stock;
+      return '<div class="cp-option" data-i="' + i + '" style="padding:7px 8px;cursor:pointer;font-size:0.72rem;border-bottom:1px solid var(--border);">' +
+        sanitize(v.fullName) + st + " | " + fmtPrice(v.sellingPrice) + "</div>";
+    }).join("");
+    if (!shown.length) h = '<div style="padding:8px;font-size:0.72rem;color:var(--text-muted);">No match found</div>';
+    h += '<div class="cp-option" data-custom="1" style="padding:7px 8px;cursor:pointer;font-size:0.72rem;font-weight:700;color:var(--primary);">+ Custom Product (type your own)</div>';
+    dropdown.innerHTML = h;
+    dropdown.style.display = "block";
+  }
+
+  searchEl.addEventListener("focus", function () { renderDropdown(this.value); });
+  searchEl.addEventListener("click", function () { renderDropdown(this.value); });
+  searchEl.addEventListener("input", function () {
+    setSel("");            // typing shuru = purani selection hat gayi
+    renderDropdown(this.value);
+    recomputeTokenTotal();
+  });
+
+  dropdown.addEventListener("mousedown", function (e) {
+    var opt = e.target.closest(".cp-option");
+    if (!opt) return;
+    e.preventDefault();
+    if (opt.dataset.custom) {
+      setSel("__custom__");
+      searchEl.style.display = "none";
+      searchEl.value = "";
       nameEl.style.display = "";
       nameEl.value = "";
       priceEl.value = "";
       nameEl.focus();
     } else {
-      var o = this.options[this.selectedIndex];
-      var prc = parseFloat(o?.dataset?.price) || 0;
-      priceEl.value = prc;  // ✅ Direct, no || ""
+      var v = shown[parseInt(opt.dataset.i, 10)];
+      if (!v) return;
+      setSel(v.fullName, v.sellingPrice, v.id);
+      searchEl.value = v.fullName;
+      priceEl.value = v.sellingPrice || 0;
       nameEl.style.display = "none";
       nameEl.value = "";
     }
+    dropdown.style.display = "none";
     recomputeTokenTotal();
   });
-  
+
+  document.addEventListener("click", function (e) {
+    if (!r.contains(e.target)) dropdown.style.display = "none";
+  });
+
   qtyInput.addEventListener("input", recomputeTokenTotal);
   nameEl.addEventListener("input", recomputeTokenTotal);
   priceEl.addEventListener("input", recomputeTokenTotal);
   priceEl.addEventListener("change", recomputeTokenTotal);
-  
   r.querySelector("button").addEventListener("click", function () {
     r.remove();
     recomputeTokenTotal();
@@ -8111,40 +8658,24 @@ function debugTokenTotal() {
 // does not remove any feature — every action above still works
 // through its original, correct listener.
 // ============================================================
-// NEW (ADDED ONLY) — STRONG AUTO BACKUP SYSTEM
-// ------------------------------------------------------------
-// - Every 30 minutes, takes a COMPLETE snapshot of every single
-//   key/value currently in localStorage (every module, every
-//   section — tokens, vehicles, inventory, invoices, expenses,
-//   reminders, vendors, product sales, pricing, settings,
-//   businesses, counters, brands, categories... literally
-//   everything, including anything added in the future) so
-//   nothing is ever missed.
-// - Stored using IndexedDB (separate from the app's own
-//   localStorage data, so it never competes for the same
-//   storage quota as your live data).
-// - Uses ONE fixed record ("rolling_backup"). Every new 30-min
-//   cycle UPDATES that same record instead of creating a new
-//   one — so the latest backup always lives in the same place
-//   as the previous backup, exactly as requested.
-// - Adds a manual "Backup Now", a way to download the backup
-//   as a file, and two restore options (restore from the
-//   latest auto-backup, or add/upload any backup file) for
-//   emergency data-loss recovery.
-// - This section only ADDS new functionality. It does not
-//   modify, replace, or remove any existing function, module,
-//   or data key used elsewhere in the app.
+// STRONG AUTO BACKUP SYSTEM (v3) — har 5 minute par backup
+// - Khali data kabhi backup nahi hota (purani backups safe)
+// - Multiple backups: 36 regular (3 ghante), 30 daily, 15 safety, 1 peak
+// - Save ke baad verify, duplicate skip, suspicious-drop check
+// - Google Drive folder mein 12 rotating slots + latest + weekday + safety
 // ============================================================
-var AUTO_BACKUP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+var AUTO_BACKUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minute
 var AUTO_BACKUP_DB_NAME = "servicepro_autobackup_db";
 var AUTO_BACKUP_STORE = "backups";
-var AUTO_BACKUP_ROLLING_ID = "rolling_backup"; // FIXED single record id — every
-// new snapshot is saved under this SAME id, so it overwrites the previous
-// one (put() on this keyPath replaces the existing record). Only ONE
-// backup record ever exists in IndexedDB at a time, exactly like the
-// single rolling file already used for the Google Drive folder.
+var AUTO_BACKUP_ROLLING_ID = "rolling_backup"; // purana legacy record
+var AB_PEAK_ID = "peak_backup";
+var AB_KEEP_REGULAR = 36; // 36 x 5 min = pichle 3 ghante
+var AB_KEEP_DAILY = 30; // pichle 30 din
+var AB_KEEP_SAFETY = 15;
+var AB_DRIVE_SLOTS = 12; // 12 x 5 min = pichla 1 ghanta
 var autoBackupTimer = null;
 var autoBackupDBPromise = null;
+var autoBackupQueue = Promise.resolve();
 
 function openAutoBackupDB() {
   if (autoBackupDBPromise) return autoBackupDBPromise;
@@ -8165,21 +8696,76 @@ function openAutoBackupDB() {
         resolve(e.target.result);
       };
       req.onerror = function (e) {
+        autoBackupDBPromise = null;
         reject(e);
       };
     } catch (e) {
+      autoBackupDBPromise = null;
       reject(e);
     }
   });
   return autoBackupDBPromise;
 }
 
-// Gathers EVERY key/value currently in localStorage, no matter which
-// module/section it belongs to, so a complete backup is guaranteed.
-// Each snapshot gets its OWN unique id — it is stored as a NEW record,
-// never overwriting a previous one. "reason" just labels why it was taken
-// (auto / manual / pre-clear-safety / pre-restore-safety) so it's easy to
-// tell backups apart in the restore list.
+// ---------- helpers ----------
+function abDataKeys() {
+  return [
+    KEYS.tokens, KEYS.vehicles, KEYS.inventory, KEYS.invoices,
+    KEYS.expenses, KEYS.productSales, KEYS.vendors, KEYS.vendorPayments,
+    KEYS.reminders, KEYS.purchaseOrders, KEYS.pricingMatrix,
+  ];
+}
+// Real business records ki ginti (khali check ke liye)
+function countBackupRecords(dataObj) {
+  var total = 0;
+  if (!dataObj || typeof dataObj !== "object") return 0;
+  abDataKeys().forEach(function (k) {
+    var raw = dataObj[k];
+    if (!raw) return;
+    try {
+      var v = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (Array.isArray(v)) total += v.length;
+      else if (v && typeof v === "object") total += Object.keys(v).length;
+    } catch (e) {}
+  });
+  return total;
+}
+function abHashString(s) {
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(16);
+}
+function abHashData(dataObj) {
+  var keys = Object.keys(dataObj).sort();
+  var s = "";
+  keys.forEach(function (k) {
+    s += k + ":" + dataObj[k] + "|";
+  });
+  return abHashString(s) + "-" + s.length;
+}
+function abDateStamp(d) {
+  d = d || new Date();
+  return (
+    d.getFullYear() +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
+function abIsSafetyReason(reason) {
+  return reason === "pre-clear-safety" || reason === "pre-restore-safety";
+}
+function abIdKind(id) {
+  id = String(id || "");
+  if (id === AB_PEAK_ID) return "peak";
+  if (id.indexOf("daily_") === 0) return "daily";
+  if (id.indexOf("safe_") === 0) return "safety";
+  if (id.indexOf("bk_") === 0) return "regular";
+  return "legacy";
+}
+
+// ---------- collect ----------
 function collectFullBackupData(reason) {
   var data = {};
   try {
@@ -8190,27 +8776,38 @@ function collectFullBackupData(reason) {
     }
   } catch (e) {}
   var now = new Date();
+  reason = reason || "auto";
+  var sizeBytes = 0;
+  Object.keys(data).forEach(function (k) {
+    sizeBytes += k.length + (data[k] ? data[k].length : 0);
+  });
   return {
-    id: AUTO_BACKUP_ROLLING_ID, // FIXED — always the same id, so saving
-    // this record OVERWRITES the previous backup instead of adding a new one
+    id: (abIsSafetyReason(reason) ? "safe_" : "bk_") + now.getTime(),
     savedAt: now.toISOString(),
     savedAtDisplay: fmtDate() + " " + fmtTime(),
-    reason: reason || "auto",
+    reason: reason,
+    keyCount: Object.keys(data).length,
+    recordCount: countBackupRecords(data),
+    sizeBytes: sizeBytes,
+    dataHash: abHashData(data),
     localStorageData: data,
   };
 }
 
+// ---------- IndexedDB ops ----------
 function saveAutoBackupToDB(record) {
   return openAutoBackupDB().then(function (db) {
     return new Promise(function (resolve, reject) {
       try {
         var tx = db.transaction(AUTO_BACKUP_STORE, "readwrite");
-        var store = tx.objectStore(AUTO_BACKUP_STORE);
-        store.put(record);
+        tx.objectStore(AUTO_BACKUP_STORE).put(record);
         tx.oncomplete = function () {
           resolve(record);
         };
         tx.onerror = function (e) {
+          reject(e);
+        };
+        tx.onabort = function (e) {
           reject(e);
         };
       } catch (e) {
@@ -8219,14 +8816,30 @@ function saveAutoBackupToDB(record) {
     });
   });
 }
-
+function getAutoBackupById(id) {
+  return openAutoBackupDB().then(function (db) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var tx = db.transaction(AUTO_BACKUP_STORE, "readonly");
+        var req = tx.objectStore(AUTO_BACKUP_STORE).get(id);
+        req.onsuccess = function () {
+          resolve(req.result || null);
+        };
+        req.onerror = function (e) {
+          reject(e);
+        };
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
 function deleteAutoBackupFromDB(id) {
   return openAutoBackupDB().then(function (db) {
     return new Promise(function (resolve, reject) {
       try {
         var tx = db.transaction(AUTO_BACKUP_STORE, "readwrite");
-        var store = tx.objectStore(AUTO_BACKUP_STORE);
-        store.delete(id);
+        tx.objectStore(AUTO_BACKUP_STORE).delete(id);
         tx.oncomplete = function () {
           resolve();
         };
@@ -8239,15 +8852,12 @@ function deleteAutoBackupFromDB(id) {
     });
   });
 }
-
-// Returns ALL saved snapshots, newest first.
 function getAllAutoBackupsFromDB() {
   return openAutoBackupDB().then(function (db) {
     return new Promise(function (resolve, reject) {
       try {
         var tx = db.transaction(AUTO_BACKUP_STORE, "readonly");
-        var store = tx.objectStore(AUTO_BACKUP_STORE);
-        var req = store.getAll();
+        var req = tx.objectStore(AUTO_BACKUP_STORE).getAll();
         req.onsuccess = function () {
           var list = req.result || [];
           list.sort(function (a, b) {
@@ -8264,21 +8874,67 @@ function getAllAutoBackupsFromDB() {
     });
   });
 }
-
-// No longer needed: every snapshot is saved under the SAME fixed id
-// (AUTO_BACKUP_ROLLING_ID), so saveAutoBackupToDB() already overwrites
-// the one existing record on every run — there is never more than one
-// backup record to prune. Kept as a harmless no-op so any existing call
-// site does not need to change.
-function pruneOldAutoBackups() {
-  return Promise.resolve();
-}
-
-// Backward-compatible helper: latest snapshot only.
 function getAutoBackupFromDB() {
   return getAllAutoBackupsFromDB().then(function (list) {
     return list.length ? list[0] : null;
   });
+}
+
+// Save ke baad wapas read karke confirm karta hai ke backup sahi likhi gayi
+function verifyAutoBackupSaved(record) {
+  return getAutoBackupById(record.id).then(function (saved) {
+    if (
+      !saved ||
+      saved.dataHash !== record.dataHash ||
+      saved.keyCount !== record.keyCount
+    ) {
+      throw new Error("verify failed");
+    }
+    return true;
+  });
+}
+
+// Sabse zyada data wali backup — kabhi chhote data se overwrite nahi hoti
+function updateAutoBackupPeak(record) {
+  return getAutoBackupById(AB_PEAK_ID).then(function (peak) {
+    if (!peak || record.recordCount >= (peak.recordCount || 0)) {
+      var copy = Object.assign({}, record, { id: AB_PEAK_ID });
+      return saveAutoBackupToDB(copy);
+    }
+  });
+}
+
+// Har din ki ek backup (us din ki sabse zyada data wali)
+function saveDailyBackup(record) {
+  var id = "daily_" + abDateStamp(new Date());
+  return getAutoBackupById(id).then(function (existing) {
+    if (!existing || record.recordCount >= (existing.recordCount || 0)) {
+      var copy = Object.assign({}, record, { id: id });
+      return saveAutoBackupToDB(copy);
+    }
+  });
+}
+
+function pruneOldAutoBackups() {
+  return getAllAutoBackupsFromDB()
+    .then(function (list) {
+      var del = [];
+      function trim(kind, keep) {
+        list
+          .filter(function (r) {
+            return abIdKind(r.id) === kind;
+          })
+          .slice(keep)
+          .forEach(function (r) {
+            del.push(r.id);
+          });
+      }
+      trim("regular", AB_KEEP_REGULAR);
+      trim("daily", AB_KEEP_DAILY);
+      trim("safety", AB_KEEP_SAFETY);
+      return Promise.all(del.map(deleteAutoBackupFromDB));
+    })
+    .catch(function () {});
 }
 
 function updateAutoBackupStatusUI(ts) {
@@ -8286,52 +8942,126 @@ function updateAutoBackupStatusUI(ts) {
   if (el) el.textContent = "Last auto-backup: " + (ts || "Never");
 }
 
-// Returns a Promise so callers (like "Clear All Data") can WAIT for the
-// safety snapshot to finish saving before doing anything destructive.
-function runAutoBackupNow(silent, reason) {
+// ---------- main runner ----------
+function _runAutoBackupInternal(silent, reason) {
+  reason = reason || "auto";
+  var isSafety = abIsSafetyReason(reason);
+  var record;
   try {
-    var record = collectFullBackupData(reason);
-    return saveAutoBackupToDB(record)
-      .then(function () {
-        updateAutoBackupStatusUI(record.savedAtDisplay);
-        pruneOldAutoBackups();
-        saveBackupToGoogleDriveFolder(record, silent); // NEW: also write to Google Drive folder
-        if (!silent)
-          toast("Backup saved (" + record.savedAtDisplay + ")", "success");
-        return record;
-      })
-      .catch(function () {
-        if (!silent) toast("Backup failed", "error");
-        return null;
-      });
+    record = collectFullBackupData(reason);
   } catch (e) {
     if (!silent) toast("Backup failed", "error");
     return Promise.resolve(null);
   }
+
+  // GUARD 1: khali data kabhi backup nahi hoga
+  if (record.recordCount === 0) {
+    if (!silent)
+      toast("Backup skipped: app ka data khali hai. Purani backups safe hain.", "warning");
+    return Promise.resolve(null);
+  }
+
+  return getAllAutoBackupsFromDB()
+    .catch(function () {
+      return [];
+    })
+    .then(function (list) {
+      var regular = list.filter(function (r) {
+        return abIdKind(r.id) === "regular";
+      });
+      var last = regular[0] || null;
+
+      // GUARD 2: data bilkul pichli backup jaisa hai to naya record nahi banta
+      if (reason === "auto" && last && last.dataHash === record.dataHash) {
+        updateAutoBackupStatusUI(record.savedAtDisplay);
+        saveBackupToGoogleDriveFolder(last, true, false);
+        return last;
+      }
+
+      // GUARD 3: records achanak 50% se zyada kam ho gaye
+      var suspicious =
+        !isSafety &&
+        !!last &&
+        (last.recordCount || 0) >= 10 &&
+        record.recordCount < last.recordCount * 0.5;
+
+      return saveAutoBackupToDB(record)
+        .then(function () {
+          return verifyAutoBackupSaved(record);
+        })
+        .then(function () {
+          return updateAutoBackupPeak(record);
+        })
+        .then(function () {
+          if (!isSafety && !suspicious) return saveDailyBackup(record);
+        })
+        .then(function () {
+          return pruneOldAutoBackups();
+        })
+        .then(function () {
+          updateAutoBackupStatusUI(record.savedAtDisplay);
+          saveBackupToGoogleDriveFolder(record, silent, suspicious);
+          if (suspicious) {
+            toast(
+              "Warning: data pichli backup se bohat kam hai. Purani backups safe rakhi gayi hain.",
+              "warning",
+            );
+          } else if (!silent) {
+            toast("Backup saved & verified (" + record.savedAtDisplay + ")", "success");
+          }
+          return record;
+        })
+        .catch(function () {
+          if (!silent) toast("Backup failed", "error");
+          return null;
+        });
+    });
 }
 
-// Restores every key/value from a backup object back into localStorage.
-// Used by both "Restore Latest Auto-Backup" and "Add Backup File & Restore".
+// Queue: do backups ek saath nahi chalti, ek ke baad ek chalti hain
+function runAutoBackupNow(silent, reason) {
+  var p = autoBackupQueue.then(function () {
+    return _runAutoBackupInternal(silent, reason);
+  });
+  autoBackupQueue = p.catch(function () {});
+  return p;
+}
+
+// ---------- restore ----------
 function restoreLocalStorageDataObject(dataObj) {
   try {
+    if (
+      !dataObj ||
+      typeof dataObj !== "object" ||
+      countBackupRecords(dataObj) === 0
+    ) {
+      toast("Is backup mein koi data nahi hai - restore roka gaya", "error");
+      return false;
+    }
     Object.keys(dataObj).forEach(function (k) {
       try {
-        localStorage.setItem(k, dataObj[k]);
+        var v = dataObj[k];
+        localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
       } catch (e) {}
     });
     toast("Data restored from backup. Reloading...", "success");
     setTimeout(function () {
       location.reload();
     }, 1200);
+    return true;
   } catch (e) {
     toast("Restore failed", "error");
+    return false;
   }
 }
 
-// Shows a picker of ALL saved snapshots (not just "the latest") so you can
-// always reach back to an older, good backup — even if the newest one
-// happens to be empty/bad. Every restore from here first saves a quick
-// safety snapshot of the CURRENT state, so even a restore is reversible.
+function abFormatSize(bytes) {
+  bytes = bytes || 0;
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+}
+
 function openAutoBackupPickerModal() {
   getAllAutoBackupsFromDB().then(function (list) {
     if (!list.length) {
@@ -8341,31 +9071,44 @@ function openAutoBackupPickerModal() {
     var existing = qs("#autoBackupPickerModal");
     if (existing) existing.remove();
     var reasonLabels = {
-      auto: "Auto (30-min)",
+      auto: "Auto (5-min)",
       manual: "Manual",
       "pre-clear-safety": "Before Clear All Data",
       "pre-restore-safety": "Before Restore",
     };
     var rows = list
       .map(function (rec, idx) {
-        var keyCount = rec.localStorageData
-          ? Object.keys(rec.localStorageData).length
-          : 0;
+        var kind = abIdKind(rec.id);
+        var recCount =
+          rec.recordCount !== undefined
+            ? rec.recordCount
+            : countBackupRecords(rec.localStorageData);
+        var keyCount = rec.localStorageData ? Object.keys(rec.localStorageData).length : 0;
         var label = reasonLabels[rec.reason] || "Auto";
+        var badge = "";
+        if (idx === 0) badge += ' <span class="badge badge--green" style="font-size:0.6rem">Latest</span>';
+        if (kind === "peak") badge += ' <span class="badge badge--blue" style="font-size:0.6rem">Highest Data</span>';
+        if (kind === "daily") badge += ' <span class="badge badge--gray" style="font-size:0.6rem">Daily</span>';
+        if (kind === "safety") badge += ' <span class="badge badge--orange" style="font-size:0.6rem">Safety</span>';
+        if (recCount === 0) badge += ' <span class="badge badge--red" style="font-size:0.6rem">Empty</span>';
         return (
           '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);gap:10px;"><div><strong>' +
           sanitize(rec.savedAtDisplay || "") +
-          '</strong>' +
-          (idx === 0
-            ? ' <span class="badge badge--green" style="font-size:0.6rem">Latest</span>'
-            : "") +
+          "</strong>" +
+          badge +
           '<br><small style="color:var(--text-muted);">' +
           sanitize(label) +
           " • " +
+          recCount +
+          " records • " +
           keyCount +
-          ' data keys</small></div><button class="btn btn-sm btn-primary" data-restore-backup="' +
+          " keys • " +
+          abFormatSize(rec.sizeBytes) +
+          '</small></div><button class="btn btn-sm btn-primary" data-restore-backup="' +
           sanitize(rec.id) +
-          '">Restore</button></div>'
+          '"' +
+          (recCount === 0 ? " disabled" : "") +
+          ">Restore</button></div>"
         );
       })
       .join("");
@@ -8375,9 +9118,7 @@ function openAutoBackupPickerModal() {
       '</div><div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'autoBackupPickerModal\').remove();document.body.style.overflow=\'\';">Cancel</button></div></div></div>';
     document.body.insertAdjacentHTML("beforeend", html);
     openModal("autoBackupPickerModal");
-    qsa("[data-restore-backup]", qs("#autoBackupPickerModal")).forEach(function (
-      btn,
-    ) {
+    qsa("[data-restore-backup]", qs("#autoBackupPickerModal")).forEach(function (btn) {
       btn.addEventListener("click", function () {
         var id = this.dataset.restoreBackup;
         var rec = list.find(function (r) {
@@ -8404,31 +9145,44 @@ function openAutoBackupPickerModal() {
 }
 
 // ============================================================
-// NEW (ADDED ONLY): writes each backup snapshot directly to disk
-// inside the Google Drive folder the user selected (via main.js's
-// select-backup-folder handler). Google Drive Desktop then syncs
-// that folder to the cloud on its own — no click needed per backup.
-// Does nothing (silently) until a folder has been selected.
+// Google Drive folder writer — multiple rotating files
 // ============================================================
-function saveBackupToGoogleDriveFolder(record, silent) {
+function saveBackupToGoogleDriveFolder(record, silent, suspicious) {
   if (!window.electronAPI || !window.electronAPI.saveBackupFile) return;
   try {
     var json = JSON.stringify(record, null, 2);
-    // FIXED filename (same every time) so this always OVERWRITES the
-    // one file instead of creating a new file per backup. Each record
-    // already holds the complete data snapshot, so the single file is
-    // always fully up to date after every 30-min cycle.
-    var filename = "servicepro_latest_backup.json";
-    window.electronAPI
-      .saveBackupFile(json, filename)
-      .then(function (res) {
-        if (res && res.success) {
-          var el = qs("#driveBackupStatus");
-          if (el)
-            el.textContent =
-              "Last Drive backup: " + (record.savedAtDisplay || "");
-        } else if (!silent && res && res.reason !== "no-folder-selected") {
-          toast("Drive backup save failed", "warning");
+    var names = [];
+    if (record.reason === "pre-clear-safety") {
+      names.push("servicepro_safety_pre-clear.json");
+    } else if (record.reason === "pre-restore-safety") {
+      names.push("servicepro_safety_pre-restore.json");
+    } else {
+      // 12 rotating slots = pichla ~1 ghanta (har 5 min ka ek slot)
+      var slot = (Math.floor(Date.now() / AUTO_BACKUP_INTERVAL_MS) % AB_DRIVE_SLOTS) + 1;
+      names.push("servicepro_backup_slot" + slot + ".json");
+      if (!suspicious) {
+        names.push("servicepro_latest_backup.json");
+        var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        names.push("servicepro_backup_" + days[new Date().getDay()] + ".json");
+      }
+    }
+    var firstFail = null;
+    names
+      .reduce(function (chain, name) {
+        return chain.then(function () {
+          return window.electronAPI.saveBackupFile(json, name).then(function (res) {
+            if (res && res.success) {
+              var el = qs("#driveBackupStatus");
+              if (el) el.textContent = "Last Drive backup: " + (record.savedAtDisplay || "");
+            } else if (!firstFail && res) {
+              firstFail = res.reason;
+            }
+          });
+        });
+      }, Promise.resolve())
+      .then(function () {
+        if (!silent && firstFail && firstFail !== "no-folder-selected") {
+          toast("Drive backup save failed (" + firstFail + ")", "warning");
         }
       })
       .catch(function () {});
@@ -8436,16 +9190,14 @@ function saveBackupToGoogleDriveFolder(record, silent) {
 }
 
 function initAutoBackupSystem() {
-  // Show last known backup time immediately, if one already exists, and
-  // avoid taking a redundant near-duplicate snapshot right after login if
-  // one was already saved in the last 5 minutes.
   getAutoBackupFromDB()
     .then(function (rec) {
       updateAutoBackupStatusUI(rec ? rec.savedAtDisplay : "Never");
       var shouldRunInitial = true;
       if (rec && rec.savedAt) {
         var last = new Date(rec.savedAt).getTime();
-        if (!isNaN(last) && Date.now() - last < 5 * 60 * 1000) {
+        // pichli backup 2 minute se nayi ho to dobara na karein
+        if (!isNaN(last) && Date.now() - last < 2 * 60 * 1000) {
           shouldRunInitial = false;
         }
       }
@@ -8461,7 +9213,7 @@ function initAutoBackupSystem() {
       }, 8000);
     });
 
-  // Every 30 minutes, save a NEW snapshot (never overwrites old ones).
+  // Har 5 minute par auto backup
   if (autoBackupTimer) clearInterval(autoBackupTimer);
   autoBackupTimer = setInterval(function () {
     runAutoBackupNow(true, "auto");
@@ -8477,9 +9229,7 @@ function initAutoBackupSystem() {
         toast("No auto-backup available yet", "warning");
         return;
       }
-      var blob = new Blob([JSON.stringify(rec, null, 2)], {
-        type: "application/json",
-      });
+      var blob = new Blob([JSON.stringify(rec, null, 2)], { type: "application/json" });
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "auto_backup_" + fmtDate() + ".json";
@@ -8493,7 +9243,6 @@ function initAutoBackupSystem() {
     openAutoBackupPickerModal();
   });
 
-  // NEW (ADDED ONLY): Google Drive folder selection + status display
   qs("#selectDriveFolderBtn")?.addEventListener("click", function () {
     if (!window.electronAPI || !window.electronAPI.selectBackupFolder) {
       toast("App update needed (main.js/preload.js) for this feature", "error");
@@ -8532,10 +9281,14 @@ function initAutoBackupSystem() {
             toast("Invalid backup file", "error");
             return;
           }
+          var cnt = countBackupRecords(dataObj);
+          if (cnt === 0) {
+            toast("Is backup file mein koi data nahi hai - restore roka gaya", "error");
+            return;
+          }
           confirm(
-            "Add this backup file to the system and restore all data from it? Current data will be overwritten.",
+            "Is backup file (" + cnt + " records) se restore karein? Current data overwrite hoga.",
             function () {
-              // Safety snapshot of current state first, so even THIS is reversible.
               runAutoBackupNow(true, "pre-restore-safety").then(function () {
                 restoreLocalStorageDataObject(dataObj);
               });
@@ -8551,7 +9304,201 @@ function initAutoBackupSystem() {
     inp.click();
   });
 }
+// ============================================================
+// NEW (ADDED ONLY): Dashboard Monthly Summary
+// Sirf selected month ka data dikhata hai. Naya month shuru hote hi
+// default month khud badal jata hai, isliye sab 0 se start hota hai.
+// Koi existing data/function change nahi hota (read-only).
+// ============================================================
+var MONTHLY_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+var _monthlySelected = null; // null = hamesha current month
 
+function mdCurrentKey() {
+  var n = new Date();
+  return n.getFullYear() + "-" + String(n.getMonth()).padStart(2, "0");
+}
+function mdKeyOf(d) {
+  return d.getFullYear() + "-" + String(d.getMonth()).padStart(2, "0");
+}
+function mdTokenDate(tk) {
+  var d = parseDate(tk.date);
+  if (d) return d;
+  if (tk.createdAt) return new Date(tk.createdAt);
+  var inv = STATE.invoices.find(function (i) {
+    return (i.tokenId && i.tokenId === tk.id) ||
+      (i.token && tk.number && i.token.toLowerCase() === tk.number.toLowerCase());
+  });
+  if (inv) return parseDate(inv.date) || (inv.createdAt ? new Date(inv.createdAt) : null);
+  return null;
+}
+function mdTokenNet(tk) {
+  var pt = 0;
+  (tk.products || []).forEach(function (p) { pt += (p.price || 0) * (p.qty || 0); });
+  return Math.max(0, (tk.servicePrice || 0) + pt - (tk.discount || 0));
+}
+
+function mdPopulateMonths() {
+  var sel = qs("#monthlySummarySelect");
+  if (!sel) return;
+  var keys = {};
+  keys[mdCurrentKey()] = true;
+  function add(dateObj) { if (dateObj) keys[mdKeyOf(dateObj)] = true; }
+  STATE.tokens.forEach(function (t) { add(mdTokenDate(t)); });
+  STATE.productSales.forEach(function (s) { add(parseDate(s.date)); });
+  STATE.expenses.forEach(function (e) { add(parseDate(e.date)); });
+  STATE.vendorPayments.forEach(function (p) { add(parseDate(p.date)); });
+
+  var list = Object.keys(keys).sort().reverse(); // newest pehle
+  var chosen = _monthlySelected && keys[_monthlySelected] ? _monthlySelected : mdCurrentKey();
+  sel.innerHTML = list.map(function (k) {
+    var y = k.split("-")[0], m = parseInt(k.split("-")[1], 10);
+    return '<option value="' + k + '"' + (k === chosen ? " selected" : "") + ">" +
+      MONTHLY_NAMES[m] + " " + y + (k === mdCurrentKey() ? " (Current)" : "") + "</option>";
+  }).join("");
+}
+// NEW: product-wise sale amount + profit (selected month)
+function mdProductBreakdown(key) {
+  var map = {};
+  var inMonth = function (d) { return d && mdKeyOf(d) === key; };
+
+  function add(name, qty, price, vid, src) {
+    qty = qty || 0;
+    var pp = 0;
+    var f = vid ? findVariantById(vid) : null;
+    if (f) pp = f.variant.purchasePrice || 0;
+    // ID wali entry me cost 0 ho ya entry na mile, to usi naam wali entry se cost lo
+    if (pp <= 0 && name) {
+      var same = getAllVariantsFlat().filter(function (v) { return v.fullName === name; });
+      var withCost = same.find(function (v) { return (v.purchasePrice || 0) > 0; });
+      if (withCost) pp = withCost.purchasePrice;
+    }
+    var k = name || "unknown";   // product naam se group, taake ek product ki ek hi row bane
+    if (!map[k]) map[k] = { name: name, qty: 0, amt: 0, cost: 0, hasCost: true, sQty: 0, tQty: 0 };
+    var r = map[k];
+    r.qty += qty;
+    r.amt += (price || 0) * qty;
+    if (src === "sale") r.sQty += qty; else r.tQty += qty;
+    if (pp > 0) r.cost += pp * qty;
+    else r.hasCost = false;   // cost maloom nahi to profit "—" dikhega
+  }
+
+  STATE.productSales.forEach(function (s) {
+    if (!inMonth(parseDate(s.date))) return;
+    (s.items || []).forEach(function (i) { add(i.fullName, i.qty, i.price, i.variantId, "sale"); });
+  });
+  STATE.tokens.forEach(function (tk) {
+    if (tk.status !== "completed" || !inMonth(mdTokenDate(tk))) return;
+    (tk.products || []).forEach(function (p) { add(p.fullName, p.qty, p.price, p.variantId, "token"); });
+  });
+
+  var rows = Object.keys(map).map(function (k) { return map[k]; });
+  rows.sort(function (a, b) { return b.amt - a.amt; });
+  var totalAmt = 0, totalCost = 0, totalProfit = 0;
+  rows.forEach(function (r) {
+    totalAmt += r.amt;
+    if (r.hasCost) { totalCost += r.cost; totalProfit += r.amt - r.cost; }
+  });
+  return { rows: rows, totalAmt: totalAmt, totalCost: totalCost, totalProfit: totalProfit };
+}
+
+function mdRenderProductPanel(pb, grid) {
+  var box = qs("#monthlyProductDetails");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "monthlyProductDetails";
+    box.style.marginTop = "16px";
+    grid.parentNode.appendChild(box);
+  }
+  var body = pb.rows.length
+    ? pb.rows.map(function (r) {
+        return "<tr><td>" + sanitize(r.name) + "</td>" +
+          "<td style='text-align:center'>" + r.qty +
+          " <small style='color:var(--text-muted)'>(Sale " + r.sQty + " / Token " + r.tQty + ")</small></td>" +
+          "<td style='text-align:right;font-weight:600'>" + fmtPrice(r.amt) + "</td>" +
+          "<td style='text-align:right'>" + (r.hasCost ? fmtPrice(r.cost) : "—") + "</td>" +
+          "<td style='text-align:right;font-weight:700;color:var(--success)'>" +
+          (r.hasCost ? fmtPrice(r.amt - r.cost) : "—") + "</td></tr>";
+      }).join("")
+    : '<tr><td colspan="5" style="text-align:center;padding:1.5rem;">Is mahine koi product sale nahi hui</td></tr>';
+
+  box.innerHTML =
+    '<div class="invoice-section-label"><span class="material-icons">shopping_cart</span> Product Sales Details (Sale + Token Products)</div>' +
+    '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
+    "<th>Product</th><th style='text-align:center'>Qty Sold</th><th style='text-align:right'>Sale Amount</th>" +
+    "<th style='text-align:right'>Cost</th><th style='text-align:right'>Profit</th></tr></thead><tbody>" + body +
+    "</tbody><tfoot><tr style='font-weight:800'><td>Total</td><td></td>" +
+    "<td style='text-align:right'>" + fmtPrice(pb.totalAmt) + "</td>" +
+    "<td style='text-align:right'>" + fmtPrice(pb.totalCost) + "</td>" +
+    "<td style='text-align:right;color:var(--success)'>" + fmtPrice(pb.totalProfit) + "</td></tr></tfoot></table></div>";
+}
+function renderMonthlySummary() {
+  var sel = qs("#monthlySummarySelect");
+  var grid = qs("#monthlySummaryGrid");
+  if (!sel || !grid) return;
+
+  mdPopulateMonths();
+  var key = sel.value || mdCurrentKey();
+  var inMonth = function (d) { return d && mdKeyOf(d) === key; };
+
+  var tokenRevenue = 0, tokensCreated = 0, tokensCompleted = 0;
+  STATE.tokens.forEach(function (tk) {
+    var d = mdTokenDate(tk);
+    if (!inMonth(d)) return;
+    tokensCreated++;
+    if (tk.status === "completed") {
+      tokensCompleted++;
+      tokenRevenue += mdTokenNet(tk);
+    }
+  });
+
+  var saleRevenue = 0, salesCount = 0;
+  STATE.productSales.forEach(function (s) {
+    if (inMonth(parseDate(s.date))) { saleRevenue += s.total || 0; salesCount++; }
+  });
+
+  var otherExp = 0, labour = 0;
+  STATE.expenses.forEach(function (e) {
+    if (!inMonth(parseDate(e.date))) return;
+    if (e.category === "labour") labour += e.amount || 0;
+    else otherExp += e.amount || 0;
+  });
+
+  var vendorPaid = 0;
+  STATE.vendorPayments.forEach(function (p) {
+    if (inMonth(parseDate(p.date))) vendorPaid += p.amount || 0;
+  });
+
+  var revenue = tokenRevenue + saleRevenue;
+  var net = revenue - otherExp - labour - vendorPaid;
+
+  function card(icon, color, label, value, extra) {
+    return '<div class="kpi-card' + (extra || "") + '"><div class="kpi-icon kpi-icon--' + color +
+      '"><span class="material-icons">' + icon + '</span></div><div class="kpi-body"><span class="kpi-label">' +
+      label + '</span><span class="kpi-value">' + value + "</span></div></div>";
+  }
+  var pb = mdProductBreakdown(key);
+  grid.innerHTML =
+    card("trending_up", "green", "Revenue", fmtPrice(revenue)) +
+    card("build", "blue", "Token Revenue", fmtPrice(tokenRevenue)) +
+        card("shopping_cart", "blue", "Product Sales (Sale + Token)", fmtPrice(pb.totalAmt)) +
+    card("savings", "green", "Product Profit", fmtPrice(pb.totalProfit)) +
+    card("trending_down", "red", "Other Expenses", fmtPrice(otherExp)) +
+    card("groups", "orange", "Labour Cost", fmtPrice(labour)) +
+    card("people", "orange", "Vendor Payments", fmtPrice(vendorPaid)) +
+    card("account_balance_wallet", "green", "Net Profit", fmtPrice(net), " kpi-card--success") +
+    card("token", "blue", "Tokens Created", tokensCreated) +
+    card("check_circle", "green", "Tokens Completed", tokensCompleted) +
+    card("receipt", "blue", "Product Sales Count", salesCount);
+    mdRenderProductPanel(pb, grid);
+}
+
+// Dropdown change hone par refresh (initApp me kuch add karne ki zaroorat nahi)
+document.addEventListener("change", function (e) {
+  if (e.target && e.target.id === "monthlySummarySelect") {
+    _monthlySelected = e.target.value;
+    renderMonthlySummary();
+  }
+});
 // ==================== BOOT ====================
 document.addEventListener("DOMContentLoaded", function () {
   setLoginBrandName();

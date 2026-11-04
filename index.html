@@ -381,6 +381,20 @@
                 </div>
               </div>
             </div>
+            <!-- NEW: Monthly Summary Box -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header">
+                <h2 class="card-title">
+                  <span class="material-icons">calendar_month</span> Monthly Summary
+                </h2>
+                <div class="card-header-meta">
+                  <select class="filter-select" id="monthlySummarySelect"></select>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="kpi-grid" id="monthlySummaryGrid"></div>
+              </div>
+            </div>
             <div class="dashboard-grid">
               <div class="card">
                 <div class="card-header">
@@ -1424,8 +1438,8 @@
                     Filter</button
                   ><button class="btn btn-sm btn-ghost" id="resetRptFilter">
                     Reset</button
-                  ><button class="btn btn-sm btn-outline" id="downloadCSV">
-                    CSV
+                  >                  <button class="btn btn-sm btn-outline" id="downloadPDF">
+                    PDF
                   </button>
                   <!-- NEW (ADDED ONLY): Bulk Delete button for Reports/Transactions.
                        Hidden by default; app.js toggles it visible once one or
